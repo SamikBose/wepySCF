@@ -1,8 +1,6 @@
 """PySCF molecular simulation runner and accessory classes."""
 
 # Standard Library
-import importlib
-import importlib.util
 import logging
 import os
 from copy import deepcopy
@@ -10,11 +8,19 @@ from copy import deepcopy
 # Third Party Library
 import numpy as np
 
+# TODO: Lazy imports
+import pyscf.cc as pyscf_cc
+import pyscf.dft as pyscf_dft
+import pyscf.dft.numint as pyscf_numint
+import pyscf.gto as pyscf_gto
+import pyscf.mp as pyscf_mp
+import pyscf.scf as pyscf_scf
+
 # First Party Library
 from wepy.runners.runner import Runner
 from wepy.walker import Walker, WalkerState
 from wepy.work_mapper.task_mapper import TaskMapper, WalkerTaskProcess
-from wepy.work_mapper.worker import Worker
+from wepy.work_mapper.worker import Worker, WorkerMapper
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +50,16 @@ UNIT_NAMES = (
 )
 
 
+def to_numpy(x) -> np.ndarray:
+    """Convert an array-like object to a NumPy array of floats.
+
+    Fixes issue with GPU PySCF since we need to convert CuPy arrays to NumPy arrays
+    """
+    if hasattr(x, "get"):
+        x = x.get()
+    return np.asarray(x, dtype=float)
+
+
 class PySCFState(WalkerState):
     KEYS = KEYS
 
@@ -52,6 +68,9 @@ class PySCFState(WalkerState):
 
     def __getitem__(self, key):
         return self._data[key]
+
+    def get(self, key, default=None):
+        return self._data.get(key, default)
 
     def dict(self):
         return deepcopy(self._data)
@@ -116,6 +135,7 @@ class PySCFRunner(Runner):
 
         self._cycle_backend = None
         self._cycle_platform_kwargs = None
+
         self._last_cycle_segments_split_times = []
 
     def pre_cycle(self, backend=None, platform_kwargs=None, **kwargs):
@@ -127,27 +147,20 @@ class PySCFRunner(Runner):
         self._cycle_platform_kwargs = None
 
     def _build_molecule(self, state):
-        pyscf_gto = importlib.import_module("pyscf.gto")
-        state_data = state.dict()
-
-        symbols = state_data["symbols"]
-        positions = np.asarray(state_data["positions"], dtype=float)
+        symbols = state["symbols"]
+        positions = np.asarray(state["positions"], dtype=float)
         atom = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
 
         return pyscf_gto.M(
             atom=atom,
-            basis=state_data.get("basis", self.basis),
-            charge=state_data.get("charge", self.charge),
-            spin=state_data.get("spin", self.spin),
-            unit=state_data.get("unit", self.unit),
+            basis=state.get("basis", self.basis),
+            charge=state.get("charge", self.charge),
+            spin=state.get("spin", self.spin),
+            unit=state.get("unit", self.unit),
         )
 
     def _build_mean_field(self, mol, state):
-        state_data = state.dict()
-        method = state_data.get("method", self.method).upper()
-
-        pyscf_scf = importlib.import_module("pyscf.scf")
-        pyscf_dft = importlib.import_module("pyscf.dft")
+        method = state.get("method", self.method).upper()
 
         if method == "RHF":
             mf = pyscf_scf.RHF(mol)
@@ -155,13 +168,13 @@ class PySCFRunner(Runner):
             mf = pyscf_scf.UHF(mol)
         elif method == "RKS":
             mf = pyscf_dft.RKS(mol)
-            xc = state_data.get("xc", self.xc)
+            xc = state.get("xc", self.xc)
             if xc is None:
                 raise ValueError("RKS method requires an xc functional.")
             mf.xc = xc
         elif method == "UKS":
             mf = pyscf_dft.UKS(mol)
-            xc = state_data.get("xc", self.xc)
+            xc = state.get("xc", self.xc)
             if xc is None:
                 raise ValueError("UKS method requires an xc functional.")
             mf.xc = xc
@@ -171,27 +184,25 @@ class PySCFRunner(Runner):
         return mf
 
     def _build_reference_mean_field(self, mol, state):
-        state_data = state.dict()
-        ref_method = state_data.get("reference_method", None)
+        ref_method = state.get("reference_method", None)
         if ref_method is None:
-            ref_method = "UHF" if state_data.get("spin", self.spin) else "RHF"
+            ref_method = "UHF" if state.get("spin", self.spin) else "RHF"
 
-        ref_state = PySCFState(**{**state_data, "method": ref_method})
+        ref_state = PySCFState(**{**state._data, "method": ref_method})
         return self._build_mean_field(mol, ref_state)
 
     def _method_supports_scanner(self, method):
         return method in ("RHF", "UHF", "RKS", "UKS")
 
     def _run_quantum_step(self, mol, state, backend, platform_kwargs):
-        state_data = state.dict()
-        method = state_data.get("method", self.method).upper()
+        method = state.get("method", self.method).upper()
 
         if method in ("RHF", "UHF", "RKS", "UKS"):
             mf = self._build_mean_field(mol, state)
             mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
             energy = mf.kernel()
-            gradients = np.asarray(mf.nuc_grad_method().kernel(), dtype=float)
-            density_matrix = np.asarray(mf.make_rdm1(), dtype=float)
+            gradients = to_numpy(mf.nuc_grad_method().kernel())
+            density_matrix = to_numpy(mf.make_rdm1())
             return energy, gradients, density_matrix
 
         mf = self._build_reference_mean_field(mol, state)
@@ -199,7 +210,6 @@ class PySCFRunner(Runner):
         mf.kernel()
 
         if method in ("MP2", "DFMP2"):
-            pyscf_mp = importlib.import_module("pyscf.mp")
             post_hf = pyscf_mp.MP2(mf)
             if method == "DFMP2":
                 if not hasattr(post_hf, "density_fit"):
@@ -208,7 +218,6 @@ class PySCFRunner(Runner):
 
             post_hf.kernel()
         elif method == "CCSD":
-            pyscf_cc = importlib.import_module("pyscf.cc")
             post_hf = pyscf_cc.CCSD(mf)
             post_hf.kernel()
         else:
@@ -218,11 +227,11 @@ class PySCFRunner(Runner):
         if energy is None:
             energy = getattr(mf, "e_tot", None)
 
-        gradients = np.asarray(post_hf.nuc_grad_method().kernel(), dtype=float)
-        if hasattr(post_hf, "make_rdm1"):
-            density_matrix = np.asarray(post_hf.make_rdm1(), dtype=float)
+        gradients = post_hf.nuc_grad_method().kernel()
+        if hasattr(post_hf, "make_rdm1"):  # noqa: SIM108
+            density_matrix = to_numpy(post_hf.make_rdm1())
         else:
-            density_matrix = np.asarray(mf.make_rdm1(), dtype=float)
+            density_matrix = to_numpy(mf.make_rdm1())
 
         return energy, gradients, density_matrix
 
@@ -283,16 +292,14 @@ class PySCFRunner(Runner):
         return coords, mins, spacing
 
     def _compute_density_grid(self, mol, density_matrix, positions):
-        numint = importlib.import_module("pyscf.dft.numint")
-
         dm = np.asarray(density_matrix)
         if dm.ndim == 3:
             dm = dm[0] + dm[1]
 
         grid_coords, origin, spacing = self._make_density_grid_coords(positions)
 
-        ao_values = numint.eval_ao(mol, grid_coords)
-        rho = numint.eval_rho(mol, ao_values, dm)
+        ao_values = pyscf_numint.eval_ao(mol, grid_coords)
+        rho = pyscf_numint.eval_rho(mol, ao_values, dm)
         rho_grid = np.asarray(rho, dtype=float).reshape(self.density_grid_shape)
 
         return rho_grid, origin, spacing
@@ -324,8 +331,8 @@ class PySCFRunner(Runner):
         )
 
     def run_segment(self, walker, segment_length, **kwargs):
-        state_data = walker.state.dict()
-        positions = np.asarray(state_data["positions"], dtype=float).copy()
+        state = walker.state
+        positions = np.asarray(state["positions"], dtype=float).copy()
 
         total_steps = int(segment_length)
         if total_steps < 0:
@@ -334,7 +341,7 @@ class PySCFRunner(Runner):
         backend = kwargs.get("backend", self._cycle_backend or self.backend)
         platform_kwargs = kwargs.get("platform_kwargs", self._cycle_platform_kwargs or {})
 
-        last_energy = state_data.get("energy", None)
+        last_energy = state.get("energy", None)
         last_gradients = np.zeros_like(positions)
         last_density_matrix = np.zeros((positions.shape[0], positions.shape[0]))
         last_density_grid = np.zeros(self.density_grid_shape)
@@ -345,10 +352,17 @@ class PySCFRunner(Runner):
         scanner = None
         allow_gpu_fallback = kwargs.get("gpu_fallback_cpu_on_error", self.gpu_fallback_cpu_on_error)
 
-        state_method = state_data.get("method", self.method).upper()
+        state_method = state.get("method", self.method).upper()
 
         if total_steps > 0 and self.use_scf_scanner and self._method_supports_scanner(state_method):
-            init_state = PySCFState(**{**state_data, "positions": positions, "segment_step_idx": 0})
+            init_state = PySCFState(
+                **{
+                    **state._data,
+                    "positions": positions,
+                    "segment_step_idx": 0,
+                }
+            )
+
             init_mol = self._build_molecule(init_state)
             init_mf = self._build_mean_field(init_mol, init_state)
             try:
@@ -366,8 +380,15 @@ class PySCFRunner(Runner):
                 else:
                     raise
 
+        # Reuse scanner (and wavefunction) between steps of same walker
         for step_idx in range(1, total_steps + 1):
-            iter_state = PySCFState(**{**state_data, "positions": positions, "segment_step_idx": step_idx})
+            iter_state = PySCFState(
+                **{
+                    **state._data,
+                    "positions": positions,
+                    "segment_step_idx": step_idx,
+                }
+            )
             mol = self._build_molecule(iter_state)
 
             try:
@@ -377,7 +398,7 @@ class PySCFRunner(Runner):
                     )
                 else:
                     energy, gradients = scanner(mol)
-                    gradients = np.asarray(gradients, dtype=float)
+                    gradients = to_numpy(gradients)
 
                     scan_base = getattr(scanner, "base", None)
                     if scan_base is None or not hasattr(scan_base, "make_rdm1"):
@@ -385,9 +406,9 @@ class PySCFRunner(Runner):
                         mf = self._build_mean_field(mol, iter_state)
                         mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
                         mf.kernel()
-                        density_matrix = np.asarray(mf.make_rdm1(), dtype=float)
+                        density_matrix = to_numpy(mf.make_rdm1())
                     else:
-                        density_matrix = np.asarray(scan_base.make_rdm1(), dtype=float)
+                        density_matrix = to_numpy(scan_base.make_rdm1())
             except RuntimeError as exc:
                 if backend == "gpu" and allow_gpu_fallback and self._is_gpu_runtime_error(exc):
                     logger.warning(
@@ -416,7 +437,7 @@ class PySCFRunner(Runner):
             segment_step_idx = step_idx
 
         new_state = self.generate_state(
-            state_data,
+            state._data,
             positions=positions,
             energy=last_energy,
             gradients=last_gradients,
@@ -516,6 +537,36 @@ class PySCFGPUTaskMapper(TaskMapper):
 
         super().__init__(
             walker_task_type=PySCFGPUWalkerTaskProcess,
+            num_workers=num_workers,
+            platform=platform,
+            device_ids=device_ids,
+            **kwargs,
+        )
+
+
+class PySCFCPUWorkerMapper(WorkerMapper):
+    """Convenience WorkerMapper for CPU walker-level parallelism."""
+
+    def __init__(self, num_workers=None, **kwargs):
+        super().__init__(
+            worker_type=PySCFCPUWorker,
+            num_workers=num_workers,
+            **kwargs,
+        )
+
+
+class PySCFGPUWorkerMapper(WorkerMapper):
+    """Convenience WorkerMapper for GPU walker-level parallelism."""
+
+    def __init__(self, num_workers=None, platform="CUDA", device_ids=None, **kwargs):
+        if device_ids is None:
+            raise ValueError("device_ids must be provided for PySCFGPUWorkerMapper")
+
+        if num_workers is None:
+            num_workers = len(device_ids)
+
+        super().__init__(
+            worker_type=PySCFGPUWorker,
             num_workers=num_workers,
             platform=platform,
             device_ids=device_ids,

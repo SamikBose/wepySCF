@@ -11,11 +11,12 @@ from dataclasses import dataclass
 class PySCFInput:
     # System name and info
     system: str = "alanine"
-    backend: str = "cpu"
+    backend: str = "gpu"
+    gpu_fallback_cpu_on_error: bool = False
 
     # Simulation size
     n_walkers: int = 5
-    n_cycles: int = 10
+    n_cycles: int = 5
     segment_length: int = 1
 
     # Walker initialization
@@ -37,13 +38,13 @@ class PySCFInput:
 
     # CPU walker-level parallelization
     # If None, defaults to n_walkers (i.e., one worker per walker when possible).
-    cpu_num_workers: int | None = None
+    num_workers: int | None = None
     # Read the OMP_NUM_THREADS environment variable (used for logging; set the value using export before running)
     _omp_threads_env_var: str | None = os.environ.get("OMP_NUM_THREADS")
 
     # Output control
-    write_h5: bool = True # TODO: Add write control to other systems (just alanine right now)
-    write_dash: bool = True
+    write_h5: bool = False # TODO: Add write control to other systems (just alanine right now)
+    write_dash: bool = False
     h5_path: str = ""
     dash_path: str = ""
     overwrite: bool = True

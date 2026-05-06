@@ -1,27 +1,32 @@
-"""Set up a REVO simulation with PySCF dynamics for alanine dipeptide."""
+"""Set up a REVO simulation with PySCF dynamics for alanine dipeptide.
+
+This version uses a separate `pyscf_input.py` file for all PySCF/simulation parameters.
+"""
+
+# Set the default number of threads before importing libraries
+import os
+
+os.environ.setdefault("OMP_NUM_THREADS", "1")  # Good default for PySCF CPU runs, but can be overridden by the user
 
 # Standard Library
-import argparse
 import importlib.util
+import subprocess
 import tempfile
+from time import perf_counter
 
 # Third Party Library
 import mdtraj as mdj
 import numpy as np
 
 # First Party Library
+from pyscf_input import CONFIG
+
 from wepy.boundary_conditions.boundary import NoBC
 from wepy.reporter.dashboard import DashboardReporter
 from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
 from wepy.resampling.distances.pyscf import QMGridDensityDistance
 from wepy.resampling.resamplers.revo import REVOResampler
-from wepy.runners.pyscf import (
-    PySCFCPUTaskMapper,
-    PySCFGPUTaskMapper,
-    PySCFRunner,
-    PySCFState,
-    PySCFWalker,
-)
+from wepy.runners.pyscf import PySCFCPUWorkerMapper, PySCFGPUWorkerMapper, PySCFRunner, PySCFState, PySCFWalker
 from wepy.sim_manager import Manager
 from wepy.util.mdtraj import mdtraj_to_json_topology
 
@@ -66,9 +71,7 @@ def parse_with_mdtraj_topology(pdb_text):
     return topology, symbols, positions
 
 
-def generate_initial_walkers(
-    symbols, positions, n_walkers=5, jitter=0.01, seed=13, density_grid_shape=(10, 10, 10)
-):
+def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape, jitter, seed):
     rng = np.random.default_rng(seed)
     walkers = []
     weight = 1.0 / n_walkers
@@ -80,8 +83,8 @@ def generate_initial_walkers(
             positions=noisy_positions,
             charge=0,
             spin=0,
-            basis="sto-3g",
-            method="RHF",
+            basis=CONFIG.basis,
+            method=CONFIG.method,
             unit="Angstrom",
             segment_step_idx=np.array([0], dtype=int),
             energy=np.array([np.nan]),
@@ -105,112 +108,101 @@ def build_revo_resampler(init_state):
         merge_dist=0.5,
         char_dist=1.0,
         pmin=1e-12,
-        pmax=0.5,
+        pmax=0.99,
     )
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--n-walkers", type=int, default=5)
-    parser.add_argument("--n-cycles", type=int, default=2)
-    parser.add_argument("--segment-length", type=int, default=1)
-    parser.add_argument("--step-size", type=float, default=1e-4)
-    parser.add_argument(
-        "--dynamics-mode",
-        type=str,
-        default="steepest_descent",
-        choices=["steepest_descent", "langevin"],
-    )
-    parser.add_argument("--temperature-kelvin", type=float, default=300.0)
-    parser.add_argument("--basis", type=str, default="sto-3g")
-    parser.add_argument("--method", type=str, default="RHF", choices=["RHF", "UHF", "RKS", "UKS", "MP2", "DFMP2", "CCSD"])
-    parser.add_argument("--xc", type=str, default=None)
-    parser.add_argument("--backend", type=str, default="cpu", choices=["cpu", "gpu"])
-    parser.add_argument("--disable-scanner", action="store_true")
-    parser.add_argument("--density-grid-shape", type=int, nargs=3, default=(10, 10, 10))
-    parser.add_argument("--h5-path", type=str, default="alanine_pyscf.wepy.h5")
-    parser.add_argument("--parallel-backend", choices=["none", "cpu", "gpu"], default="none")
-    parser.add_argument("--num-workers", type=int, default=1)
-    parser.add_argument("--num-threads", type=int, default=1)
-    parser.add_argument("--device-ids", type=int, nargs="*", default=None)
-    parser.add_argument("--gpu-fallback-cpu", action="store_true")
-    parser.add_argument("--dash-path", type=str, default="alanine_pyscf.dash.org")
-    parser.add_argument("--overwrite", action="store_true")
-    args = parser.parse_args()
-
     mdj_top, symbols, positions = parse_with_mdtraj_topology(ALANINE_DIPEPTIDE_PDB)
-    density_grid_shape = tuple(args.density_grid_shape)
+
     walkers = generate_initial_walkers(
-        symbols,
-        positions,
-        n_walkers=args.n_walkers,
-        density_grid_shape=density_grid_shape,
+        symbols=symbols,
+        positions=positions,
+        n_walkers=CONFIG.n_walkers,
+        density_grid_shape=CONFIG.density_grid_shape,
+        jitter=CONFIG.jitter,
+        seed=CONFIG.seed,
     )
 
     runner = PySCFRunner(
-        basis=args.basis,
-        method=args.method,
-        xc=args.xc,
-        step_size=args.step_size,
-        dynamics_mode=args.dynamics_mode,
-        temperature_kelvin=args.temperature_kelvin,
-        backend=args.backend,
-        use_scf_scanner=not args.disable_scanner,
-        density_grid_shape=density_grid_shape,
+        basis=CONFIG.basis,
+        method=CONFIG.method,
+        xc=CONFIG.xc,
+        step_size=CONFIG.step_size,
+        dynamics_mode=CONFIG.dynamics_mode,
+        temperature_kelvin=CONFIG.temperature_kelvin,
+        random_seed=CONFIG.seed,
+        backend=CONFIG.backend,
+        use_scf_scanner=CONFIG.use_scf_scanner,
+        density_grid_shape=CONFIG.density_grid_shape,
+        gpu_fallback_cpu_on_error=CONFIG.gpu_fallback_cpu_on_error,
     )
 
     resampler = build_revo_resampler(init_state=walkers[0].state)
 
     json_topology = mdtraj_to_json_topology(mdj_top)
-    output_mode = "w" if args.overwrite else "x"
+    output_mode = "w" if CONFIG.overwrite else "x"
 
-    h5_reporter = PySCFHDF5Reporter(
-        file_paths=[args.h5_path],
-        modes=[output_mode],
-        topology=json_topology,
-        resampler=resampler,
-        boundary_conditions=NoBC(),
-    )
+    reporters = []
 
-    dash_reporter = DashboardReporter(
-        file_paths=[args.dash_path],
-        modes=[output_mode],
-        runner_dash=PySCFRunnerDashboardSection(runner=runner),
-    )
+    if CONFIG.write_h5:
+        h5_reporter = PySCFHDF5Reporter(
+            file_paths=[CONFIG.h5_path],
+            modes=[output_mode],
+            topology=json_topology,
+            resampler=resampler,
+            boundary_conditions=NoBC(),
+        )
+        reporters.append(h5_reporter)
 
-    if args.parallel_backend == "gpu":
+    if CONFIG.write_dash:
+        dash_reporter = DashboardReporter(
+            file_paths=[CONFIG.dash_path],
+            modes=[output_mode],
+            runner_dash=PySCFRunnerDashboardSection(runner=runner),
+        )
+        reporters.append(dash_reporter)
+
+    if CONFIG.backend == "gpu":
         if importlib.util.find_spec("cupy") is None:
-            if args.gpu_fallback_cpu:
+            if CONFIG.gpu_fallback_cpu_on_error:
                 print("CuPy not found; falling back to CPU walker parallelization")
-                mapper = PySCFCPUTaskMapper(
-                    num_workers=args.num_workers,
-                    num_threads=args.num_threads,
-                )
-                args.parallel_backend = "cpu"
+                CONFIG.backend = "cpu"
             else:
                 raise SystemExit(
                     "GPU backend requested but CuPy is not installed. "
                     "Install a CUDA-matched CuPy package (e.g. cupy-cuda12x) "
-                    "or rerun with --parallel-backend cpu."
+                    "or rerun with CPU.",
                 )
         else:
-            if args.device_ids is None:
-                device_ids = list(range(args.num_workers))
-            else:
-                device_ids = args.device_ids
+            # Get number of GPUs using nvidia-smi
+            try:
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                num_gpus = len([line for line in result.stdout.strip().split("\n") if line])
 
-            mapper = PySCFGPUTaskMapper(
-                num_workers=args.num_workers,
-                platform="CUDA",
-                device_ids=device_ids,
-            )
-    elif args.parallel_backend == "cpu":
-        mapper = PySCFCPUTaskMapper(
-            num_workers=args.num_workers,
-            num_threads=args.num_threads,
-        )
-    else:
-        mapper = None
+                if num_gpus == 0:
+                    raise RuntimeError("No GPUs found.")
+
+                print(f"Found {num_gpus} GPU(s) available for PySCFRunner.")
+
+                num_workers = CONFIG.num_workers or CONFIG.n_walkers
+                device_ids = [i % num_gpus for i in range(num_workers)]  # Round-robin assign workers to GPUs
+                mapper = PySCFGPUWorkerMapper(num_workers=num_workers, platform="CUDA", device_ids=device_ids)
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                if CONFIG.gpu_fallback_cpu_on_error:
+                    print("nvidia-smi not found or failed; falling back to CPU walker parallelization")
+                    CONFIG.backend = "cpu"
+                else:
+                    raise RuntimeError("No GPUs found or nvidia-smi failed.") from None
+
+    if CONFIG.backend == "cpu":
+        num_workers = CONFIG.num_workers or CONFIG.n_walkers
+        mapper = PySCFCPUWorkerMapper(num_workers=num_workers)
 
     sim_manager = Manager(
         walkers,
@@ -218,16 +210,22 @@ def main():
         work_mapper=mapper,
         resampler=resampler,
         boundary_conditions=NoBC(),
-        reporters=[h5_reporter, dash_reporter],
+        reporters=reporters,
     )
 
+    time = perf_counter()
     end_walkers, _ = sim_manager.run_simulation(
-        n_cycles=args.n_cycles,
-        segment_lengths=args.segment_length,
+        n_cycles=CONFIG.n_cycles,
+        segment_lengths=CONFIG.segment_length,
     )
 
-    print(f"Completed REVO/PySCF run with {len(end_walkers)} walkers")
-    print(f"Parallel backend: {args.parallel_backend}")
+    total_time = perf_counter() - time
+    print(f"Completed REVO/PySCF {CONFIG.backend} run with {len(end_walkers)} walkers in {total_time:.3f} seconds")
+    if CONFIG.backend == "gpu":
+        print(f"GPU device IDs: {device_ids}")
+    elif CONFIG.backend == "cpu":
+        print(f"CPU workers: {num_workers}")
+    print(f"Threads per worker: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
     print("Final walker energies:", [walker.state["energy"] for walker in end_walkers])
 
 
