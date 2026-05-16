@@ -37,9 +37,9 @@ conda env create -f ../environment_minimal.yml
 conda activate wepy-dev
 ```
 
-### Wepy Setup
+### Wepy Dev Setup
 
-![Wepy Setup](wepy_dev.gif)
+![Wepy Dev Setup](wepy_dev.gif)
 
 1. Make sure to be on a dev node, have the required modules loaded, and have the Conda environment activated.
 
@@ -72,6 +72,31 @@ pip uninstall wepy -y
 
 ```bash
 pip install dist/wepy-1.1.0-py2.py3-none-any.whl
+```
+
+### PySCF Dev Setup
+
+![PySCF Dev Setup](pyscf_dev.gif)
+
+1. Make sure to be on a dev node, have the required modules loaded, and have the Conda environment activated.
+
+```bash
+ssh dev-amd24-h200
+ml purge && ml load Miniforge3 OpenBLAS CUDA
+conda activate wepy-dev
+```
+
+2. Clone the `pyscf_dev` repository and enter the directory.
+
+```bash
+git clone https://github.com/SamikBose/pyscf_dev.git
+cd pyscf_dev
+```
+
+3. Build the PySCF package using the Conda build script.
+
+```bash
+./conda/build.sh
 ```
 
 ### PySCF GPU Setup

@@ -1,8 +1,8 @@
-# Make sure your base `wepy_dev` folder is not called `wepy_dev` to avoid confusion with the cloned repository
+# Make sure your base `pyscf_dev` folder is not called `pyscf_dev` to avoid confusion with the cloned repository
 
-Output wepy_dev.gif
+Output pyscf_dev.gif
 
-Set Width 1100
+Set Width 1000
 Set Height 600
 Set Padding 0
 Set Margin 35
@@ -31,36 +31,24 @@ Show
 
 # Clone the repository
 Sleep 1s
-Type "git clone https://github.com/SamikBose/wepy_dev.git"
+Type "git clone https://github.com/SamikBose/pyscf_dev.git"
 Enter
 Wait /.+@.+:.*\$/ # Wait for the prompt to return
 Sleep 1s
 
 # Enter the directory
-Type "cd wepy_dev"
+Type "cd pyscf_dev"
 Enter
 Sleep 1s
 
+
 # Build the project (make already installed from the Conda environment)
-Type "make build"
+Type "./conda/build.sh"
 Enter
 Sleep 3s
 
 Hide
-Sleep 7s # Skip 7s ahead
+Wait@3600s /.+@.+:.*\$/ # Wait for the prompt to return (hard cap of 1h)
 Show
-
-Wait@60s /.+@.+:.*\$/ # Wait for the prompt to return (hard cap of 60s)
-Sleep 1s
-
-# Remove the existing package (don't use `pip install --force-reinstall` since that takes a lot longer)
-Type "pip uninstall wepy -y"
-Enter
-Wait /.+@.+:.*\$/ # Wait for the prompt to return
-Sleep 1s
-
-Type "pip install dist/wepy-1.1.0-py2.py3-none-any.whl"
-Enter
-Wait@120s /.+@.+:.*\$/ # Wait for the prompt to return
 
 Sleep 3s
