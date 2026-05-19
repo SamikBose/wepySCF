@@ -1,3 +1,5 @@
+Require zoxide
+
 Output nix_pixi_cpu.gif
 
 Set Width 1000

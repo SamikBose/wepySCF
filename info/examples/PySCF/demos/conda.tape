@@ -1,3 +1,5 @@
+Require zoxide
+
 Output conda.gif
 
 Set Width 1000

@@ -1,5 +1,7 @@
 # Make sure your base `gpu4pyscf` folder is not called `gpu4pyscf` to avoid confusion with the cloned repository
 
+Require zoxide
+
 Output gpu4pyscf.gif
 
 Set Width 1000 # TODO: Increase width to prevent wrapping?

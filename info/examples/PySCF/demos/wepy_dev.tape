@@ -1,5 +1,7 @@
 # Make sure your base `wepy_dev` folder is not called `wepy_dev` to avoid confusion with the cloned repository
 
+Require zoxide
+
 Output wepy_dev.gif
 
 Set Width 1100

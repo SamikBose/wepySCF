@@ -1,5 +1,7 @@
 # Make sure your base `pyscf_dev` folder is not called `pyscf_dev` to avoid confusion with the cloned repository
 
+Require zoxide
+
 Output pyscf_dev.gif
 
 Set Width 1000
@@ -40,7 +42,6 @@ Sleep 1s
 Type "cd pyscf_dev"
 Enter
 Sleep 1s
-
 
 # Build the project (make already installed from the Conda environment)
 Type "./conda/build.sh"
