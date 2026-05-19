@@ -39,14 +39,14 @@ class PySCFInput:
     # CPU walker-level parallelization
     # If None, defaults to n_walkers (i.e., one worker per walker when possible).
     num_workers: int | None = None
-    # Read the OMP_NUM_THREADS environment variable (used for logging; set the value using export before running)
+    # Read the OMP_NUM_THREADS environment variable (used for logging; user sets the value before running)
     _omp_threads_env_var: str | None = os.environ.get("OMP_NUM_THREADS")
 
     # Output control
-    write_h5: bool = False # TODO: Add write control to other systems (just alanine right now)
+    write_h5: bool = False  # TODO: Add write control to other systems (just alanine right now)
     write_dash: bool = False
-    h5_path: str = ""
-    dash_path: str = ""
+    h5_path: str | None = None
+    dash_path: str | None = None
     overwrite: bool = True
 
     def __post_init__(self) -> None:

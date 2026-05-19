@@ -220,7 +220,7 @@ def main():
     )
 
     total_time = perf_counter() - time
-    print(f"Completed REVO/PySCF {CONFIG.backend} run with {len(end_walkers)} walkers in {total_time:.3f} seconds")
+    print(f"Completed REVO/PySCF {CONFIG.backend.upper()} run with {len(end_walkers)} walkers in {total_time:.3f} seconds")
     if CONFIG.backend == "gpu":
         print(f"GPU device IDs: {device_ids}")
     elif CONFIG.backend == "cpu":
