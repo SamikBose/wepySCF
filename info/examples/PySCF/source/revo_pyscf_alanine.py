@@ -89,6 +89,7 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape, 
             segment_step_idx=np.array([0], dtype=int),
             energy=np.array([np.nan]),
             gradients=np.zeros_like(noisy_positions),
+            velocities=np.zeros_like(noisy_positions),
             density_matrix=np.zeros((len(symbols), len(symbols))),
             density_grid=np.zeros(density_grid_shape),
             density_grid_origin=np.zeros(3),
@@ -113,56 +114,6 @@ def build_revo_resampler(init_state):
 
 
 def main():
-    mdj_top, symbols, positions = parse_with_mdtraj_topology(ALANINE_DIPEPTIDE_PDB)
-
-    walkers = generate_initial_walkers(
-        symbols=symbols,
-        positions=positions,
-        n_walkers=CONFIG.n_walkers,
-        density_grid_shape=CONFIG.density_grid_shape,
-        jitter=CONFIG.jitter,
-        seed=CONFIG.seed,
-    )
-
-    runner = PySCFRunner(
-        basis=CONFIG.basis,
-        method=CONFIG.method,
-        xc=CONFIG.xc,
-        step_size=CONFIG.step_size,
-        dynamics_mode=CONFIG.dynamics_mode,
-        temperature_kelvin=CONFIG.temperature_kelvin,
-        random_seed=CONFIG.seed,
-        backend=CONFIG.backend,
-        use_scf_scanner=CONFIG.use_scf_scanner,
-        density_grid_shape=CONFIG.density_grid_shape,
-        gpu_fallback_cpu_on_error=CONFIG.gpu_fallback_cpu_on_error,
-    )
-
-    resampler = build_revo_resampler(init_state=walkers[0].state)
-
-    json_topology = mdtraj_to_json_topology(mdj_top)
-    output_mode = "w" if CONFIG.overwrite else "x"
-
-    reporters = []
-
-    if CONFIG.write_h5:
-        h5_reporter = PySCFHDF5Reporter(
-            file_paths=[CONFIG.h5_path],
-            modes=[output_mode],
-            topology=json_topology,
-            resampler=resampler,
-            boundary_conditions=NoBC(),
-        )
-        reporters.append(h5_reporter)
-
-    if CONFIG.write_dash:
-        dash_reporter = DashboardReporter(
-            file_paths=[CONFIG.dash_path],
-            modes=[output_mode],
-            runner_dash=PySCFRunnerDashboardSection(runner=runner),
-        )
-        reporters.append(dash_reporter)
-
     if CONFIG.backend == "gpu":
         if importlib.util.find_spec("cupy") is None:
             if CONFIG.gpu_fallback_cpu_on_error:
@@ -200,9 +151,60 @@ def main():
                 else:
                     raise RuntimeError("No GPUs found or nvidia-smi failed.") from None
 
-    if CONFIG.backend == "cpu":
+    elif CONFIG.backend == "cpu":
         num_workers = CONFIG.num_workers or CONFIG.n_walkers
         mapper = PySCFCPUWorkerMapper(num_workers=num_workers)
+
+    mdj_top, symbols, positions = parse_with_mdtraj_topology(ALANINE_DIPEPTIDE_PDB)
+
+    walkers = generate_initial_walkers(
+        symbols=symbols,
+        positions=positions,
+        n_walkers=CONFIG.n_walkers,
+        density_grid_shape=CONFIG.density_grid_shape,
+        jitter=CONFIG.jitter,
+        seed=CONFIG.seed,
+    )
+
+    runner = PySCFRunner(
+        basis=CONFIG.basis,
+        method=CONFIG.method,
+        xc=CONFIG.xc,
+        step_size=CONFIG.step_size,
+        integrator_cls=CONFIG.integrator_cls,
+        integrator_kwargs=CONFIG.integrator_kwargs,
+        temperature_kelvin=CONFIG.temperature_kelvin,
+        random_seed=CONFIG.seed,
+        backend=CONFIG.backend,
+        use_scf_scanner=CONFIG.use_scf_scanner,
+        density_grid_shape=CONFIG.density_grid_shape,
+        gpu_fallback_cpu_on_error=CONFIG.gpu_fallback_cpu_on_error,
+    )
+
+    resampler = build_revo_resampler(init_state=walkers[0].state)
+
+    json_topology = mdtraj_to_json_topology(mdj_top)
+    output_mode = "w" if CONFIG.overwrite else "x"
+
+    reporters = []
+
+    if CONFIG.write_h5:
+        h5_reporter = PySCFHDF5Reporter(
+            file_paths=[CONFIG.h5_path],
+            modes=[output_mode],
+            topology=json_topology,
+            resampler=resampler,
+            boundary_conditions=NoBC(),
+        )
+        reporters.append(h5_reporter)
+
+    if CONFIG.write_dash:
+        dash_reporter = DashboardReporter(
+            file_paths=[CONFIG.dash_path],
+            modes=[output_mode],
+            runner_dash=PySCFRunnerDashboardSection(runner=runner),
+        )
+        reporters.append(dash_reporter)
 
     sim_manager = Manager(
         walkers,
@@ -220,7 +222,7 @@ def main():
     )
 
     total_time = perf_counter() - time
-    print(f"Completed REVO/PySCF {CONFIG.backend.upper()} run with {len(end_walkers)} walkers in {total_time:.3f} seconds")
+    print(f"Completed REVO/PySCF {CONFIG.backend.upper()} run with {len(end_walkers)} walkers in {total_time:.3f} sec")
     if CONFIG.backend == "gpu":
         print(f"GPU device IDs: {device_ids}")
     elif CONFIG.backend == "cpu":

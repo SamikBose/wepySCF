@@ -6,6 +6,8 @@ Edit this file instead of passing command-line arguments.
 import os
 from dataclasses import dataclass
 
+import pyscf.md as pyscf_md
+
 
 @dataclass
 class PySCFInput:
@@ -29,10 +31,11 @@ class PySCFInput:
     # Allowed methods include RHF/UHF, RKS/UKS, MP2/DFMP2, and CCSD.
     xc: str | None = None
     step_size: float = 1e-4
-    # 'steepest_descent' performs deterministic energy minimization.
-    # 'langevin' adds thermal noise to approximate finite-temperature sampling.
-    dynamics_mode: str = "langevin"
     temperature_kelvin: float = 300.0
+    # Select the PySCF MD integrator class and any kwargs passed to it.
+    # Example: pyscf_md.integrators.LangevinMiddle with kwargs={"T": temperature_kelvin, "friction_coef": 1.0}
+    integrator_cls: type | None = pyscf_md.integrators.LangevinMiddle
+    integrator_kwargs: dict | None = {"T": temperature_kelvin, "friction_coef": 1.0}
     use_scf_scanner: bool = True
     density_grid_shape: tuple[int, int, int] = (10, 10, 10)
 
@@ -51,7 +54,11 @@ class PySCFInput:
 
     def __post_init__(self) -> None:
         """Set output paths; need to do this after initialization since we need to wait for parameters to be set."""
-        filename_base = f"{self.system}_{self.backend}_{self.n_walkers}W_{self.n_cycles}C_{self.dynamics_mode}_{self._omp_threads_env_var}T"
+        integrator_name = getattr(self.integrator_cls, "__name__", "integrator")
+        filename_base = (
+            f"{self.system}_{self.backend}_{self.n_walkers}W_{self.n_cycles}C_"
+            f"{integrator_name}_{self._omp_threads_env_var}T"
+        )
         if not self.h5_path:
             self.h5_path = f"{filename_base}.wepy.h5"
         if not self.dash_path:
