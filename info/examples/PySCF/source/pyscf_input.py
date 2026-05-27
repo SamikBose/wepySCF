@@ -22,7 +22,6 @@ class PySCFInput:
     segment_length: int = 1
 
     # Walker initialization
-    jitter: float = 0.01
     seed: int = 13
 
     # PySCF runner parameters

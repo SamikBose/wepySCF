@@ -71,33 +71,32 @@ def parse_with_mdtraj_topology(pdb_text):
     return topology, symbols, positions
 
 
-def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape, jitter, seed):
-    rng = np.random.default_rng(seed)
-    walkers = []
+def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
     weight = 1.0 / n_walkers
 
-    for _ in range(n_walkers):
-        noisy_positions = positions + rng.normal(scale=jitter, size=positions.shape)
-        state = PySCFState(
-            symbols=symbols,
-            positions=noisy_positions,
-            charge=0,
-            spin=0,
-            basis=CONFIG.basis,
-            method=CONFIG.method,
-            unit="Angstrom",
-            segment_step_idx=np.array([0], dtype=int),
-            energy=np.array([np.nan]),
-            gradients=np.zeros_like(noisy_positions),
-            velocities=np.zeros_like(noisy_positions),
-            density_matrix=np.zeros((len(symbols), len(symbols))),
-            density_grid=np.zeros(density_grid_shape),
-            density_grid_origin=np.zeros(3),
-            density_grid_spacing=np.ones(3),
+    return [
+        PySCFWalker(
+            PySCFState(
+                symbols=symbols,
+                positions=positions,
+                charge=0,
+                spin=0,
+                basis=CONFIG.basis,
+                method=CONFIG.method,
+                unit="Angstrom",
+                segment_step_idx=np.array([0], dtype=int),
+                energy=np.array([np.nan]),
+                gradients=np.zeros_like(positions),
+                velocities=np.zeros_like(positions),
+                density_matrix=np.zeros((len(symbols), len(symbols))),
+                density_grid=np.zeros(density_grid_shape),
+                density_grid_origin=np.zeros(3),
+                density_grid_spacing=np.ones(3),
+            ),
+            weight,
         )
-        walkers.append(PySCFWalker(state, weight))
-
-    return walkers
+        for _ in range(n_walkers)
+    ]
 
 
 def build_revo_resampler(init_state):
@@ -162,8 +161,6 @@ def main():
         positions=positions,
         n_walkers=CONFIG.n_walkers,
         density_grid_shape=CONFIG.density_grid_shape,
-        jitter=CONFIG.jitter,
-        seed=CONFIG.seed,
     )
 
     runner = PySCFRunner(
