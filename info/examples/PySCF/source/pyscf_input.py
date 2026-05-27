@@ -4,7 +4,7 @@ Edit this file instead of passing command-line arguments.
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pyscf.md as pyscf_md
 
@@ -30,13 +30,13 @@ class PySCFInput:
     # Allowed methods include RHF/UHF, RKS/UKS, MP2/DFMP2, and CCSD.
     xc: str | None = None
     step_size: float = 1e-4
+    dt: int = 21
     temperature_kelvin: float = 300.0
-    # Select the PySCF MD integrator class and any kwargs passed to it.
-    # Example: pyscf_md.integrators.LangevinMiddle with kwargs={"T": temperature_kelvin, "friction_coef": 1.0}
-    integrator_cls: type | None = pyscf_md.integrators.LangevinMiddle
-    integrator_kwargs: dict | None = {"T": temperature_kelvin, "friction_coef": 1.0}
-    use_scf_scanner: bool = True
     density_grid_shape: tuple[int, int, int] = (10, 10, 10)
+
+    # Select the PySCF MD integrator class and any kwargs passed to it.
+    integrator_cls: type = pyscf_md.integrators.LangevinMiddle
+    integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 0.1})
 
     # CPU walker-level parallelization
     # If None, defaults to n_walkers (i.e., one worker per walker when possible).
@@ -64,6 +64,7 @@ class PySCFInput:
             self.dash_path = f"{filename_base}.dash.org"
 
 
+# TODO: Update to match alanine
 @dataclass
 class WaterDimerInput(PySCFInput):
     # System name and info
@@ -75,7 +76,7 @@ class WaterDimerInput(PySCFInput):
     segment_length: int = 2
 
     # Walker initialization
-    jitter: float = 0.005
+    jitter: float = 0.005  # TODO: Remove
 
     # PySCF runner parameters
     method: str = "RHF"

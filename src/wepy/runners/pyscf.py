@@ -13,6 +13,7 @@ import pyscf.cc as pyscf_cc
 import pyscf.dft as pyscf_dft
 import pyscf.dft.numint as pyscf_numint
 import pyscf.gto as pyscf_gto
+import pyscf.md as pyscf_md
 import pyscf.mp as pyscf_mp
 import pyscf.scf as pyscf_scf
 
@@ -29,6 +30,7 @@ KEYS = (
     "positions",
     "energy",
     "gradients",
+    "velocities",
     "density_matrix",
     "density_grid",
     "density_grid_origin",
@@ -46,14 +48,25 @@ UNIT_NAMES = (
     ("positions_unit", "angstrom"),
     ("energy_unit", "hartree"),
     ("gradients_unit", "hartree/bohr"),
+    ("velocities_unit", "bohr/au"),
     ("density_grid_unit", "electron/bohr^3"),
 )
+
+
+REQUIRED_KWARGS_BY_INTEGRATOR = {
+    # (method, **kwargs)
+    "VelocityVerlet": (),
+    "RandomNoiseVelocityVerlet": (),
+    "Langevin": ("T",),
+    "LangevinMiddle": ("T",),
+    "NVTBerendson": ("T", "taut"),
+}
 
 
 def to_numpy(x) -> np.ndarray:
     """Convert an array-like object to a NumPy array of floats.
 
-    Fixes issue with GPU PySCF since we need to convert CuPy arrays to NumPy arrays
+    Fixes issue with GPU PySCF since we need to convert CuPy arrays to NumPy arrays.
     """
     if hasattr(x, "get"):
         x = x.get()
@@ -84,8 +97,6 @@ class PySCFWalker(Walker):
 
 class PySCFRunner(Runner):
     SUPPORTED_METHODS = ("RHF", "UHF", "RKS", "UKS", "MP2", "DFMP2", "CCSD")
-    SUPPORTED_DYNAMICS_MODES = ("steepest_descent", "langevin")
-    BOLTZMANN_HARTREE_PER_K = 3.166811563e-6
 
     def __init__(
         self,
@@ -96,11 +107,12 @@ class PySCFRunner(Runner):
         spin=0,
         unit="Angstrom",
         step_size=1e-3,
-        dynamics_mode="steepest_descent",
+        dt=21,
         temperature_kelvin=300.0,
+        integrator_cls=pyscf_md.integrators.VelocityVerlet,
+        integrator_kwargs=None,
         random_seed=None,
         backend="cpu",
-        use_scf_scanner=True,
         density_grid_shape=(10, 10, 10),
         density_grid_padding=2.0,
         gpu_fallback_cpu_on_error=False,
@@ -111,27 +123,28 @@ class PySCFRunner(Runner):
         self.charge = charge
         self.spin = spin
         self.unit = unit
-        self.step_size = step_size
-        self.dynamics_mode = str(dynamics_mode).lower()
+        self.step_size = float(step_size)
+        self.dt = dt
+        self.integrator_cls = integrator_cls
+        self.integrator_kwargs = {} if integrator_kwargs is None else dict(integrator_kwargs)
         self.temperature_kelvin = float(temperature_kelvin)
-        self.random_seed = random_seed
-        self.rng = np.random.default_rng(random_seed)
         self.backend = backend
-        self.use_scf_scanner = use_scf_scanner
         self.density_grid_shape = tuple(density_grid_shape)
         self.density_grid_padding = float(density_grid_padding)
         self.gpu_fallback_cpu_on_error = gpu_fallback_cpu_on_error
+        pyscf_md.set_seed(random_seed)
 
         if self.method not in self.SUPPORTED_METHODS:
             raise ValueError(
                 f"Unsupported PySCF mean-field method '{self.method}'. Must be one of: {self.SUPPORTED_METHODS}"
             )
 
-        if self.dynamics_mode not in self.SUPPORTED_DYNAMICS_MODES:
-            raise ValueError(
-                "Unsupported PySCF dynamics mode "
-                f"'{self.dynamics_mode}'. Must be one of: {self.SUPPORTED_DYNAMICS_MODES}"
-            )
+        # TODO: Really needed?
+        # if self.dynamics_mode not in self.SUPPORTED_DYNAMICS_MODES:
+        #     raise ValueError(
+        #         "Unsupported PySCF dynamics mode "
+        #         f"'{self.dynamics_mode}'. Must be one of: {self.SUPPORTED_DYNAMICS_MODES}"
+        #     )
 
         self._cycle_backend = None
         self._cycle_platform_kwargs = None
@@ -158,6 +171,29 @@ class PySCFRunner(Runner):
             spin=state.get("spin", self.spin),
             unit=state.get("unit", self.unit),
         )
+
+    def _validate_integrator_kwargs(self, integrator_cls, integrator_kwargs):
+        """Simple kwargs validation for PySCF MD integrators.
+
+        If an integrator is unknown here, we do not validate and let PySCF
+        raise a `TypeError` naturally.
+        """
+        name = getattr(integrator_cls, ".__name__", None)
+        required = REQUIRED_KWARGS_BY_INTEGRATOR.get(name)
+        if name is None or required is None:
+            return
+
+        missing = [arg for arg in required if arg not in integrator_kwargs]
+        if missing:
+            raise ValueError(f"Missing required integrator_kwargs for pyscf.md.integrators.{name}: {missing}")
+
+    def _build_integrator(self, scanner):
+        """Construct the configured PySCF MD integrator for a given scanner."""
+        integrator_kwargs = {} if self.integrator_kwargs is None else self.integrator_kwargs
+        self._validate_integrator_kwargs(self.integrator_cls, integrator_kwargs)
+
+        kwargs = {"dt": self.dt, **integrator_kwargs}
+        return self.integrator_cls(scanner, **kwargs)
 
     def _build_mean_field(self, mol, state):
         method = state.get("method", self.method).upper()
@@ -279,6 +315,26 @@ class PySCFRunner(Runner):
 
         return grad_method.as_scanner()
 
+    def _build_scanner_and_integrator(self, mol, state, backend, platform_kwargs):
+        """Build (scanner, integrator) for the requested backend.
+
+        This is used by MD segments for both initial construction and CPU fallback.
+        """
+        mf = self._build_mean_field(mol, state)
+        mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
+        scanner = self._build_gradient_scanner(mf)
+        if scanner is None:
+            return None, None
+
+        integrator = self._build_integrator(scanner)
+        return scanner, integrator
+
+    def _restore_integrator_velocities(self, integrator, velocities, mid_velocities):
+        if velocities is not None:
+            integrator.veloc = np.asarray(velocities, dtype=float)
+        if hasattr(integrator, "mid_veloc") and mid_velocities is not None:
+            integrator.mid_veloc = np.asarray(mid_velocities, dtype=float)
+
     def _make_density_grid_coords(self, positions):
         mins = np.min(positions, axis=0) - self.density_grid_padding
         maxs = np.max(positions, axis=0) + self.density_grid_padding
@@ -291,12 +347,22 @@ class PySCFRunner(Runner):
 
         return coords, mins, spacing
 
-    def _compute_density_grid(self, mol, density_matrix, positions):
+    def _compute_density_grid(self, mol, density_matrix, positions_bohr):
+        """Compute electron density on a regular grid around the geometry.
+
+        PySCF AO evaluation (`pyscf.dft.numint.eval_ao`) expects grid coordinates
+        in Bohr (atomic units) regardless of how the molecule geometry was
+        originally specified.
+
+        For simplicity and consistency with `density_grid_unit = electron/bohr^3`,
+        this function always operates in Bohr.
+        """
+
         dm = np.asarray(density_matrix)
         if dm.ndim == 3:
             dm = dm[0] + dm[1]
 
-        grid_coords, origin, spacing = self._make_density_grid_coords(positions)
+        grid_coords, origin, spacing = self._make_density_grid_coords(positions_bohr)
 
         ao_values = pyscf_numint.eval_ao(mol, grid_coords)
         rho = pyscf_numint.eval_rho(mol, ao_values, dm)
@@ -310,11 +376,13 @@ class PySCFRunner(Runner):
         positions,
         energy,
         gradients,
+        velocities,
         segment_step_idx,
         density_matrix,
         density_grid,
         density_grid_origin,
         density_grid_spacing,
+        extra_state_data=None,
     ):
         return PySCFState(
             **{
@@ -322,11 +390,13 @@ class PySCFRunner(Runner):
                 "positions": positions,
                 "energy": np.array([np.nan if energy is None else float(np.asarray(energy).ravel()[0])]),
                 "gradients": gradients,
+                "velocities": velocities,
                 "segment_step_idx": np.array([int(segment_step_idx)]),
                 "density_matrix": density_matrix,
                 "density_grid": density_grid,
                 "density_grid_origin": density_grid_origin,
                 "density_grid_spacing": density_grid_spacing,
+                "extra_state_data": extra_state_data,
             }
         )
 
@@ -335,14 +405,16 @@ class PySCFRunner(Runner):
         positions = np.asarray(state["positions"], dtype=float).copy()
 
         total_steps = int(segment_length)
-        if total_steps < 0:
-            raise ValueError("segment_length must be >= 0")
+        if total_steps <= 0:
+            raise ValueError("segment_length must be > 0")
 
         backend = kwargs.get("backend", self._cycle_backend or self.backend)
         platform_kwargs = kwargs.get("platform_kwargs", self._cycle_platform_kwargs or {})
 
         last_energy = state.get("energy", None)
-        last_gradients = np.zeros_like(positions)
+        last_gradients = state.get("gradients", np.zeros_like(positions))
+        last_velocities = state.get("velocities", np.zeros_like(positions))
+        last_mid_velocities = state.get("mid_velocities", None)
         last_density_matrix = np.zeros((positions.shape[0], positions.shape[0]))
         last_density_grid = np.zeros(self.density_grid_shape)
         last_density_grid_origin = np.zeros(3)
@@ -350,11 +422,14 @@ class PySCFRunner(Runner):
         segment_step_idx = 0
 
         scanner = None
+        integrator = None
         allow_gpu_fallback = kwargs.get("gpu_fallback_cpu_on_error", self.gpu_fallback_cpu_on_error)
 
         state_method = state.get("method", self.method).upper()
+        state_unit = state.get("unit", self.unit)
 
-        if total_steps > 0 and self.use_scf_scanner and self._method_supports_scanner(state_method):
+        # Build a SCF gradient scanner once per segment (reused by the integrator)
+        if self._method_supports_scanner(state_method):
             init_state = PySCFState(
                 **{
                     **state._data,
@@ -364,10 +439,9 @@ class PySCFRunner(Runner):
             )
 
             init_mol = self._build_molecule(init_state)
-            init_mf = self._build_mean_field(init_mol, init_state)
+
             try:
-                init_mf = self._configure_hardware(init_mf, backend=backend, platform_kwargs=platform_kwargs)
-                scanner = self._build_gradient_scanner(init_mf)
+                scanner, integrator = self._build_scanner_and_integrator(init_mol, init_state, backend, platform_kwargs)
             except RuntimeError as exc:
                 if backend == "gpu" and allow_gpu_fallback and self._is_gpu_runtime_error(exc):
                     logger.warning(
@@ -376,7 +450,9 @@ class PySCFRunner(Runner):
                     )
                     backend = "cpu"
                     platform_kwargs = {}
-                    scanner = None
+                    scanner, integrator = self._build_scanner_and_integrator(
+                        init_mol, init_state, backend, platform_kwargs
+                    )
                 else:
                     raise
 
@@ -427,25 +503,22 @@ class PySCFRunner(Runner):
 
             density_grid, density_origin, density_spacing = self._compute_density_grid(mol, density_matrix, positions)
 
-            positions = self._propagate_positions(positions, gradients)
-            last_energy = float(energy)
-            last_gradients = gradients
-            last_density_matrix = density_matrix
-            last_density_grid = density_grid
-            last_density_grid_origin = density_origin
-            last_density_grid_spacing = density_spacing
-            segment_step_idx = step_idx
+        extra_state_data = None
+        if last_mid_velocities is not None:
+            extra_state_data = {"mid_velocities": last_mid_velocities}
 
         new_state = self.generate_state(
             state._data,
             positions=positions,
             energy=last_energy,
             gradients=last_gradients,
+            velocities=last_velocities,
             segment_step_idx=segment_step_idx,
             density_matrix=last_density_matrix,
             density_grid=last_density_grid,
             density_grid_origin=last_density_grid_origin,
             density_grid_spacing=last_density_grid_spacing,
+            extra_state_data=extra_state_data,
         )
 
         if isinstance(walker, PySCFWalker):

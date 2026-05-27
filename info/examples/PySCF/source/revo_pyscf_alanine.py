@@ -168,12 +168,12 @@ def main():
         method=CONFIG.method,
         xc=CONFIG.xc,
         step_size=CONFIG.step_size,
+        dt=CONFIG.dt,
         integrator_cls=CONFIG.integrator_cls,
         integrator_kwargs=CONFIG.integrator_kwargs,
         temperature_kelvin=CONFIG.temperature_kelvin,
         random_seed=CONFIG.seed,
         backend=CONFIG.backend,
-        use_scf_scanner=CONFIG.use_scf_scanner,
         density_grid_shape=CONFIG.density_grid_shape,
         gpu_fallback_cpu_on_error=CONFIG.gpu_fallback_cpu_on_error,
     )
