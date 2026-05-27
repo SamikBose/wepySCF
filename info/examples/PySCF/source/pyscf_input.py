@@ -22,7 +22,7 @@ class PySCFInput:
     segment_length: int = 1
 
     # Walker initialization
-    seed: int = 13
+    seed: int = 13  # TODO: All walkers rn generate same stuff since seed is same, maybe increment each by 1 * wkr_idx?
 
     # PySCF runner parameters
     basis: str = "sto-3g"
