@@ -3,7 +3,6 @@
 # Standard Library
 import logging
 import os
-from copy import deepcopy
 
 # Third Party Library
 import numpy as np
@@ -26,36 +25,39 @@ from wepy.work_mapper.worker import Worker, WorkerMapper
 
 logger = logging.getLogger(__name__)
 
-KEYS = (
-    "symbols",
-    "positions",
-    "energy",
-    "gradients",
-    "velocities",
-    "density_matrix",
-    "density_grid",
-    "density_grid_origin",
-    "density_grid_spacing",
-    "charge",
-    "spin",
-    "basis",
-    "method",
-    "xc",
-    "unit",
-    "segment_step_idx",
-)
+# TODO: Enforce this
+# KEYS = (
+#     "symbols",
+#     "positions",
+#     "energy",
+#     "gradients",
+#     "velocities",
+#     "density_matrix",
+#     "density_grid",
+#     "density_grid_origin",
+#     "density_grid_spacing",
+#     "charge",
+#     "spin",
+#     "basis",
+#     "method",
+#     "xc",
+# )
 
+# Unit metadata for reporters
 UNIT_NAMES = (
-    ("positions_unit", "angstrom"),
-    ("energy_unit", "hartree"),
-    ("gradients_unit", "hartree/bohr"),
+    ("positions_unit", "bohr"),
     ("velocities_unit", "bohr/au"),
+    ("accelerations_unit", "bohr/au^2"),
+    ("potential_unit", "hartree"),
+    ("kinetic_unit", "hartree"),
     ("density_grid_unit", "electron/bohr^3"),
+    ("density_grid_origin_unit", "bohr"),
+    ("density_grid_spacing_unit", "bohr"),
 )
 
 
-REQUIRED_KWARGS_BY_INTEGRATOR = {
-    # class_name: required keyword arguments
+REQUIRED_KWARGS_BY_INTEGRATOR: dict[str, tuple] = {
+    # class_name: (required keyword arguments)
     "VelocityVerlet": (),
     "RandomNoiseVelocityVerlet": (),
     "Langevin": ("T",),
@@ -64,7 +66,7 @@ REQUIRED_KWARGS_BY_INTEGRATOR = {
 }
 
 # Integrators whose temperature kwarg should be kept in sync with `temperature_kelvin`
-_TEMPERATURE_AWARE_INTEGRATORS = {"Langevin", "LangevinMiddle", "NVTBerendson"}
+_TEMPERATURE_AWARE_INTEGRATORS: set[str] = {"Langevin", "LangevinMiddle", "NVTBerendson"}
 
 
 def to_numpy(x) -> np.ndarray:
@@ -78,19 +80,22 @@ def to_numpy(x) -> np.ndarray:
 
 
 class PySCFState(WalkerState):
-    KEYS = KEYS
+    # KEYS = KEYS
 
-    def __init__(self, **kwargs):
-        self._data = kwargs
+    # TODO: This is the same thing as WalkerState, just with `get` added (can just remove other functions)
+    # TODO: Why not just take in parameters instead of kwargs?
+    # TODO: Why are we wrapping a dictionary (for deepcopy? is that even needed?)
+    # def __init__(self, **kwargs):
+    #     self._data = kwargs
 
-    def __getitem__(self, key):
-        return self._data[key]
+    # def __getitem__(self, key):
+    #     return self._data[key]
 
     def get(self, key, default=None):
         return self._data.get(key, default)
 
-    def dict(self):
-        return deepcopy(self._data)
+    # def dict(self):
+    #     return deepcopy(self._data)
 
 
 class PySCFWalker(Walker):
@@ -100,60 +105,50 @@ class PySCFWalker(Walker):
 
 
 class PySCFRunner(Runner):
-    SUPPORTED_METHODS = ("RHF", "UHF", "RKS", "UKS", "MP2", "DFMP2", "CCSD")
+    SUPPORTED_METHODS = ("RHF", "UHF", "RKS", "UKS")
+    # SUPPORTED_METHODS = ("RHF", "UHF", "RKS", "UKS", "MP2", "DFMP2", "CCSD") #  Others don't support scanner?
 
+    # TODO: Make doc with descriptions and units
+    # TODO: Type hints?
     def __init__(
         self,
-        basis="6-31g*",
-        method="RHF",
+        basis: str = "6-31g*",
+        method: str = "RHF",
         xc=None,
         charge=0,
         spin=0,
-        unit="Angstrom",
-        step_size=1e-3,
-        dt=21,  # TODO: Add to PySCFState or not since always constant? Same logic for others?
-        temperature_kelvin=300.0,
+        dt: float = 21.0,
+        temperature_kelvin: float = 300.0,
         integrator_cls=pyscf_md.integrators.VelocityVerlet,
-        integrator_kwargs=None,
-        random_seed=None,
-        backend="cpu",
-        density_grid_shape=(10, 10, 10),
-        density_grid_padding=2.0,  # TODO: Interpreted in Bohr right now. Use au?
-        gpu_fallback_cpu_on_error=False,
+        integrator_kwargs: dict | None = None,
+        random_seed: int | None = None,
+        backend: str = "cpu",
+        density_grid_shape: tuple[int, int, int] = (10, 10, 10),
+        density_grid_padding: float = 2.0,
     ):
         self.basis = basis
         self.method = method.upper()
         self.xc = xc
         self.charge = charge
         self.spin = spin
-        self.unit = unit
-        self.step_size = float(step_size)
-        self.dt = dt
+        self.dt = float(dt)
         self.integrator_cls = integrator_cls
         self.integrator_kwargs = {} if integrator_kwargs is None else dict(integrator_kwargs)
         self.temperature_kelvin = float(temperature_kelvin)
-        self.backend = backend
+        self.backend = backend.lower()
         self.density_grid_shape = tuple(density_grid_shape)
         self.density_grid_padding = float(density_grid_padding)
-        self.gpu_fallback_cpu_on_error = gpu_fallback_cpu_on_error
-        pyscf_md.set_seed(random_seed)
+        pyscf_md.set_seed(random_seed)  # TODO: Walkers generating same stuff since same seed
 
         if self.method not in self.SUPPORTED_METHODS:
             raise ValueError(
                 f"Unsupported PySCF mean-field method '{self.method}'. Must be one of: {self.SUPPORTED_METHODS}"
             )
 
-        # TODO: Really needed?
-        # if self.dynamics_mode not in self.SUPPORTED_DYNAMICS_MODES:
-        #     raise ValueError(
-        #         "Unsupported PySCF dynamics mode "
-        #         f"'{self.dynamics_mode}'. Must be one of: {self.SUPPORTED_DYNAMICS_MODES}"
-        #     )
-
         self._cycle_backend = None
         self._cycle_platform_kwargs = None
 
-        self._last_cycle_segments_split_times = []
+        self._last_cycle_segments_split_times = []  # TODO: Not used currently
 
     def pre_cycle(self, backend=None, platform_kwargs=None, **kwargs):
         self._cycle_backend = backend
@@ -163,7 +158,7 @@ class PySCFRunner(Runner):
         self._cycle_backend = None
         self._cycle_platform_kwargs = None
 
-    def _build_molecule(self, state):
+    def _build_molecule(self, state: PySCFState):
         symbols = state["symbols"]
         positions = np.asarray(state["positions"], dtype=float)
         atom = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
@@ -173,30 +168,29 @@ class PySCFRunner(Runner):
             basis=state.get("basis", self.basis),
             charge=state.get("charge", self.charge),
             spin=state.get("spin", self.spin),
-            unit=state.get("unit", self.unit),
+            unit="Bohr",
         )
 
-    # def _coords_to_bohr(self, coords, unit):
-    #     """Convert coordinates to Bohr.
+    def _autoset_integrator_kwargs(self, integrator_cls, integrator_kwargs: dict):
+        """Auto-set integrator kwargs derived from runner settings.
 
-    #     PySCF's MD integrators propagate geometries in Bohr internally and call
-    #     `mol.set_geom_(..., unit='B')`. If the molecule was built with
-    #     `mol.unit = 'Angstrom'`, PySCF will warn that Mole.unit is changed to B.
+        Currently only auto-sets integrator `T` equal to `temperature_kelvin`
+        for temperature-aware integrators.
+        """
+        name = getattr(integrator_cls, "__name__", "")
+        if name in _TEMPERATURE_AWARE_INTEGRATORS:
+            if "T" in integrator_kwargs and float(integrator_kwargs["T"]) != self.temperature_kelvin:
+                logger.warning(
+                    "Overriding integrator_kwargs['T']=%s to match temperature_kelvin=%s for %s",
+                    integrator_kwargs["T"],
+                    self.temperature_kelvin,
+                    name,
+                )
+            integrator_kwargs["T"] = self.temperature_kelvin
 
-    #     We avoid that warning by building the integrator molecule in Bohr.
-    #     """
-    #     coords = np.asarray(coords, dtype=float)
-    #     if unit is None:
-    #         unit = self.unit
+        return integrator_kwargs
 
-    #     # PySCF considers strings starting with 'B' or 'AU' as atomic units.
-    #     if isinstance(unit, str) and unit.upper().startswith(("B", "AU")):
-    #         return coords
-
-    #     # Default assumption: Angstrom
-    #     return coords / pyscf_param.BOHR
-
-    def _validate_integrator_kwargs(self, integrator_cls, integrator_kwargs):
+    def _validate_integrator_kwargs(self, integrator_cls, integrator_kwargs: dict):
         """Simple kwargs validation for PySCF MD integrators.
 
         If an integrator is unknown here, we do not validate and let PySCF
@@ -205,35 +199,15 @@ class PySCFRunner(Runner):
         name = getattr(integrator_cls, "__name__", None)
         required = REQUIRED_KWARGS_BY_INTEGRATOR.get(name)
         if name is None or required is None:
-            return
+            raise ValueError(f"{name} integrator not supported.")
 
         missing = [arg for arg in required if arg not in integrator_kwargs]
         if missing:
             raise ValueError(f"Missing required integrator_kwargs for pyscf.md.integrators.{name}: {missing}")
 
-    def _autoset_integrator_kwargs(self, integrator_cls, integrator_kwargs):
-        """Auto-set integrator kwargs derived from runner settings.
-
-        Currently only auto-sets integrator `T` equal to `temperature_kelvin`
-        for temperature-aware integrators.
-        """
-        name = getattr(integrator_cls, "__name__", "")
-        if name in _TEMPERATURE_AWARE_INTEGRATORS:
-            desired_T = self.temperature_kelvin
-            if "T" in integrator_kwargs and float(integrator_kwargs["T"]) != desired_T:
-                logger.warning(
-                    "Overriding integrator_kwargs['T']=%s to match temperature_kelvin=%s for %s",
-                    integrator_kwargs["T"],
-                    desired_T,
-                    name,
-                )
-            integrator_kwargs["T"] = desired_T
-
-        return integrator_kwargs
-
     def _build_integrator(self, scanner):
         """Construct the configured PySCF MD integrator for a given scanner."""
-        integrator_kwargs = {} if self.integrator_kwargs is None else dict(self.integrator_kwargs)
+        integrator_kwargs = {} if self.integrator_kwargs is None else self.integrator_kwargs
         integrator_kwargs = self._autoset_integrator_kwargs(self.integrator_cls, integrator_kwargs)
         self._validate_integrator_kwargs(self.integrator_cls, integrator_kwargs)
 
@@ -317,9 +291,7 @@ class PySCFRunner(Runner):
 
     #     return energy, gradients, density_matrix
 
-    def _configure_hardware(self, mf, backend="cpu", platform_kwargs=None):
-        platform_kwargs = platform_kwargs or {}
-
+    def _configure_hardware(self, mf, backend: str, platform_kwargs: dict):
         if backend and str(backend).lower() == "gpu":
             device_id = platform_kwargs.get("DeviceIndex")
             if device_id is not None:
@@ -345,15 +317,6 @@ class PySCFRunner(Runner):
 
         return mf
 
-    def _is_gpu_runtime_error(self, exc):
-        msg = str(exc).lower()
-        gpu_signatures = (
-            "unsupported toolchain",
-            "failed in block_diag kernel",
-            "cuda error",
-        )
-        return any(sig in msg for sig in gpu_signatures)
-
     def _build_gradient_scanner(self, mf):
         grad_method = mf.nuc_grad_method()
         if not hasattr(grad_method, "as_scanner"):
@@ -361,7 +324,7 @@ class PySCFRunner(Runner):
 
         return grad_method.as_scanner()
 
-    def _build_scanner_and_integrator(self, mol, state, backend, platform_kwargs):
+    def _build_scanner_and_integrator(self, mol, state: PySCFState, backend: str, platform_kwargs: dict):
         """Build (scanner, integrator) for the requested backend.
 
         This is used by MD segments for both initial construction and CPU fallback.
@@ -369,17 +332,22 @@ class PySCFRunner(Runner):
         mf = self._build_mean_field(mol, state)
         mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
         scanner = self._build_gradient_scanner(mf)
-        if scanner is None:
-            return None, None
+        if scanner is None:  # TODO: Implement more support
+            raise NotImplementedError("Scanner only supported for RHF/UHF/RKS/UKS currently.")
 
         integrator = self._build_integrator(scanner)
         return scanner, integrator
 
-    def _restore_integrator_velocities(self, integrator, velocities, mid_velocities):
+    def _restore_integrator_values(self, integrator, velocities, mid_velocities, accelerations):
         if velocities is not None:
-            integrator.veloc = np.asarray(velocities, dtype=float)
+            integrator.veloc = velocities
+            # integrator.veloc = to_numpy(velocities)
         if hasattr(integrator, "mid_veloc") and mid_velocities is not None:
-            integrator.mid_veloc = np.asarray(mid_velocities, dtype=float)
+            integrator.mid_veloc = mid_velocities
+            # integrator.mid_veloc = to_numpy(mid_velocities)
+        if hasattr(integrator, "accel") and accelerations is not None:
+            integrator.accel = accelerations
+            # integrator.accel = to_numpy(accelerations)
 
     def _make_density_grid_coords(self, positions):
         mins = np.min(positions, axis=0) - self.density_grid_padding
@@ -393,22 +361,12 @@ class PySCFRunner(Runner):
 
         return coords, mins, spacing
 
-    def _compute_density_grid(self, mol, density_matrix, positions_bohr):
-        """Compute electron density on a regular grid around the geometry.
-
-        PySCF AO evaluation (`pyscf.dft.numint.eval_ao`) expects grid coordinates
-        in Bohr (atomic units) regardless of how the molecule geometry was
-        originally specified.
-
-        For simplicity and consistency with `density_grid_unit = electron/bohr^3`,
-        this function always operates in Bohr.
-        """
-
+    def _compute_density_grid(self, mol, density_matrix, positions):
         dm = np.asarray(density_matrix)
         if dm.ndim == 3:
             dm = dm[0] + dm[1]
 
-        grid_coords, origin, spacing = self._make_density_grid_coords(positions_bohr)
+        grid_coords, origin, spacing = self._make_density_grid_coords(positions)
 
         ao_values = pyscf_numint.eval_ao(mol, grid_coords)
         rho = pyscf_numint.eval_rho(mol, ao_values, dm)
@@ -417,7 +375,7 @@ class PySCFRunner(Runner):
         return rho_grid, origin, spacing
 
     # TODO: Check this
-    def _density_matrix_from_scanner(self, scanner, mol, state, backend, platform_kwargs):
+    def _density_matrix_from_scanner(self, scanner, mol, state: PySCFState, backend: str, platform_kwargs: dict):
         """Extract an AO-basis 1-RDM from a PySCF scanner.
 
         This is intended to mirror the old per-step behavior where we ran
@@ -472,185 +430,137 @@ class PySCFRunner(Runner):
         self,
         state_data,
         positions,
-        energy,
-        gradients,  # TODO: Do we need to store the gradients anymore since we can just get acceleration directly?
         velocities,
-        segment_step_idx,  # TODO: Still needed since we don't process steps individually (all at once with integrator)
+        accelerations,
+        potential,
+        kinetic,
         density_matrix,
         density_grid,
         density_grid_origin,
         density_grid_spacing,
-        extra_state_data=None,
+        extra_data: dict = None,
     ):
+        # Store scalar observables as 1D feature arrays (shape (1,)) so the HDF5
+        # reporter can wrap them into (n_frames, 1) feature vectors.
+        potential_fv = np.asarray(potential, dtype=float).reshape(-1)
+        kinetic_fv = np.asarray(kinetic, dtype=float).reshape(-1)
+
+        # "positions": np.asarray(positions, dtype=float),
+        # "velocities": None if velocities is None else np.asarray(velocities, dtype=float),
+        # "accelerations": None if accelerations is None else np.asarray(accelerations, dtype=float),
+                
         return PySCFState(
             **{
                 **state_data,
                 "positions": positions,
-                "energy": np.array([np.nan if energy is None else float(np.asarray(energy).ravel()[0])]),
-                "gradients": gradients,
                 "velocities": velocities,
-                "segment_step_idx": np.array([int(segment_step_idx)]),
+                "accelerations": accelerations,
+                "potential": potential_fv,
+                "kinetic": kinetic_fv,
                 "density_matrix": density_matrix,
                 "density_grid": density_grid,
                 "density_grid_origin": density_grid_origin,
                 "density_grid_spacing": density_grid_spacing,
-                "extra_state_data": extra_state_data,
+                "extra_data": extra_data,
             }
         )
 
-    def run_segment(self, walker, segment_length, **kwargs):
-        state = walker.state
-        positions = np.asarray(state["positions"], dtype=float).copy()
-
-        total_steps = int(segment_length)
-        if total_steps <= 0:
-            raise ValueError("segment_length must be > 0")
+    def run_segment(self, walker: PySCFWalker, segment_length: int, **kwargs: dict):
+        state: PySCFState = walker.state
 
         backend = kwargs.get("backend", self._cycle_backend or self.backend)
-        platform_kwargs = kwargs.get("platform_kwargs", self._cycle_platform_kwargs or {})
+        platform_kwargs: dict = kwargs.get("platform_kwargs") or self._cycle_platform_kwargs or {}
 
-        last_energy = state.get("energy", None)
-        last_gradients = state.get("gradients", np.zeros_like(positions))
-        last_velocities = state.get("velocities", np.zeros_like(positions))
+        positions = np.asarray(state["positions"], dtype=float).copy()
+        last_velocities = state.get("velocities")
+        last_accelerations = state.get("accelerations")
 
-        extra_state = state.get("extra_state_data", {})
-        last_mid_velocities = state.get("mid_velocities", extra_state.get("mid_velocities", None))
-        last_accel = state.get("accel", extra_state.get("accel", None))
+        extra_data: dict = state.get("extra_data", {})
+        last_mid_velocities = extra_data.get("mid_velocities")  # Langevin Middle
 
-        # last_density_matrix = np.zeros((positions.shape[0], positions.shape[0]))
-        last_density_matrix = state.get("density_matrix", None)  # TODO: Use zeros(pos[0], pos[0]) or None?
-        last_density_grid = state.get("density_grid", np.zeros(self.density_grid_shape))
-        last_density_grid_origin = state.get("density_grid_origin", np.zeros(3))
-        last_density_grid_spacing = state.get("density_grid_spacing", np.ones(3))
-        segment_step_idx = 0
+        # TODO: Should we reuse these to avoid from-scratch init?
+        # last_density_matrix = state.get("density_matrix", None)
+        # last_density_grid = state.get("density_grid", np.zeros(self.density_grid_shape))
+        # last_density_grid_origin = state.get("density_grid_origin", np.zeros(3))
+        # last_density_grid_spacing = state.get("density_grid_spacing", np.ones(3))
 
         scanner = None
         integrator = None
-        allow_gpu_fallback = kwargs.get("gpu_fallback_cpu_on_error", self.gpu_fallback_cpu_on_error)
 
+        # TODO: Need to have method in state? Will this ever change? (probably not?)
         state_method = state.get("method", self.method).upper()
-        state_unit = state.get("unit", self.unit)
 
         # Build a SCF gradient scanner once per segment (reused by the integrator)
-        # # NOTE: PySCF MD integrators propagate in Bohr and call mol.set_geom_(..., unit='B').
-        # # To avoid unit-change warnings (Angstrom -> B) and to ensure consistent geometry,
-        # # we build the integrator molecule in Bohr.
-        if self._method_supports_scanner(state_method):
-            # init_positions_bohr = self._coords_to_bohr(positions, state_unit)
+        if self._method_supports_scanner(state_method):  # TODO: Check this earlier to simplify logic here
             init_state = PySCFState(
                 **{
-                    **state._data,
+                    **state._data,  # TODO: Deep copy this? Why are we storing this? (seems like this is a nested dict of previous states)
                     "positions": positions,
-                    # "positions": init_positions_bohr,
-                    # "unit": "Bohr",
-                    "segment_step_idx": 0,
                 }
             )
             init_mol = self._build_molecule(init_state)
 
-            try:
-                scanner, integrator = self._build_scanner_and_integrator(init_mol, init_state, backend, platform_kwargs)
-            except RuntimeError as exc:
-                if backend == "gpu" and self._is_gpu_runtime_error(exc) and allow_gpu_fallback:
-                    logger.warning("GPU initialization failed (%s); falling back to CPU for this segment.", exc)
-                    backend = "cpu"
-                    platform_kwargs = {}
-                    scanner, integrator = self._build_scanner_and_integrator(
-                        init_mol, init_state, backend, platform_kwargs
-                    )
-                else:
-                    raise
+            scanner, integrator = self._build_scanner_and_integrator(init_mol, init_state, backend, platform_kwargs)
 
-        if scanner is None:
-            raise NotImplementedError("Scanner only supported for RHF/UHF/RKS/UKS currently.")
+        # TODO: Pass these into the integrator when creating
+        # Restore velocities and accelerations if present
+        self._restore_integrator_values(integrator, last_velocities, last_mid_velocities, last_accelerations)
 
-        # Restore velocities if present
-        self._restore_integrator_velocities(integrator, last_velocities, last_mid_velocities)
-
-        # Reuse acceleration from previous segment to skip extra integrator initialization step
-        seeded_accel = False
-        if last_accel is not None and hasattr(integrator, "accel"):
-            integrator.accel = last_accel
-            seeded_accel = True
-
-        steps_to_run = total_steps if seeded_accel else (total_steps + 1)  # +1 if not reusing to account for init step
+        # If reusing acceleration from previous segment, we can skip the initialization step
+        total_steps: int = segment_length if last_accelerations is not None else (segment_length + 1)
 
         # Integrate over the total steps
         try:
-            integrator.kernel(steps=steps_to_run)
-            # integrator.kernel(steps=steps_to_run, dump_flags=False, verbose=0) # Silent
-        except RuntimeError as exc:  # e.g. GPU runtime failure during execution
-            if backend == "gpu" and self._is_gpu_runtime_error(exc) and allow_gpu_fallback:
-                logger.warning("GPU execution failed (%s); retrying this segment on CPU.", exc)
-                backend = "cpu"
-                platform_kwargs = {}
-                scanner, integrator = self._build_scanner_and_integrator(init_mol, init_state, backend, platform_kwargs)
-                self._restore_integrator_velocities(integrator, last_velocities, last_mid_velocities)
+            integrator.kernel(steps=total_steps)
+            # integrator.kernel(steps=total_steps, dump_flags=False, verbose=0) # Silent
+        except RuntimeError as exc:
+            raise RuntimeError("Integrator kernel execution failed.") from exc
 
-                integrator.kernel(steps=steps_to_run)
-                # integrator.kernel(steps=steps_to_run, dump_flags=False, verbose=0) # Silent
-            else:
-                raise
+        positions = integrator.mol.atom_coords()
+        velocities = integrator.veloc
+        accelerations = integrator.accel if hasattr(integrator, "accel") else None
+        # to_numpy(integrator.accel) # TODO: Needed?
 
-        # Collect final step data (successful run, regardless of whether CPU fallback occurred)
+        potential = integrator.epot
+        kinetic = integrator.ekin
 
-        # Convert positions back to the state's requested unit for storage
-        positions = integrator.mol.atom_coords(unit=state_unit)
+        mid_velocities = integrator.mid_veloc if hasattr(integrator, "mid_veloc") else None
+        extra_data = {"mid_velocities": mid_velocities} if mid_velocities is not None else {}
+        # extra_data = {"mid_velocities": to_numpy(mid_velocities)} if mid_velocities is not None else None
 
-        # NOTE: energy stored here is total energy (potential + kinetic). If you want
-        # old behavior (potential energy only), store integrator.epot instead.
-        last_energy = integrator.epot + integrator.ekin
-
-        if hasattr(integrator, "accel") and getattr(integrator, "_masses", None) is not None:
-            last_gradients = -integrator.accel * integrator._masses.reshape(-1, 1)
-
-        last_velocities = integrator.veloc
-        if hasattr(integrator, "mid_veloc"):
-            last_mid_velocities = integrator.mid_veloc
-
-        # Density / grid at final geometry
-        last_density_matrix = self._density_matrix_from_scanner(
+        # TODO: Check this calculation
+        density_matrix = self._density_matrix_from_scanner(
             scanner,
             integrator.mol,
             init_state,
             backend=backend,
             platform_kwargs=platform_kwargs,
         )
-
-        positions_bohr = integrator.mol.atom_coords(unit="Bohr")  # PySCF eval_ao expects Bohr coords
-        last_density_grid, last_density_grid_origin, last_density_grid_spacing = self._compute_density_grid(
+        density_grid, density_grid_origin, density_grid_spacing = self._compute_density_grid(
             integrator.mol,
-            last_density_matrix,
-            positions_bohr,
+            density_matrix,
+            positions,
         )
-        segment_step_idx = total_steps  # TODO: Remove?
-
-        # Persist integrator state that helps us avoid redundant work next segment.
-        extra_state_data = None
-        if last_mid_velocities is not None or getattr(integrator, "accel", None) is not None:
-            extra_state_data = {}
-            if last_mid_velocities is not None:
-                extra_state_data["mid_velocities"] = last_mid_velocities
-            if getattr(integrator, "accel", None) is not None:
-                extra_state_data["accel"] = to_numpy(integrator.accel)
 
         new_state = self.generate_state(
             state._data,
-            positions=positions,
-            energy=last_energy,
-            gradients=last_gradients,
-            velocities=last_velocities,
-            segment_step_idx=segment_step_idx,
-            density_matrix=last_density_matrix,
-            density_grid=last_density_grid,
-            density_grid_origin=last_density_grid_origin,
-            density_grid_spacing=last_density_grid_spacing,
-            extra_state_data=extra_state_data,
+            positions,
+            velocities,
+            accelerations,
+            potential,
+            kinetic,
+            density_matrix,
+            density_grid,
+            density_grid_origin,
+            density_grid_spacing,
+            extra_data,
         )
 
         if isinstance(walker, PySCFWalker):
             return PySCFWalker(new_state, walker.weight)
-        return Walker(new_state, walker.weight)
+        return Walker(
+            new_state, walker.weight
+        )  # TODO: Does it even make sense to not return a PySCF walker here? Shouldn't be able to call this on non PySCF?
 
 
 class PySCFCPUWorker(Worker):
