@@ -11,6 +11,7 @@ from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
 from wepy.runners.pyscf import PySCFState, PySCFWalker
 
 
+# FIXME: Not updated for new runner
 def test_dashboard_section_tracks_energy():
     section = PySCFRunnerDashboardSection(
         step_size=1e-3,

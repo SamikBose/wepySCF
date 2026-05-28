@@ -17,10 +17,10 @@ from time import perf_counter
 # Third Party Library
 import mdtraj as mdj
 import numpy as np
+from pyscf.data.nist import BOHR
 
 # First Party Library
 from pyscf_input import CONFIG
-
 from wepy.boundary_conditions.boundary import NoBC
 from wepy.reporter.dashboard import DashboardReporter
 from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
@@ -64,8 +64,8 @@ def parse_with_mdtraj_topology(pdb_text):
         traj = mdj.load_pdb(tmp.name)
 
     topology = traj.topology
-    # mdtraj stores positions in nm, convert to angstrom
-    positions = np.asarray(traj.xyz[0], dtype=float) * 10.0
+    # mdtraj stores positions in nm, convert to Angstrom, then Bohr (atomic units)
+    positions = np.asarray(traj.xyz[0], dtype=float) * 10.0 / BOHR
     symbols = [atom.element.symbol for atom in topology.atoms]
 
     return topology, symbols, positions
@@ -83,12 +83,12 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
                 spin=0,
                 basis=CONFIG.basis,
                 method=CONFIG.method,
-                unit="Angstrom",
-                segment_step_idx=np.array([0], dtype=int),
-                energy=np.array([np.nan]),
-                gradients=np.zeros_like(positions),
                 velocities=np.zeros_like(positions),
-                density_matrix=np.zeros((len(symbols), len(symbols))),
+                accelerations=None,
+                # Store as 1D feature arrays so the HDF5 reporter can extend them
+                potential=np.array([np.nan], dtype=float),
+                kinetic=np.array([np.nan], dtype=float),
+                # density_matrix=np.zeros((len(symbols), len(symbols))),
                 density_grid=np.zeros(density_grid_shape),
                 density_grid_origin=np.zeros(3),
                 density_grid_spacing=np.ones(3),
@@ -115,40 +115,31 @@ def build_revo_resampler(init_state):
 def main():
     if CONFIG.backend == "gpu":
         if importlib.util.find_spec("cupy") is None:
-            if CONFIG.gpu_fallback_cpu_on_error:
-                print("CuPy not found; falling back to CPU walker parallelization")
-                CONFIG.backend = "cpu"
-            else:
-                raise SystemExit(
-                    "GPU backend requested but CuPy is not installed. "
-                    "Install a CUDA-matched CuPy package (e.g. cupy-cuda12x) "
-                    "or rerun with CPU.",
-                )
-        else:
-            # Get number of GPUs using nvidia-smi
-            try:
-                result = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                num_gpus = len([line for line in result.stdout.strip().split("\n") if line])
+            raise SystemExit(
+                "GPU backend requested but CuPy is not installed. "
+                "Install a CUDA-matched CuPy package (e.g. cupy-cuda12x) "
+                "or rerun with CPU.",
+            )
+        # Get number of GPUs using nvidia-smi
+        try:
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            num_gpus = len([line for line in result.stdout.strip().split("\n") if line])
 
-                if num_gpus == 0:
-                    raise RuntimeError("No GPUs found.")
+            if num_gpus == 0:
+                raise RuntimeError("No GPUs found.")
 
-                print(f"Found {num_gpus} GPU(s) available for PySCFRunner.")
+            print(f"Found {num_gpus} GPU(s) available for PySCFRunner.")
 
-                num_workers = CONFIG.num_workers or CONFIG.n_walkers
-                device_ids = [i % num_gpus for i in range(num_workers)]  # Round-robin assign workers to GPUs
-                mapper = PySCFGPUWorkerMapper(num_workers=num_workers, platform="CUDA", device_ids=device_ids)
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                if CONFIG.gpu_fallback_cpu_on_error:
-                    print("nvidia-smi not found or failed; falling back to CPU walker parallelization")
-                    CONFIG.backend = "cpu"
-                else:
-                    raise RuntimeError("No GPUs found or nvidia-smi failed.") from None
+            num_workers = CONFIG.num_workers or CONFIG.n_walkers
+            device_ids = [i % num_gpus for i in range(num_workers)]  # Round-robin assign workers to GPUs
+            mapper = PySCFGPUWorkerMapper(num_workers=num_workers, platform="CUDA", device_ids=device_ids)
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            raise RuntimeError("No GPUs found or nvidia-smi failed.") from None
 
     elif CONFIG.backend == "cpu":
         num_workers = CONFIG.num_workers or CONFIG.n_walkers
@@ -167,7 +158,6 @@ def main():
         basis=CONFIG.basis,
         method=CONFIG.method,
         xc=CONFIG.xc,
-        step_size=CONFIG.step_size,
         dt=CONFIG.dt,
         integrator_cls=CONFIG.integrator_cls,
         integrator_kwargs=CONFIG.integrator_kwargs,
@@ -175,7 +165,6 @@ def main():
         random_seed=CONFIG.seed,
         backend=CONFIG.backend,
         density_grid_shape=CONFIG.density_grid_shape,
-        gpu_fallback_cpu_on_error=CONFIG.gpu_fallback_cpu_on_error,
     )
 
     resampler = build_revo_resampler(init_state=walkers[0].state)
@@ -225,7 +214,8 @@ def main():
     elif CONFIG.backend == "cpu":
         print(f"CPU workers: {num_workers}")
     print(f"Threads per worker: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
-    print("Final walker energies:", [walker.state["energy"] for walker in end_walkers])
+    print("Final walker potentials:", [walker.state.get("potential") for walker in end_walkers])
+    # print("Final walker kinetics:", [walker.state.get("kinetic") for walker in end_walkers])
 
 
 if __name__ == "__main__":

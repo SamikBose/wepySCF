@@ -14,7 +14,6 @@ class PySCFInput:
     # System name and info
     system: str = "alanine"
     backend: str = "gpu"
-    gpu_fallback_cpu_on_error: bool = False
 
     # Simulation size
     n_walkers: int = 5
@@ -29,8 +28,7 @@ class PySCFInput:
     method: str = "RHF"
     # Allowed methods include RHF/UHF, RKS/UKS, MP2/DFMP2, and CCSD.
     xc: str | None = None
-    step_size: float = 1e-4
-    dt: int = 21
+    dt: float = 21.0
     temperature_kelvin: float = 300.0
     density_grid_shape: tuple[int, int, int] = (10, 10, 10)
 
