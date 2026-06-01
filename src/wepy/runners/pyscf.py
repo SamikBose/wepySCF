@@ -16,7 +16,6 @@ import pyscf.md as pyscf_md
 import pyscf.mp as pyscf_mp
 import pyscf.scf as pyscf_scf
 
-# from pyscf.lib import param as pyscf_param
 # First Party Library
 from wepy.runners.runner import Runner
 from wepy.walker import Walker, WalkerState
@@ -69,6 +68,7 @@ REQUIRED_KWARGS_BY_INTEGRATOR: dict[str, tuple] = {
 _TEMPERATURE_AWARE_INTEGRATORS: set[str] = {"Langevin", "LangevinMiddle", "NVTBerendson"}
 
 
+# TODO: Remove unneeded to_numpys (avoid converting CPU to GPU if not needed)
 def to_numpy(x) -> np.ndarray:
     """Convert an array-like object to a NumPy array of floats.
 
@@ -160,7 +160,7 @@ class PySCFRunner(Runner):
 
     def _build_molecule(self, state: PySCFState):
         symbols = state["symbols"]
-        positions = np.asarray(state["positions"], dtype=float)
+        positions = state["positions"]
         atom = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
 
         return pyscf_gto.M(
@@ -170,6 +170,119 @@ class PySCFRunner(Runner):
             spin=state.get("spin", self.spin),
             unit="Bohr",
         )
+
+    def _build_mean_field(self, mol, state):
+        method = state.get("method", self.method).upper()
+
+        if method == "RHF":
+            mf = pyscf_scf.RHF(mol)
+        elif method == "UHF":
+            mf = pyscf_scf.UHF(mol)
+        elif method == "RKS":
+            mf = pyscf_dft.RKS(mol)
+            xc = state.get("xc", self.xc)
+            if xc is None:
+                raise ValueError("RKS method requires an xc functional.")
+            mf.xc = xc
+        elif method == "UKS":
+            mf = pyscf_dft.UKS(mol)
+            xc = state.get("xc", self.xc)
+            if xc is None:
+                raise ValueError("UKS method requires an xc functional.")
+            mf.xc = xc
+        else:
+            raise ValueError(f"Unsupported PySCF mean-field method '{method}'.")
+
+        return mf
+
+    def _build_reference_mean_field(self, mol, state):
+        ref_method = state.get("reference_method", None)
+        if ref_method is None:
+            ref_method = "UHF" if state.get("spin", self.spin) else "RHF"
+
+        ref_state = PySCFState(**{**state._data, "method": ref_method})
+        return self._build_mean_field(mol, ref_state)
+
+    # TODO: Use this?
+    def _run_quantum_step(self, mol, state, backend, platform_kwargs):
+        method = state.get("method", self.method).upper()
+
+        if method in ("RHF", "UHF", "RKS", "UKS"):
+            mf = self._build_mean_field(mol, state)
+            mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
+            energy = mf.kernel()
+            gradients = to_numpy(mf.nuc_grad_method().kernel())
+            density_matrix = to_numpy(mf.make_rdm1())
+            return energy, gradients, density_matrix
+
+        mf = self._build_reference_mean_field(mol, state)
+        mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
+        mf.kernel()
+
+        if method in ("MP2", "DFMP2"):
+            post_hf = pyscf_mp.MP2(mf)
+            if method == "DFMP2":
+                if not hasattr(post_hf, "density_fit"):
+                    raise ValueError("DFMP2 requested but MP2 object has no density_fit().")
+                post_hf = post_hf.density_fit()
+
+            post_hf.kernel()
+        elif method == "CCSD":
+            post_hf = pyscf_cc.CCSD(mf)
+            post_hf.kernel()
+        else:
+            raise ValueError(f"Unsupported PySCF method '{method}'.")
+
+        energy = getattr(post_hf, "e_tot", None)
+        if energy is None:
+            energy = getattr(mf, "e_tot", None)
+
+        gradients = post_hf.nuc_grad_method().kernel()
+        if hasattr(post_hf, "make_rdm1"):  # noqa: SIM108
+            density_matrix = to_numpy(post_hf.make_rdm1())
+        else:
+            density_matrix = to_numpy(mf.make_rdm1())
+
+        return energy, gradients, density_matrix
+
+    def _configure_hardware(self, mf, backend: str, platform_kwargs: dict):
+        if backend and str(backend).lower() == "gpu":
+            device_id = platform_kwargs.get("DeviceIndex")
+            if device_id is not None:
+                os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
+
+            if hasattr(mf, "to_gpu"):
+                try:
+                    mf = mf.to_gpu()
+                except ModuleNotFoundError as exc:
+                    if getattr(exc, "name", None) == "cupy":
+                        raise RuntimeError(
+                            "GPU backend requested but CuPy is not installed. "
+                            "Install a CuPy build compatible with your CUDA version "
+                            "(e.g. cupy-cuda12x) or run with CPU backend."
+                        ) from exc
+                    raise
+                except AttributeError as exc:
+                    raise RuntimeError(
+                        "Requested GPU backend but PySCF mean-field object does not support to_gpu()."
+                    ) from exc
+            else:
+                raise RuntimeError("Requested GPU backend but PySCF mean-field object does not support to_gpu().")
+
+        return mf
+
+    def _method_supports_scanner(self, method):
+        return method in ("RHF", "UHF", "RKS", "UKS")
+
+    def _build_scanner(self, mol, state: PySCFState, backend: str, platform_kwargs: dict):
+        """Build scanner for the requested backend."""
+        mf = self._build_mean_field(mol, state)
+        mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
+        grad_method = mf.nuc_grad_method()
+        if not hasattr(grad_method, "as_scanner"):
+            return None
+
+        return grad_method.as_scanner()
 
     def _autoset_integrator_kwargs(self, integrator_cls, integrator_kwargs: dict):
         """Auto-set integrator kwargs derived from runner settings.
@@ -214,140 +327,14 @@ class PySCFRunner(Runner):
         kwargs = {"dt": self.dt, **integrator_kwargs}
         return self.integrator_cls(scanner, **kwargs)
 
-    def _build_mean_field(self, mol, state):
-        method = state.get("method", self.method).upper()
-
-        if method == "RHF":
-            mf = pyscf_scf.RHF(mol)
-        elif method == "UHF":
-            mf = pyscf_scf.UHF(mol)
-        elif method == "RKS":
-            mf = pyscf_dft.RKS(mol)
-            xc = state.get("xc", self.xc)
-            if xc is None:
-                raise ValueError("RKS method requires an xc functional.")
-            mf.xc = xc
-        elif method == "UKS":
-            mf = pyscf_dft.UKS(mol)
-            xc = state.get("xc", self.xc)
-            if xc is None:
-                raise ValueError("UKS method requires an xc functional.")
-            mf.xc = xc
-        else:
-            raise ValueError(f"Unsupported PySCF mean-field method '{method}'.")
-
-        return mf
-
-    def _build_reference_mean_field(self, mol, state):
-        ref_method = state.get("reference_method", None)
-        if ref_method is None:
-            ref_method = "UHF" if state.get("spin", self.spin) else "RHF"
-
-        ref_state = PySCFState(**{**state._data, "method": ref_method})
-        return self._build_mean_field(mol, ref_state)
-
-    def _method_supports_scanner(self, method):
-        return method in ("RHF", "UHF", "RKS", "UKS")
-
-    # TODO: Use this?
-    # def _run_quantum_step(self, mol, state, backend, platform_kwargs):
-    #     method = state.get("method", self.method).upper()
-
-    #     if method in ("RHF", "UHF", "RKS", "UKS"):
-    #         mf = self._build_mean_field(mol, state)
-    #         mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
-    #         energy = mf.kernel()
-    #         gradients = to_numpy(mf.nuc_grad_method().kernel())
-    #         density_matrix = to_numpy(mf.make_rdm1())
-    #         return energy, gradients, density_matrix
-
-    #     mf = self._build_reference_mean_field(mol, state)
-    #     mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
-    #     mf.kernel()
-
-    #     if method in ("MP2", "DFMP2"):
-    #         post_hf = pyscf_mp.MP2(mf)
-    #         if method == "DFMP2":
-    #             if not hasattr(post_hf, "density_fit"):
-    #                 raise ValueError("DFMP2 requested but MP2 object has no density_fit().")
-    #             post_hf = post_hf.density_fit()
-
-    #         post_hf.kernel()
-    #     elif method == "CCSD":
-    #         post_hf = pyscf_cc.CCSD(mf)
-    #         post_hf.kernel()
-    #     else:
-    #         raise ValueError(f"Unsupported PySCF method '{method}'.")
-
-    #     energy = getattr(post_hf, "e_tot", None)
-    #     if energy is None:
-    #         energy = getattr(mf, "e_tot", None)
-
-    #     gradients = post_hf.nuc_grad_method().kernel()
-    #     if hasattr(post_hf, "make_rdm1"):  # noqa: SIM108
-    #         density_matrix = to_numpy(post_hf.make_rdm1())
-    #     else:
-    #         density_matrix = to_numpy(mf.make_rdm1())
-
-    #     return energy, gradients, density_matrix
-
-    def _configure_hardware(self, mf, backend: str, platform_kwargs: dict):
-        if backend and str(backend).lower() == "gpu":
-            device_id = platform_kwargs.get("DeviceIndex")
-            if device_id is not None:
-                os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
-
-            if hasattr(mf, "to_gpu"):
-                try:
-                    mf = mf.to_gpu()
-                except ModuleNotFoundError as exc:
-                    if getattr(exc, "name", None) == "cupy":
-                        raise RuntimeError(
-                            "GPU backend requested but CuPy is not installed. "
-                            "Install a CuPy build compatible with your CUDA version "
-                            "(e.g. cupy-cuda12x) or run with CPU backend."
-                        ) from exc
-                    raise
-                except AttributeError as exc:
-                    raise RuntimeError(
-                        "Requested GPU backend but PySCF mean-field object does not support to_gpu()."
-                    ) from exc
-            else:
-                raise RuntimeError("Requested GPU backend but PySCF mean-field object does not support to_gpu().")
-
-        return mf
-
-    def _build_gradient_scanner(self, mf):
-        grad_method = mf.nuc_grad_method()
-        if not hasattr(grad_method, "as_scanner"):
-            return None
-
-        return grad_method.as_scanner()
-
-    def _build_scanner_and_integrator(self, mol, state: PySCFState, backend: str, platform_kwargs: dict):
-        """Build (scanner, integrator) for the requested backend.
-
-        This is used by MD segments for both initial construction and CPU fallback.
-        """
-        mf = self._build_mean_field(mol, state)
-        mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
-        scanner = self._build_gradient_scanner(mf)
-        if scanner is None:  # TODO: Implement more support
-            raise NotImplementedError("Scanner only supported for RHF/UHF/RKS/UKS currently.")
-
-        integrator = self._build_integrator(scanner)
-        return scanner, integrator
-
     def _restore_integrator_values(self, integrator, velocities, mid_velocities, accelerations):
+        """Restore velocities, mid velocities (if needed), and accelerations for an integrator."""
         if velocities is not None:
             integrator.veloc = velocities
-            # integrator.veloc = to_numpy(velocities)
         if hasattr(integrator, "mid_veloc") and mid_velocities is not None:
             integrator.mid_veloc = mid_velocities
-            # integrator.mid_veloc = to_numpy(mid_velocities)
         if hasattr(integrator, "accel") and accelerations is not None:
             integrator.accel = accelerations
-            # integrator.accel = to_numpy(accelerations)
 
     def _make_density_grid_coords(self, positions):
         mins = np.min(positions, axis=0) - self.density_grid_padding
@@ -362,15 +349,14 @@ class PySCFRunner(Runner):
         return coords, mins, spacing
 
     def _compute_density_grid(self, mol, density_matrix, positions):
-        dm = np.asarray(density_matrix)
-        if dm.ndim == 3:
-            dm = dm[0] + dm[1]
+        if density_matrix.ndim == 3:
+            density_matrix = density_matrix[0] + density_matrix[1]
 
         grid_coords, origin, spacing = self._make_density_grid_coords(positions)
 
         ao_values = pyscf_numint.eval_ao(mol, grid_coords)
-        rho = pyscf_numint.eval_rho(mol, ao_values, dm)
-        rho_grid = np.asarray(rho, dtype=float).reshape(self.density_grid_shape)
+        rho = pyscf_numint.eval_rho(mol, ao_values, density_matrix)
+        rho_grid = rho.reshape(self.density_grid_shape)
 
         return rho_grid, origin, spacing
 
@@ -445,10 +431,6 @@ class PySCFRunner(Runner):
         potential_fv = np.asarray(potential, dtype=float).reshape(-1)
         kinetic_fv = np.asarray(kinetic, dtype=float).reshape(-1)
 
-        # "positions": np.asarray(positions, dtype=float),
-        # "velocities": None if velocities is None else np.asarray(velocities, dtype=float),
-        # "accelerations": None if accelerations is None else np.asarray(accelerations, dtype=float),
-                
         return PySCFState(
             **{
                 **state_data,
@@ -471,14 +453,14 @@ class PySCFRunner(Runner):
         backend = kwargs.get("backend", self._cycle_backend or self.backend)
         platform_kwargs: dict = kwargs.get("platform_kwargs") or self._cycle_platform_kwargs or {}
 
-        positions = np.asarray(state["positions"], dtype=float).copy()
+        positions = state["positions"].copy()
         last_velocities = state.get("velocities")
         last_accelerations = state.get("accelerations")
 
         extra_data: dict = state.get("extra_data", {})
         last_mid_velocities = extra_data.get("mid_velocities")  # Langevin Middle
 
-        # TODO: Should we reuse these to avoid from-scratch init?
+        # TODO: Can we reuse these to avoid from-scratch init?
         # last_density_matrix = state.get("density_matrix", None)
         # last_density_grid = state.get("density_grid", np.zeros(self.density_grid_shape))
         # last_density_grid_origin = state.get("density_grid_origin", np.zeros(3))
@@ -489,20 +471,21 @@ class PySCFRunner(Runner):
 
         # TODO: Need to have method in state? Will this ever change? (probably not?)
         state_method = state.get("method", self.method).upper()
+        if not self._method_supports_scanner(state_method):
+            raise NotImplementedError("Scanner only supported for RHF/UHF/RKS/UKS currently.")
 
         # Build a SCF gradient scanner once per segment (reused by the integrator)
-        if self._method_supports_scanner(state_method):  # TODO: Check this earlier to simplify logic here
-            init_state = PySCFState(
-                **{
-                    **state._data,  # TODO: Deep copy this? Why are we storing this? (seems like this is a nested dict of previous states)
-                    "positions": positions,
-                }
-            )
-            init_mol = self._build_molecule(init_state)
+        init_state = PySCFState(
+            **{
+                **state._data,  # TODO: Deep copy this? Why are we storing this? (seems like this is a nested dict of previous states)
+                "positions": positions,
+            }
+        )
+        init_mol = self._build_molecule(init_state)
 
-            scanner, integrator = self._build_scanner_and_integrator(init_mol, init_state, backend, platform_kwargs)
+        scanner = self._build_scanner(init_mol, init_state, backend, platform_kwargs)
+        integrator = self._build_integrator(scanner)
 
-        # TODO: Pass these into the integrator when creating
         # Restore velocities and accelerations if present
         self._restore_integrator_values(integrator, last_velocities, last_mid_velocities, last_accelerations)
 
@@ -512,21 +495,18 @@ class PySCFRunner(Runner):
         # Integrate over the total steps
         try:
             integrator.kernel(steps=total_steps)
-            # integrator.kernel(steps=total_steps, dump_flags=False, verbose=0) # Silent
         except RuntimeError as exc:
             raise RuntimeError("Integrator kernel execution failed.") from exc
 
         positions = integrator.mol.atom_coords()
         velocities = integrator.veloc
         accelerations = integrator.accel if hasattr(integrator, "accel") else None
-        # to_numpy(integrator.accel) # TODO: Needed?
 
         potential = integrator.epot
         kinetic = integrator.ekin
 
         mid_velocities = integrator.mid_veloc if hasattr(integrator, "mid_veloc") else None
         extra_data = {"mid_velocities": mid_velocities} if mid_velocities is not None else {}
-        # extra_data = {"mid_velocities": to_numpy(mid_velocities)} if mid_velocities is not None else None
 
         # TODO: Check this calculation
         density_matrix = self._density_matrix_from_scanner(
@@ -607,6 +587,7 @@ class PySCFGPUWalkerTaskProcess(WalkerTaskProcess):
         return task(backend="gpu", platform_kwargs=platform_options)
 
 
+# TODO: Remove these?
 class PySCFCPUTaskMapper(TaskMapper):
     """Convenience TaskMapper for CPU walker-level parallelism."""
 
