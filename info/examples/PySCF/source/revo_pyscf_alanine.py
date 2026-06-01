@@ -208,14 +208,19 @@ def main():
     )
 
     total_time = perf_counter() - time
-    print(f"Completed REVO/PySCF {CONFIG.backend.upper()} run with {len(end_walkers)} walkers in {total_time:.3f} sec")
+    print(f"\nCompleted REVO/PySCF {CONFIG.backend.upper()} run in {total_time:.3f} sec")
+    print(
+        f"{len(end_walkers)} walkers, {CONFIG.n_cycles} cycles * {CONFIG.segment_length} steps "
+        f"({CONFIG.n_cycles * CONFIG.segment_length} total MD steps)"
+    )
+    print(f"Basis: {CONFIG.basis}, Method: {CONFIG.method}" + (f"/{CONFIG.xc}" if CONFIG.xc else ""))
     if CONFIG.backend == "gpu":
         print(f"GPU device IDs: {device_ids}")
     elif CONFIG.backend == "cpu":
         print(f"CPU workers: {num_workers}")
-    print(f"Threads per worker: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
-    print("Final walker potentials:", [walker.state.get("potential") for walker in end_walkers])
-    # print("Final walker kinetics:", [walker.state.get("kinetic") for walker in end_walkers])
+    print(f"OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
+    print("Final walker potentials:", [walker.state.get("potential").item() for walker in end_walkers])
+    # print("Final walker kinetics:", [walker.state.get("kinetic").item() for walker in end_walkers])
 
 
 if __name__ == "__main__":
