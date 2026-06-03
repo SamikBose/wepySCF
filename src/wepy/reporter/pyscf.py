@@ -89,18 +89,12 @@ Average Kinetic (Hartree): {{ avg_kinetic }}
 class PySCFHDF5Reporter(WepyHDF5Reporter):
     """HDF5 reporter preconfigured for PySCF MD walker state fields."""
 
-    # We omit `density_matrix` by default because its array shape depends on
-    # the AO basis size and can be expensive to store. Could store this later.
     DEFAULT_SAVE_FIELDS = (
         "positions",
         "velocities",
         "accelerations",
         "potential",
         "kinetic",
-        # "density_matrix",
-        "density_grid",
-        "density_grid_origin",
-        "density_grid_spacing",
     )
 
     def __init__(

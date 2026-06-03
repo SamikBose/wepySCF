@@ -107,7 +107,7 @@ class PySCFRunner(Runner):
         integrator_cls=pyscf_md.integrators.VelocityVerlet,
         integrator_kwargs: dict | None = None,
         backend: str = "cpu",
-        density_grid_shape: tuple[int, int, int] = (10, 10, 10),
+        density_grid_shape: tuple[int, int, int] | None = None,
         density_grid_padding: float = 2.0,
     ):
         self.basis = basis
@@ -120,8 +120,9 @@ class PySCFRunner(Runner):
         self.integrator_kwargs = {} if integrator_kwargs is None else dict(integrator_kwargs)
         self.temperature_kelvin = float(temperature_kelvin)
         self.backend = backend.lower()
-        self.density_grid_shape = tuple(density_grid_shape)
-        self.density_grid_padding = float(density_grid_padding)
+        if density_grid_shape is not None:
+            self.density_grid_shape = tuple(density_grid_shape)
+            self.density_grid_padding = float(density_grid_padding)
 
         if self.method not in self.SUPPORTED_METHODS:
             raise ValueError(
@@ -348,10 +349,7 @@ class PySCFRunner(Runner):
         accelerations,
         potential: float,
         kinetic: float,
-        density_matrix,
-        density_grid,
-        density_grid_origin,
-        density_grid_spacing,
+        density_kwargs: dict,
         extra_data: dict | None = None,
     ):
         # Store scalar observables as 1D feature arrays (shape (1,)) so the HDF5
@@ -367,10 +365,7 @@ class PySCFRunner(Runner):
                 "accelerations": accelerations,
                 "potential": potential_fv,
                 "kinetic": kinetic_fv,
-                "density_matrix": density_matrix,
-                "density_grid": density_grid,
-                "density_grid_origin": density_grid_origin,
-                "density_grid_spacing": density_grid_spacing,
+                **density_kwargs,
                 "extra_data": extra_data,
             }
         )
@@ -423,21 +418,32 @@ class PySCFRunner(Runner):
         mid_velocities = getattr(integrator, "mid_veloc", None)
         extra_data = {"mid_velocities": mid_velocities} if mid_velocities is not None else {}
 
-        time = perf_counter()
-        # TODO: Check this calculation
-        density_matrix = self._density_matrix_from_scanner(
-            scanner,
-            integrator.mol,
-            state,
-            backend=backend,
-            platform_kwargs=platform_kwargs,
-        )
-        density_grid, density_grid_origin, density_grid_spacing = self._compute_density_grid(
-            integrator.mol,
-            density_matrix,
-            positions,
-        )
-        print(f"Density calc: {perf_counter() - time} sec")
+        density_kwargs = {}
+        if hasattr(self, "density_grid_shape"):
+            time = perf_counter()
+            # TODO: Check this calculation
+            density_matrix = self._density_matrix_from_scanner(
+                scanner,
+                integrator.mol,
+                state,
+                backend=backend,
+                platform_kwargs=platform_kwargs,
+            )
+            density_grid, density_grid_origin, density_grid_spacing = self._compute_density_grid(
+                integrator.mol,
+                density_matrix,
+                positions,
+            )
+            print(f"Density calc: {perf_counter() - time} sec")
+
+            density_kwargs.update(
+                {
+                    "density_matrix": density_matrix,
+                    "density_grid": density_grid,
+                    "density_grid_origin": density_grid_origin,
+                    "density_grid_spacing": density_grid_spacing,
+                },
+            )
 
         new_state = self.generate_state(
             state_data=state._data,
@@ -446,10 +452,7 @@ class PySCFRunner(Runner):
             accelerations=getattr(integrator, "accel", None),
             potential=integrator.epot,
             kinetic=integrator.ekin,
-            density_matrix=density_matrix,
-            density_grid=density_grid,
-            density_grid_origin=density_grid_origin,
-            density_grid_spacing=density_grid_spacing,
+            density_kwargs=density_kwargs,
             extra_data=extra_data,
         )
 

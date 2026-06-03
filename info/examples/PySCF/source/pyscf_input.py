@@ -27,7 +27,8 @@ class PySCFInput:
     xc: str | None = None
     dt: float = 21.0
     temperature_kelvin: float = 300.0
-    density_grid_shape: tuple[int, int, int] = (10, 10, 10)
+    density_grid_shape: tuple[int, int, int] | None = None
+    # density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
 
     # Select the PySCF MD integrator class and any kwargs passed to it.
     integrator_cls: type = pyscf_md.integrators.LangevinMiddle

@@ -75,6 +75,15 @@ def parse_with_mdtraj_topology(pdb_text):
 def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
     weight = 1.0 / n_walkers
 
+    density_kwargs = {}
+    if density_grid_shape is not None:
+        density_kwargs = {
+            "density_matrix": np.zeros((len(symbols), len(symbols))),  # TODO: Is this right?
+            "density_grid": np.zeros(density_grid_shape),
+            "density_grid_origin": np.zeros(3),
+            "density_grid_spacing": np.ones(3),
+        }
+
     return [
         PySCFWalker(
             PySCFState(
@@ -87,10 +96,7 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
                 # Store as 1D feature arrays so the HDF5 reporter can extend them
                 potential=np.array([np.nan], dtype=float),
                 kinetic=np.array([np.nan], dtype=float),
-                density_matrix=np.zeros((len(symbols), len(symbols))),  # TODO: Is this right?
-                density_grid=np.zeros(density_grid_shape),
-                density_grid_origin=np.zeros(3),
-                density_grid_spacing=np.ones(3),
+                **density_kwargs,
             ),
             weight,
         )
@@ -172,8 +178,19 @@ def main():
 
     reporters = []
 
+    h5_save_fields = PySCFHDF5Reporter.DEFAULT_SAVE_FIELDS
+    if CONFIG.density_grid_shape is not None:
+        # We omit `density_matrix` by default because its array shape depends on
+        # the AO basis size and can be expensive to store. Could store this later.
+        h5_save_fields += (
+            # "density_matrix",
+            "density_grid",
+            "density_grid_origin",
+            "density_grid_spacing",
+        )
     if CONFIG.write_h5:
         h5_reporter = PySCFHDF5Reporter(
+            save_fields=h5_save_fields,
             file_paths=[CONFIG.h5_path],
             modes=[output_mode],
             topology=json_topology,
