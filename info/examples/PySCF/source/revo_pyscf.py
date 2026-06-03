@@ -12,6 +12,7 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")  # Good default for PySCF CPU runs
 # Standard Library
 import importlib.util
 from time import perf_counter
+import uuid
 
 # Third Party Library
 import mdtraj as mdj
@@ -82,6 +83,7 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
     return [
         PySCFWalker(
             PySCFState(
+                walker_id=str(uuid.uuid4()),
                 symbols=symbols,
                 mol=deepcopy(mol),
                 positions=positions,

@@ -6,6 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 # Standard Library
 import os
+import uuid
 from time import perf_counter
 
 # Third Party Library
@@ -93,6 +94,23 @@ class PySCFWalker(Walker):
     def __init__(self, state, weight):
         assert isinstance(state, PySCFState), f"state must be an instance of PySCFState not {type(state)}"
         super().__init__(state, weight)
+
+    def clone(self, number=1):
+        """Override Wepy cloning algorithm to ensure unique walker ids."""
+        # Get the clones from the parent implementation
+        clones = super().clone(number=number)
+
+        print(f"[clone] Cloned {number} walkers")
+
+        # Create new walker_id for each clone so they never share a scanner cache entry
+        # Forces a cold start for each
+        return [
+            PySCFWalker(
+                PySCFState(**{**clone.state._data, "walker_id": str(uuid.uuid4())}),
+                clone.weight,
+            )
+            for clone in clones
+        ]
 
 
 class PySCFRunner(Runner):
@@ -392,6 +410,8 @@ class PySCFRunner(Runner):
 
         backend = kwargs.get("backend", self._cycle_backend or self.backend)
         platform_kwargs: dict = kwargs.get("platform_kwargs") or self._cycle_platform_kwargs or {}
+        scanner_cache: dict = kwargs.get("scanner_cache", {})
+        print(f"[debug] worker cache keys: {list(scanner_cache.keys())}")
 
         positions = state["positions"]
         last_velocities = state.get("velocities")
@@ -407,7 +427,16 @@ class PySCFRunner(Runner):
 
         build_scanner_start = perf_counter()
 
-        scanner = self._build_scanner(init_mol, state, backend, platform_kwargs)
+        walker_id = state.get("walker_id")
+        cached_scanner = scanner_cache.get(walker_id)
+
+        if cached_scanner is None:
+            print(f"[scanner] cold start for walker {walker_id}")
+            scanner = self._build_scanner(init_mol, state, backend, platform_kwargs)
+        else:
+            print(f"[scanner] warm start for walker {walker_id}")
+            scanner = cached_scanner
+            scanner.mol = init_mol
 
         build_scanner_end = perf_counter()
         build_scanner_time = build_scanner_end - build_scanner_start
@@ -488,6 +517,12 @@ class PySCFRunner(Runner):
             extra_data=extra_data,
         )
 
+        print(f"[debug] walker_id in new_state: {new_state['walker_id']}")
+        assert new_state["walker_id"] == walker_id, "walker_id was stomped!"
+
+        scanner_cache.pop(walker_id, None)  # Remove the old entry (walker could move to different worker)
+        scanner_cache[new_state["walker_id"]] = scanner  # Add the new one (TODO: move this up into generate state?)
+
         new_walker = PySCFWalker(new_state, walker.weight)
 
         run_segment_end = perf_counter()
@@ -506,26 +541,42 @@ class PySCFRunner(Runner):
         return new_walker
 
 
+# TODO: Walkers are not guarenteed to run on same GPU every time so scanner cache is only used sometimes
+
+
 class PySCFCPUWorker(Worker):
     NAME_TEMPLATE = "PySCFCPUWorker-{}"
     DEFAULT_NUM_THREADS = 1
 
     def __init__(self, *args, **kwargs):
-        num_threads = self.DEFAULT_NUM_THREADS if "num_threads" not in kwargs else kwargs.pop("num_threads")
+        num_threads = kwargs.pop("num_threads", self.DEFAULT_NUM_THREADS)
         super().__init__(*args, num_threads=num_threads, **kwargs)
+        self._scanner_cache: dict = {}
 
     def run_task(self, task):
         platform_options = {"Threads": str(self.attributes["num_threads"])}
-        return task(backend="cpu", platform_kwargs=platform_options)
+        return task(
+            backend="cpu",
+            platform_kwargs=platform_options,
+            scanner_cache=self._scanner_cache,
+        )
 
 
 class PySCFGPUWorker(Worker):
     NAME_TEMPLATE = "PySCFGPUWorker-{}"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._scanner_cache: dict = {}
+
     def run_task(self, task):
         device_id = self.mapper_attributes["device_ids"][self._worker_idx]
         platform_options = {"DeviceIndex": str(device_id)}
-        return task(backend="gpu", platform_kwargs=platform_options)
+        return task(
+            backend="gpu",
+            platform_kwargs=platform_options,
+            scanner_cache=self._scanner_cache,
+        )
 
 
 class PySCFCPUWorkerMapper(WorkerMapper):
