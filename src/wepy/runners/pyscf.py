@@ -3,17 +3,16 @@
 # Standard Library
 import logging
 import os
+from time import perf_counter
 
 # Third Party Library
 import numpy as np
 
 # TODO: Lazy imports
-import pyscf.cc as pyscf_cc
 import pyscf.dft as pyscf_dft
 import pyscf.dft.numint as pyscf_numint
 import pyscf.gto as pyscf_gto
 import pyscf.md as pyscf_md
-import pyscf.mp as pyscf_mp
 import pyscf.scf as pyscf_scf
 
 # First Party Library
@@ -59,16 +58,15 @@ REQUIRED_KWARGS_BY_INTEGRATOR: dict[str, tuple] = {
     # class_name: (required keyword arguments)
     "VelocityVerlet": (),
     "RandomNoiseVelocityVerlet": (),
+    "NVTBerendson": ("T", "taut"),
     "Langevin": ("T",),
     "LangevinMiddle": ("T",),
-    "NVTBerendson": ("T", "taut"),
 }
 
 # Integrators whose temperature kwarg should be kept in sync with `temperature_kelvin`
-_TEMPERATURE_AWARE_INTEGRATORS: set[str] = {"Langevin", "LangevinMiddle", "NVTBerendson"}
+_TEMPERATURE_AWARE_INTEGRATORS: set[str] = {"NVTBerendson", "Langevin", "LangevinMiddle"}
 
 
-# TODO: Remove unneeded to_numpys (avoid converting CPU to GPU if not needed)
 def to_numpy(x) -> np.ndarray:
     """Convert an array-like object to a NumPy array of floats.
 
@@ -82,20 +80,8 @@ def to_numpy(x) -> np.ndarray:
 class PySCFState(WalkerState):
     # KEYS = KEYS
 
-    # TODO: This is the same thing as WalkerState, just with `get` added (can just remove other functions)
-    # TODO: Why not just take in parameters instead of kwargs?
-    # TODO: Why are we wrapping a dictionary (for deepcopy? is that even needed?)
-    # def __init__(self, **kwargs):
-    #     self._data = kwargs
-
-    # def __getitem__(self, key):
-    #     return self._data[key]
-
     def get(self, key, default=None):
         return self._data.get(key, default)
-
-    # def dict(self):
-    #     return deepcopy(self._data)
 
 
 class PySCFWalker(Walker):
@@ -106,7 +92,6 @@ class PySCFWalker(Walker):
 
 class PySCFRunner(Runner):
     SUPPORTED_METHODS = ("RHF", "UHF", "RKS", "UKS")
-    # SUPPORTED_METHODS = ("RHF", "UHF", "RKS", "UKS", "MP2", "DFMP2", "CCSD") #  Others don't support scanner?
 
     # TODO: Make doc with descriptions and units
     # TODO: Type hints?
@@ -172,78 +157,26 @@ class PySCFRunner(Runner):
         )
 
     def _build_mean_field(self, mol, state):
-        method = state.get("method", self.method).upper()
-
-        if method == "RHF":
+        if self.method == "RHF":
             mf = pyscf_scf.RHF(mol)
-        elif method == "UHF":
+        elif self.method == "UHF":
             mf = pyscf_scf.UHF(mol)
-        elif method == "RKS":
+        elif self.method == "RKS":
             mf = pyscf_dft.RKS(mol)
             xc = state.get("xc", self.xc)
             if xc is None:
                 raise ValueError("RKS method requires an xc functional.")
             mf.xc = xc
-        elif method == "UKS":
+        elif self.method == "UKS":
             mf = pyscf_dft.UKS(mol)
             xc = state.get("xc", self.xc)
             if xc is None:
                 raise ValueError("UKS method requires an xc functional.")
             mf.xc = xc
         else:
-            raise ValueError(f"Unsupported PySCF mean-field method '{method}'.")
+            raise ValueError(f"Unsupported PySCF mean-field method '{self.method}'.")
 
         return mf
-
-    def _build_reference_mean_field(self, mol, state):
-        ref_method = state.get("reference_method", None)
-        if ref_method is None:
-            ref_method = "UHF" if state.get("spin", self.spin) else "RHF"
-
-        ref_state = PySCFState(**{**state._data, "method": ref_method})
-        return self._build_mean_field(mol, ref_state)
-
-    # TODO: Use this?
-    def _run_quantum_step(self, mol, state, backend, platform_kwargs):
-        method = state.get("method", self.method).upper()
-
-        if method in ("RHF", "UHF", "RKS", "UKS"):
-            mf = self._build_mean_field(mol, state)
-            mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
-            energy = mf.kernel()
-            gradients = to_numpy(mf.nuc_grad_method().kernel())
-            density_matrix = to_numpy(mf.make_rdm1())
-            return energy, gradients, density_matrix
-
-        mf = self._build_reference_mean_field(mol, state)
-        mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
-        mf.kernel()
-
-        if method in ("MP2", "DFMP2"):
-            post_hf = pyscf_mp.MP2(mf)
-            if method == "DFMP2":
-                if not hasattr(post_hf, "density_fit"):
-                    raise ValueError("DFMP2 requested but MP2 object has no density_fit().")
-                post_hf = post_hf.density_fit()
-
-            post_hf.kernel()
-        elif method == "CCSD":
-            post_hf = pyscf_cc.CCSD(mf)
-            post_hf.kernel()
-        else:
-            raise ValueError(f"Unsupported PySCF method '{method}'.")
-
-        energy = getattr(post_hf, "e_tot", None)
-        if energy is None:
-            energy = getattr(mf, "e_tot", None)
-
-        gradients = post_hf.nuc_grad_method().kernel()
-        if hasattr(post_hf, "make_rdm1"):  # noqa: SIM108
-            density_matrix = to_numpy(post_hf.make_rdm1())
-        else:
-            density_matrix = to_numpy(mf.make_rdm1())
-
-        return energy, gradients, density_matrix
 
     def _configure_hardware(self, mf, backend: str, platform_kwargs: dict):
         if backend and str(backend).lower() == "gpu":
@@ -304,11 +237,7 @@ class PySCFRunner(Runner):
         return integrator_kwargs
 
     def _validate_integrator_kwargs(self, integrator_cls, integrator_kwargs: dict):
-        """Simple kwargs validation for PySCF MD integrators.
-
-        If an integrator is unknown here, we do not validate and let PySCF
-        raise a `TypeError` naturally.
-        """
+        """Simple kwargs validation for PySCF MD integrators."""
         name = getattr(integrator_cls, "__name__", None)
         required = REQUIRED_KWARGS_BY_INTEGRATOR.get(name)
         if name is None or required is None:
@@ -360,6 +289,7 @@ class PySCFRunner(Runner):
 
         return rho_grid, origin, spacing
 
+    # TODO: Make this an option
     # TODO: Check this
     def _density_matrix_from_scanner(self, scanner, mol, state: PySCFState, backend: str, platform_kwargs: dict):
         """Extract an AO-basis 1-RDM from a PySCF scanner.
@@ -418,13 +348,13 @@ class PySCFRunner(Runner):
         positions,
         velocities,
         accelerations,
-        potential,
-        kinetic,
+        potential: float,
+        kinetic: float,
         density_matrix,
         density_grid,
         density_grid_origin,
         density_grid_spacing,
-        extra_data: dict = None,
+        extra_data: dict | None = None,
     ):
         # Store scalar observables as 1D feature arrays (shape (1,)) so the HDF5
         # reporter can wrap them into (n_frames, 1) feature vectors.
@@ -453,40 +383,26 @@ class PySCFRunner(Runner):
         backend = kwargs.get("backend", self._cycle_backend or self.backend)
         platform_kwargs: dict = kwargs.get("platform_kwargs") or self._cycle_platform_kwargs or {}
 
-        positions = state["positions"].copy()
+        positions = state["positions"]
         last_velocities = state.get("velocities")
         last_accelerations = state.get("accelerations")
 
         extra_data: dict = state.get("extra_data", {})
         last_mid_velocities = extra_data.get("mid_velocities")  # Langevin Middle
 
-        # TODO: Can we reuse these to avoid from-scratch init?
-        # last_density_matrix = state.get("density_matrix", None)
-        # last_density_grid = state.get("density_grid", np.zeros(self.density_grid_shape))
-        # last_density_grid_origin = state.get("density_grid_origin", np.zeros(3))
-        # last_density_grid_spacing = state.get("density_grid_spacing", np.ones(3))
+        if not self._method_supports_scanner(self.method):
+            raise NotImplementedError("PySCF integrators only support RHF/UHF/RKS/UKS scanners.")
 
-        scanner = None
-        integrator = None
+        time = perf_counter()
+        init_mol = self._build_molecule(state)
+        print(f"Build mol: {perf_counter() - time} sec")
 
-        # TODO: Need to have method in state? Will this ever change? (probably not?)
-        state_method = state.get("method", self.method).upper()
-        if not self._method_supports_scanner(state_method):
-            raise NotImplementedError("Scanner only supported for RHF/UHF/RKS/UKS currently.")
+        time = perf_counter()
+        scanner = self._build_scanner(init_mol, state, backend, platform_kwargs)
+        print(f"Build scanner: {perf_counter() - time} sec")
 
-        # Build a SCF gradient scanner once per segment (reused by the integrator)
-        init_state = PySCFState(
-            **{
-                **state._data,  # TODO: Deep copy this? Why are we storing this? (seems like this is a nested dict of previous states)
-                "positions": positions,
-            }
-        )
-        init_mol = self._build_molecule(init_state)
-
-        scanner = self._build_scanner(init_mol, init_state, backend, platform_kwargs)
+        # Build integrator and restore velocities/accelerations if present
         integrator = self._build_integrator(scanner)
-
-        # Restore velocities and accelerations if present
         self._restore_integrator_values(integrator, last_velocities, last_mid_velocities, last_accelerations)
 
         # If reusing acceleration from previous segment, we can skip the initialization step
@@ -494,25 +410,27 @@ class PySCFRunner(Runner):
 
         # Integrate over the total steps
         try:
+            time = perf_counter()
             integrator.kernel(steps=total_steps)
+            print(f"Kernel: {perf_counter() - time} sec")
         except RuntimeError as exc:
             raise RuntimeError("Integrator kernel execution failed.") from exc
 
+        #
+        # Create new state
+        #
+
         positions = integrator.mol.atom_coords()
-        velocities = integrator.veloc
-        accelerations = integrator.accel if hasattr(integrator, "accel") else None
 
-        potential = integrator.epot
-        kinetic = integrator.ekin
-
-        mid_velocities = integrator.mid_veloc if hasattr(integrator, "mid_veloc") else None
+        mid_velocities = getattr(integrator, "mid_veloc", None)
         extra_data = {"mid_velocities": mid_velocities} if mid_velocities is not None else {}
 
+        time = perf_counter()
         # TODO: Check this calculation
         density_matrix = self._density_matrix_from_scanner(
             scanner,
             integrator.mol,
-            init_state,
+            state,
             backend=backend,
             platform_kwargs=platform_kwargs,
         )
@@ -521,26 +439,23 @@ class PySCFRunner(Runner):
             density_matrix,
             positions,
         )
+        print(f"Density calc: {perf_counter() - time} sec")
 
         new_state = self.generate_state(
-            state._data,
-            positions,
-            velocities,
-            accelerations,
-            potential,
-            kinetic,
-            density_matrix,
-            density_grid,
-            density_grid_origin,
-            density_grid_spacing,
-            extra_data,
+            state_data=state._data,
+            positions=positions,
+            velocities=integrator.veloc,
+            accelerations=getattr(integrator, "accel", None),
+            potential=integrator.epot,
+            kinetic=integrator.ekin,
+            density_matrix=density_matrix,
+            density_grid=density_grid,
+            density_grid_origin=density_grid_origin,
+            density_grid_spacing=density_grid_spacing,
+            extra_data=extra_data,
         )
 
-        if isinstance(walker, PySCFWalker):
-            return PySCFWalker(new_state, walker.weight)
-        return Walker(
-            new_state, walker.weight
-        )  # TODO: Does it even make sense to not return a PySCF walker here? Shouldn't be able to call this on non PySCF?
+        return PySCFWalker(new_state, walker.weight)
 
 
 class PySCFCPUWorker(Worker):

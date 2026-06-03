@@ -21,6 +21,7 @@ from pyscf.data.nist import BOHR
 
 # First Party Library
 from pyscf_input import CONFIG
+
 from wepy.boundary_conditions.boundary import NoBC
 from wepy.reporter.dashboard import DashboardReporter
 from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
@@ -81,14 +82,12 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
                 positions=positions,
                 charge=0,
                 spin=0,
-                basis=CONFIG.basis,
-                method=CONFIG.method,
                 velocities=np.zeros_like(positions),
                 accelerations=None,
                 # Store as 1D feature arrays so the HDF5 reporter can extend them
                 potential=np.array([np.nan], dtype=float),
                 kinetic=np.array([np.nan], dtype=float),
-                # density_matrix=np.zeros((len(symbols), len(symbols))),
+                density_matrix=np.zeros((len(symbols), len(symbols))),  # TODO: Is this right?
                 density_grid=np.zeros(density_grid_shape),
                 density_grid_origin=np.zeros(3),
                 density_grid_spacing=np.ones(3),
@@ -208,7 +207,10 @@ def main():
     )
 
     total_time = perf_counter() - time
-    print(f"\nCompleted REVO/PySCF {CONFIG.backend.upper()} run in {total_time:.3f} sec")
+    print(
+        f"\nCompleted REVO/PySCF {CONFIG.backend.upper()} run in {total_time:.3f} sec "
+        f"({total_time / CONFIG.n_cycles:.3f} sec / cycle)"
+    )
     print(
         f"{len(end_walkers)} walkers, {CONFIG.n_cycles} cycles * {CONFIG.segment_length} steps "
         f"({CONFIG.n_cycles * CONFIG.segment_length} total MD steps)"
@@ -219,6 +221,7 @@ def main():
     elif CONFIG.backend == "cpu":
         print(f"CPU workers: {num_workers}")
     print(f"OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
+    # print("Final walker potentials:", [walker.state.get("potential") for walker in end_walkers]) # Less precision
     print("Final walker potentials:", [walker.state.get("potential").item() for walker in end_walkers])
     # print("Final walker kinetics:", [walker.state.get("kinetic").item() for walker in end_walkers])
 
