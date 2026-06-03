@@ -106,7 +106,6 @@ class PySCFRunner(Runner):
         temperature_kelvin: float = 300.0,
         integrator_cls=pyscf_md.integrators.VelocityVerlet,
         integrator_kwargs: dict | None = None,
-        random_seed: int | None = None,
         backend: str = "cpu",
         density_grid_shape: tuple[int, int, int] = (10, 10, 10),
         density_grid_padding: float = 2.0,
@@ -123,7 +122,6 @@ class PySCFRunner(Runner):
         self.backend = backend.lower()
         self.density_grid_shape = tuple(density_grid_shape)
         self.density_grid_padding = float(density_grid_padding)
-        pyscf_md.set_seed(random_seed)  # TODO: Walkers generating same stuff since same seed
 
         if self.method not in self.SUPPORTED_METHODS:
             raise ValueError(
@@ -253,7 +251,7 @@ class PySCFRunner(Runner):
         integrator_kwargs = self._autoset_integrator_kwargs(self.integrator_cls, integrator_kwargs)
         self._validate_integrator_kwargs(self.integrator_cls, integrator_kwargs)
 
-        kwargs = {"dt": self.dt, **integrator_kwargs}
+        kwargs = {"dt": self.dt, "rng": np.random.Generator(np.random.PCG64(None)), **integrator_kwargs}
         return self.integrator_cls(scanner, **kwargs)
 
     def _restore_integrator_values(self, integrator, velocities, mid_velocities, accelerations):

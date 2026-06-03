@@ -161,7 +161,6 @@ def main():
         integrator_cls=CONFIG.integrator_cls,
         integrator_kwargs=CONFIG.integrator_kwargs,
         temperature_kelvin=CONFIG.temperature_kelvin,
-        random_seed=CONFIG.seed,
         backend=CONFIG.backend,
         density_grid_shape=CONFIG.density_grid_shape,
     )
