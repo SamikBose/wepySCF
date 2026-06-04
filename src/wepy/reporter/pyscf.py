@@ -14,55 +14,72 @@ class PySCFRunnerDashboardSection(RunnerDashboardSection):
 Runner: {{ name }}
 
 Backend: {{ backend }}
-Dynamics mode: {{ dynamics_mode }}
+Integrator: {{ integrator }}
+dt (a.u.): {{ dt }}
 Temperature (K): {{ temperature_kelvin }}
-Step size: {{ step_size }}
-Average Energy: {{ avg_energy }}
+Average Potential (Hartree): {{ avg_potential }}
+Average Kinetic (Hartree): {{ avg_kinetic }}
 """
 
-    def __init__(self, runner=None, step_size=None, backend="cpu", dynamics_mode="steepest_descent", temperature_kelvin=None, **kwargs):
+    def __init__(self, runner=None, backend="cpu", integrator=None, dt=None, temperature_kelvin=None, **kwargs):
         if "name" not in kwargs:
             kwargs["name"] = "PySCFRunner"
 
         super().__init__(runner=runner, **kwargs)
 
         if runner is None:
-            self.step_size = step_size
             self.backend = backend
-            self.dynamics_mode = dynamics_mode
+            self.integrator = integrator
+            self.dt = dt
             self.temperature_kelvin = temperature_kelvin
         else:
-            self.step_size = runner.step_size
-            self.backend = runner.backend
-            self.dynamics_mode = getattr(runner, "dynamics_mode", "steepest_descent")
+            self.backend = getattr(runner, "backend", backend)
+            integrator_cls = getattr(runner, "integrator_cls", None)
+            self.integrator = getattr(integrator_cls, "__name__", None)
+            self.dt = getattr(runner, "dt", None)
             self.temperature_kelvin = getattr(runner, "temperature_kelvin", None)
 
-        self._energies = []
+        self._potentials = []
+        self._kinetics = []
 
     def update_values(self, **kwargs):
-        energies = []
+        potentials = []
+        kinetics = []
+
         for walker in kwargs.get("new_walkers", []):
-            energy = walker.state.dict().get("energy", None)
-            if energy is None:
-                continue
-            energies.append(float(np.asarray(energy).ravel()[0]))
-        if len(energies) > 0:
-            self._energies.extend(energies)
+            state_d = walker.state.dict()
+
+            pot = state_d.get("potential", None)
+            if pot is not None:
+                pot_val = float(np.asarray(pot).ravel()[0])
+                if np.isfinite(pot_val):
+                    potentials.append(pot_val)
+
+            kin = state_d.get("kinetic", None)
+            if kin is not None:
+                kin_val = float(np.asarray(kin).ravel()[0])
+                if np.isfinite(kin_val):
+                    kinetics.append(kin_val)
+
+        if potentials:
+            self._potentials.extend(potentials)
+        if kinetics:
+            self._kinetics.extend(kinetics)
 
     def gen_fields(self, **kwargs):
         fields = super().gen_fields(**kwargs)
 
-        avg_energy = np.nan
-        if len(self._energies) > 0:
-            avg_energy = float(np.mean(self._energies))
+        avg_potential = float(np.mean(self._potentials)) if self._potentials else np.nan
+        avg_kinetic = float(np.mean(self._kinetics)) if self._kinetics else np.nan
 
         fields.update(
             {
                 "backend": self.backend,
-                "step_size": self.step_size,
-                "dynamics_mode": self.dynamics_mode,
+                "integrator": self.integrator,
+                "dt": self.dt,
                 "temperature_kelvin": self.temperature_kelvin,
-                "avg_energy": avg_energy,
+                "avg_potential": avg_potential,
+                "avg_kinetic": avg_kinetic,
             }
         )
 
@@ -70,17 +87,14 @@ Average Energy: {{ avg_energy }}
 
 
 class PySCFHDF5Reporter(WepyHDF5Reporter):
-    """HDF5 reporter preconfigured for PySCF walker state fields."""
+    """HDF5 reporter preconfigured for PySCF MD walker state fields."""
 
     DEFAULT_SAVE_FIELDS = (
         "positions",
-        "energy",
-        "gradients",
-        "density_matrix",
-        "density_grid",
-        "density_grid_origin",
-        "density_grid_spacing",
-        "segment_step_idx",
+        "velocities",
+        "accelerations",
+        "potential",
+        "kinetic",
     )
 
     def __init__(

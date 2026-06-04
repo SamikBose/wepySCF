@@ -17,6 +17,7 @@ from time import perf_counter
 # Third Party Library
 import mdtraj as mdj
 import numpy as np
+from pyscf.data.nist import BOHR
 
 # First Party Library
 from pyscf_input import CONFIG
@@ -64,39 +65,43 @@ def parse_with_mdtraj_topology(pdb_text):
         traj = mdj.load_pdb(tmp.name)
 
     topology = traj.topology
-    # mdtraj stores positions in nm, convert to angstrom
-    positions = np.asarray(traj.xyz[0], dtype=float) * 10.0
+    # mdtraj stores positions in nm, convert to Angstrom, then Bohr (atomic units)
+    positions = np.asarray(traj.xyz[0], dtype=float) * 10.0 / BOHR
     symbols = [atom.element.symbol for atom in topology.atoms]
 
     return topology, symbols, positions
 
 
-def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape, jitter, seed):
-    rng = np.random.default_rng(seed)
-    walkers = []
+def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
     weight = 1.0 / n_walkers
 
-    for _ in range(n_walkers):
-        noisy_positions = positions + rng.normal(scale=jitter, size=positions.shape)
-        state = PySCFState(
-            symbols=symbols,
-            positions=noisy_positions,
-            charge=0,
-            spin=0,
-            basis=CONFIG.basis,
-            method=CONFIG.method,
-            unit="Angstrom",
-            segment_step_idx=np.array([0], dtype=int),
-            energy=np.array([np.nan]),
-            gradients=np.zeros_like(noisy_positions),
-            density_matrix=np.zeros((len(symbols), len(symbols))),
-            density_grid=np.zeros(density_grid_shape),
-            density_grid_origin=np.zeros(3),
-            density_grid_spacing=np.ones(3),
-        )
-        walkers.append(PySCFWalker(state, weight))
+    density_kwargs = {}
+    if density_grid_shape is not None:
+        density_kwargs = {
+            "density_matrix": np.zeros((len(symbols), len(symbols))),  # TODO: Is this right?
+            "density_grid": np.zeros(density_grid_shape),
+            "density_grid_origin": np.zeros(3),
+            "density_grid_spacing": np.ones(3),
+        }
 
-    return walkers
+    return [
+        PySCFWalker(
+            PySCFState(
+                symbols=symbols,
+                positions=positions,
+                charge=0,
+                spin=0,
+                velocities=np.zeros_like(positions),
+                accelerations=None,
+                # Store as 1D feature arrays so the HDF5 reporter can extend them
+                potential=np.array([np.nan], dtype=float),
+                kinetic=np.array([np.nan], dtype=float),
+                **density_kwargs,
+            ),
+            weight,
+        )
+        for _ in range(n_walkers)
+    ]
 
 
 def build_revo_resampler(init_state):
@@ -113,6 +118,38 @@ def build_revo_resampler(init_state):
 
 
 def main():
+    if CONFIG.backend == "gpu":
+        if importlib.util.find_spec("cupy") is None:
+            raise SystemExit(
+                "GPU backend requested but CuPy is not installed. "
+                "Install a CUDA-matched CuPy package (e.g. cupy-cuda12x) "
+                "or rerun with CPU.",
+            )
+        # Get number of GPUs using nvidia-smi
+        try:
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            num_gpus = len([line for line in result.stdout.strip().split("\n") if line])
+
+            if num_gpus == 0:
+                raise RuntimeError("No GPUs found.")
+
+            print(f"Found {num_gpus} GPU(s) available for PySCFRunner.")
+
+            num_workers = CONFIG.num_workers or CONFIG.n_walkers
+            device_ids = [i % num_gpus for i in range(num_workers)]  # Round-robin assign workers to GPUs
+            mapper = PySCFGPUWorkerMapper(num_workers=num_workers, platform="CUDA", device_ids=device_ids)
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            raise RuntimeError("No GPUs found or nvidia-smi failed.") from None
+
+    elif CONFIG.backend == "cpu":
+        num_workers = CONFIG.num_workers or CONFIG.n_walkers
+        mapper = PySCFCPUWorkerMapper(num_workers=num_workers)
+
     mdj_top, symbols, positions = parse_with_mdtraj_topology(ALANINE_DIPEPTIDE_PDB)
 
     walkers = generate_initial_walkers(
@@ -120,22 +157,18 @@ def main():
         positions=positions,
         n_walkers=CONFIG.n_walkers,
         density_grid_shape=CONFIG.density_grid_shape,
-        jitter=CONFIG.jitter,
-        seed=CONFIG.seed,
     )
 
     runner = PySCFRunner(
         basis=CONFIG.basis,
         method=CONFIG.method,
         xc=CONFIG.xc,
-        step_size=CONFIG.step_size,
-        dynamics_mode=CONFIG.dynamics_mode,
+        dt=CONFIG.dt,
+        integrator_cls=CONFIG.integrator_cls,
+        integrator_kwargs=CONFIG.integrator_kwargs,
         temperature_kelvin=CONFIG.temperature_kelvin,
-        random_seed=CONFIG.seed,
         backend=CONFIG.backend,
-        use_scf_scanner=CONFIG.use_scf_scanner,
         density_grid_shape=CONFIG.density_grid_shape,
-        gpu_fallback_cpu_on_error=CONFIG.gpu_fallback_cpu_on_error,
     )
 
     resampler = build_revo_resampler(init_state=walkers[0].state)
@@ -145,8 +178,19 @@ def main():
 
     reporters = []
 
+    h5_save_fields = PySCFHDF5Reporter.DEFAULT_SAVE_FIELDS
+    if CONFIG.density_grid_shape is not None:
+        # We omit `density_matrix` by default because its array shape depends on
+        # the AO basis size and can be expensive to store. Could store this later.
+        h5_save_fields += (
+            # "density_matrix",
+            "density_grid",
+            "density_grid_origin",
+            "density_grid_spacing",
+        )
     if CONFIG.write_h5:
         h5_reporter = PySCFHDF5Reporter(
+            save_fields=h5_save_fields,
             file_paths=[CONFIG.h5_path],
             modes=[output_mode],
             topology=json_topology,
@@ -162,47 +206,6 @@ def main():
             runner_dash=PySCFRunnerDashboardSection(runner=runner),
         )
         reporters.append(dash_reporter)
-
-    if CONFIG.backend == "gpu":
-        if importlib.util.find_spec("cupy") is None:
-            if CONFIG.gpu_fallback_cpu_on_error:
-                print("CuPy not found; falling back to CPU walker parallelization")
-                CONFIG.backend = "cpu"
-            else:
-                raise SystemExit(
-                    "GPU backend requested but CuPy is not installed. "
-                    "Install a CUDA-matched CuPy package (e.g. cupy-cuda12x) "
-                    "or rerun with CPU.",
-                )
-        else:
-            # Get number of GPUs using nvidia-smi
-            try:
-                result = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                num_gpus = len([line for line in result.stdout.strip().split("\n") if line])
-
-                if num_gpus == 0:
-                    raise RuntimeError("No GPUs found.")
-
-                print(f"Found {num_gpus} GPU(s) available for PySCFRunner.")
-
-                num_workers = CONFIG.num_workers or CONFIG.n_walkers
-                device_ids = [i % num_gpus for i in range(num_workers)]  # Round-robin assign workers to GPUs
-                mapper = PySCFGPUWorkerMapper(num_workers=num_workers, platform="CUDA", device_ids=device_ids)
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                if CONFIG.gpu_fallback_cpu_on_error:
-                    print("nvidia-smi not found or failed; falling back to CPU walker parallelization")
-                    CONFIG.backend = "cpu"
-                else:
-                    raise RuntimeError("No GPUs found or nvidia-smi failed.") from None
-
-    if CONFIG.backend == "cpu":
-        num_workers = CONFIG.num_workers or CONFIG.n_walkers
-        mapper = PySCFCPUWorkerMapper(num_workers=num_workers)
 
     sim_manager = Manager(
         walkers,
@@ -220,13 +223,23 @@ def main():
     )
 
     total_time = perf_counter() - time
-    print(f"Completed REVO/PySCF {CONFIG.backend} run with {len(end_walkers)} walkers in {total_time:.3f} seconds")
+    print(
+        f"\nCompleted REVO/PySCF {CONFIG.backend.upper()} run in {total_time:.3f} sec "
+        f"({total_time / CONFIG.n_cycles:.3f} sec / cycle)"
+    )
+    print(
+        f"{len(end_walkers)} walkers, {CONFIG.n_cycles} cycles * {CONFIG.segment_length} steps "
+        f"({CONFIG.n_cycles * CONFIG.segment_length} total MD steps)"
+    )
+    print(f"Basis: {CONFIG.basis}, Method: {CONFIG.method}" + (f"/{CONFIG.xc}" if CONFIG.xc else ""))
     if CONFIG.backend == "gpu":
         print(f"GPU device IDs: {device_ids}")
     elif CONFIG.backend == "cpu":
         print(f"CPU workers: {num_workers}")
-    print(f"Threads per worker: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
-    print("Final walker energies:", [walker.state["energy"] for walker in end_walkers])
+    print(f"OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
+    # print("Final walker potentials:", [walker.state.get("potential") for walker in end_walkers]) # Less precision
+    print("Final walker potentials:", [walker.state.get("potential").item() for walker in end_walkers])
+    # print("Final walker kinetics:", [walker.state.get("kinetic").item() for walker in end_walkers])
 
 
 if __name__ == "__main__":
