@@ -63,8 +63,9 @@ REQUIRED_KWARGS_BY_INTEGRATOR: dict[str, tuple] = {
     "LangevinMiddle": ("T",),
 }
 
-# Integrators whose temperature kwarg should be kept in sync with `temperature_kelvin`
-_TEMPERATURE_AWARE_INTEGRATORS: set[str] = {"NVTBerendson", "Langevin", "LangevinMiddle"}
+
+TEMPERATURE_AWARE_INTEGRATORS: set[str] = {"NVTBerendson", "Langevin", "LangevinMiddle"}
+RANDOM_NOISE_INTEGRATORS: set[str] = {"RandomNoiseVelocityVerlet", "Langevin", "LangevinMiddle"}
 
 
 def to_numpy(x) -> np.ndarray:
@@ -219,11 +220,13 @@ class PySCFRunner(Runner):
     def _autoset_integrator_kwargs(self, integrator_cls, integrator_kwargs: dict):
         """Auto-set integrator kwargs derived from runner settings.
 
-        Currently only auto-sets integrator `T` equal to `temperature_kelvin`
+        Sets integrator `T` equal to `temperature_kelvin`
         for temperature-aware integrators.
+
+        Also sets `rng` for integrators with random noise.
         """
         name = getattr(integrator_cls, "__name__", "")
-        if name in _TEMPERATURE_AWARE_INTEGRATORS:
+        if name in TEMPERATURE_AWARE_INTEGRATORS:
             if "T" in integrator_kwargs and float(integrator_kwargs["T"]) != self.temperature_kelvin:
                 logger.warning(
                     "Overriding integrator_kwargs['T']=%s to match temperature_kelvin=%s for %s",
@@ -232,6 +235,8 @@ class PySCFRunner(Runner):
                     name,
                 )
             integrator_kwargs["T"] = self.temperature_kelvin
+        if name in RANDOM_NOISE_INTEGRATORS:
+            integrator_kwargs["rng"] = np.random.Generator(np.random.PCG64(None))
 
         return integrator_kwargs
 
@@ -252,7 +257,7 @@ class PySCFRunner(Runner):
         integrator_kwargs = self._autoset_integrator_kwargs(self.integrator_cls, integrator_kwargs)
         self._validate_integrator_kwargs(self.integrator_cls, integrator_kwargs)
 
-        kwargs = {"dt": self.dt, "rng": np.random.Generator(np.random.PCG64(None)), **integrator_kwargs}
+        kwargs = {"dt": self.dt, **integrator_kwargs}
         return self.integrator_cls(scanner, **kwargs)
 
     def _restore_integrator_values(self, integrator, velocities, mid_velocities, accelerations):
