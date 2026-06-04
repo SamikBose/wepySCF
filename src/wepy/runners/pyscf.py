@@ -18,7 +18,6 @@ import pyscf.scf as pyscf_scf
 # First Party Library
 from wepy.runners.runner import Runner
 from wepy.walker import Walker, WalkerState
-from wepy.work_mapper.task_mapper import TaskMapper, WalkerTaskProcess
 from wepy.work_mapper.worker import Worker, WorkerMapper
 
 logger = logging.getLogger(__name__)
@@ -46,6 +45,8 @@ UNIT_NAMES = (
     ("positions_unit", "bohr"),
     ("velocities_unit", "bohr/au"),
     ("accelerations_unit", "bohr/au^2"),
+    ("temperature_unit", "kelvin"),
+    ("energy_unit", "hartree"),
     ("potential_unit", "hartree"),
     ("kinetic_unit", "hartree"),
     ("density_grid_unit", "electron/bohr^3"),
@@ -293,7 +294,6 @@ class PySCFRunner(Runner):
 
         return rho_grid, origin, spacing
 
-    # TODO: Make this an option
     # TODO: Check this
     def _density_matrix_from_scanner(self, scanner, mol, state: PySCFState, backend: str, platform_kwargs: dict):
         """Extract an AO-basis 1-RDM from a PySCF scanner.
@@ -318,7 +318,7 @@ class PySCFRunner(Runner):
                 logger.debug("Failed to get density matrix from scanner.make_rdm1(): %s", exc)
 
         # Common PySCF pattern: grad_scanner.base is a SCF single-point scanner
-        # (see pyscf.scf.hf.as_scanner), which generally supports make_rdm1().
+        # (see pyscf.scf.hf.as_scanner), which generally supports make_rdm1()
         scan_base = getattr(scanner, "base", None)
         if scan_base is not None and hasattr(scan_base, "make_rdm1"):
             try:
@@ -326,7 +326,7 @@ class PySCFRunner(Runner):
             except Exception as exc:
                 logger.debug("Failed to get density matrix from scanner.base.make_rdm1(): %s", exc)
 
-        # Some scanner wrappers may stash the mean-field object under `.base` or `._scf`.
+        # Some scanner wrappers may stash the mean-field object under `.base` or `._scf`
         for obj in (
             getattr(scan_base, "base", None),
             getattr(scan_base, "_scf", None),
@@ -340,7 +340,7 @@ class PySCFRunner(Runner):
                 logger.debug("Failed to get density matrix from %s.make_rdm1(): %s", type(obj), exc)
 
         # Fall back: rerun an SCF calculation at the final geometry. This is more
-        # expensive but is robust.
+        # expensive but is robust
         mf = self._build_mean_field(mol, state)
         mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
         mf.kernel()
@@ -352,13 +352,17 @@ class PySCFRunner(Runner):
         positions,
         velocities,
         accelerations,
+        temperature: float,
         potential: float,
         kinetic: float,
+        total_energy: float,
         density_kwargs: dict,
         extra_data: dict | None = None,
     ):
         # Store scalar observables as 1D feature arrays (shape (1,)) so the HDF5
-        # reporter can wrap them into (n_frames, 1) feature vectors.
+        # reporter can wrap them into (n_frames, 1) feature vectors
+        temperature_fv = np.asarray(temperature, dtype=float).reshape(-1)
+        total_energy_fv = np.asarray(total_energy, dtype=float).reshape(-1)
         potential_fv = np.asarray(potential, dtype=float).reshape(-1)
         kinetic_fv = np.asarray(kinetic, dtype=float).reshape(-1)
 
@@ -368,6 +372,8 @@ class PySCFRunner(Runner):
                 "positions": positions,
                 "velocities": velocities,
                 "accelerations": accelerations,
+                "temperature": temperature_fv,
+                "total_energy": total_energy_fv,
                 "potential": potential_fv,
                 "kinetic": kinetic_fv,
                 **density_kwargs,
@@ -455,8 +461,10 @@ class PySCFRunner(Runner):
             positions=positions,
             velocities=integrator.veloc,
             accelerations=getattr(integrator, "accel", None),
+            temperature=integrator.temperature(),
             potential=integrator.epot,
             kinetic=integrator.ekin,
+            total_energy=integrator.epot + integrator.ekin,
             density_kwargs=density_kwargs,
             extra_data=extra_data,
         )
@@ -484,59 +492,6 @@ class PySCFGPUWorker(Worker):
         device_id = self.mapper_attributes["device_ids"][self._worker_idx]
         platform_options = {"DeviceIndex": str(device_id)}
         return task(backend="gpu", platform_kwargs=platform_options)
-
-
-class PySCFCPUWalkerTaskProcess(WalkerTaskProcess):
-    NAME_TEMPLATE = "PySCF_CPU_Walker_Task-{}"
-
-    def run_task(self, task):
-        if "num_threads" in self.mapper_attributes:
-            num_threads = self.mapper_attributes["num_threads"]
-            platform_options = {"Threads": str(num_threads)}
-        else:
-            platform_options = {}
-
-        return task(backend="cpu", platform_kwargs=platform_options)
-
-
-class PySCFGPUWalkerTaskProcess(WalkerTaskProcess):
-    NAME_TEMPLATE = "PySCF_GPU_Walker_Task-{}"
-
-    def run_task(self, task):
-        device_id = self.mapper_attributes["device_ids"][self._worker_idx]
-        platform_options = {"DeviceIndex": str(device_id)}
-        return task(backend="gpu", platform_kwargs=platform_options)
-
-
-# TODO: Remove these?
-class PySCFCPUTaskMapper(TaskMapper):
-    """Convenience TaskMapper for CPU walker-level parallelism."""
-
-    def __init__(self, num_workers=None, **kwargs):
-        super().__init__(
-            walker_task_type=PySCFCPUWalkerTaskProcess,
-            num_workers=num_workers,
-            **kwargs,
-        )
-
-
-class PySCFGPUTaskMapper(TaskMapper):
-    """Convenience TaskMapper for GPU walker-level parallelism."""
-
-    def __init__(self, num_workers=None, platform="CUDA", device_ids=None, **kwargs):
-        if device_ids is None:
-            raise ValueError("device_ids must be provided for PySCFGPUTaskMapper")
-
-        if num_workers is None:
-            num_workers = len(device_ids)
-
-        super().__init__(
-            walker_task_type=PySCFGPUWalkerTaskProcess,
-            num_workers=num_workers,
-            platform=platform,
-            device_ids=device_ids,
-            **kwargs,
-        )
 
 
 class PySCFCPUWorkerMapper(WorkerMapper):

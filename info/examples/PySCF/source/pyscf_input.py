@@ -8,44 +8,62 @@ from dataclasses import dataclass, field
 
 import pyscf.md as pyscf_md
 
+from wepy.resampling.distances.pyscf import ProtonTransfer, QMGridDensityDistance
+
 
 @dataclass
 class PySCFInput:
     # System name and info
+    topology_file_path = "./info/examples/PySCF/source/alanine_dipeptide.pdb"
     system: str = "alanine"
     backend: str = "gpu"
 
     # Simulation size
-    n_walkers: int = 5
+    n_walkers: int = 4
     n_cycles: int = 5
-    segment_length: int = 1
+    segment_length: int = 10
 
     # PySCF runner parameters
     basis: str = "sto-3g"
     method: str = "RHF"
-    # Allowed methods include RHF/UHF, RKS/UKS, MP2/DFMP2, and CCSD.
+    # Allowed methods include RHF/UHF, RKS/UKS
     xc: str | None = None
-    dt: float = 21.0
+    dt: int = 21
     temperature_kelvin: float = 300.0
-    density_grid_shape: tuple[int, int, int] | None = None
-    # density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
+    # density_grid_shape: tuple[int, int, int] | None = None
+    density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
 
-    # Select the PySCF MD integrator class and any kwargs passed to it.
+    # Select the PySCF MD integrator class and any kwargs passed to it
     integrator_cls: type = pyscf_md.integrators.LangevinMiddle
-    integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 0.1})
+    integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1e-5})
 
-    # CPU walker-level parallelization
-    # If None, defaults to n_walkers (i.e., one worker per walker when possible).
-    num_workers: int | None = None
-    # Read the OMP_NUM_THREADS environment variable (used for logging; user sets the value before running)
-    _omp_threads_env_var: str | None = os.environ.get("OMP_NUM_THREADS")
+    def distance_qm_grid_density():
+        return QMGridDensityDistance(grid_key="density_grid", normalize=True)
+
+    def distance_proton_transfer(break_pair: tuple[int, int], make_pair: tuple[int, int]):
+        return ProtonTransfer(break_pair=break_pair, make_pair=make_pair)
+
+    distance = distance_qm_grid_density()
+
+    @dataclass
+    class ResamplerParameters:
+        merge_dist: float = 0.05
+        char_dist: float = 0.1
+        pmin: float = 1e-12
+        pmax: float = 0.99
+
+    # If resampler parameters is None, then no resampler is used
+    resampler_parameters: ResamplerParameters | None = ResamplerParameters()
 
     # Output control
-    write_h5: bool = False  # TODO: Add write control to other systems (just alanine right now)
-    write_dash: bool = False
+    write_h5: bool = True
+    write_dash: bool = True
     h5_path: str | None = None
     dash_path: str | None = None
-    overwrite: bool = True
+    overwrite: bool = False
+
+    # Read the OMP_NUM_THREADS environment variable (used for logging; user sets the value before running)
+    _omp_threads_env_var: str | None = os.environ.get("OMP_NUM_THREADS")
 
     def __post_init__(self) -> None:
         """Set output paths; need to do this after initialization since we need to wait for parameters to be set."""
@@ -60,32 +78,4 @@ class PySCFInput:
             self.dash_path = f"{filename_base}.dash.org"
 
 
-# TODO: Update to match alanine
-@dataclass
-class WaterDimerInput(PySCFInput):
-    # System name and info
-    system: str = "waterdimer"
-
-    # Simulation size
-    n_walkers: int = 8
-    n_cycles: int = 5
-    segment_length: int = 2
-
-    # Walker initialization
-    jitter: float = 0.005  # TODO: Remove
-
-    # PySCF runner parameters
-    method: str = "RHF"
-    xc: str | None = "m06"
-
-
 CONFIG = PySCFInput()
-WATER_DIMER_RHF_CONFIG = WaterDimerInput(
-    system="waterdimer_rhf",
-    method="RHF",
-)
-WATER_DIMER_RKS_M06_CONFIG = WaterDimerInput(
-    system="waterdimer_rks_m06",
-    method="RKS",
-    xc="m06",
-)

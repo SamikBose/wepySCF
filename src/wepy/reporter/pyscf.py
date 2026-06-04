@@ -92,7 +92,8 @@ class PySCFHDF5Reporter(WepyHDF5Reporter):
     DEFAULT_SAVE_FIELDS = (
         "positions",
         "velocities",
-        "accelerations",
+        "temperature",
+        "total_energy",
         "potential",
         "kinetic",
     )
