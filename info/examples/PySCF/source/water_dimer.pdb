@@ -1,0 +1,7 @@
+ATOM      1  O   HOH A   1       0.000  0.000  0.000
+ATOM      2  H1  HOH A   1       0.958  0.000  0.000
+ATOM      3  H2  HOH A   1      -0.239  0.927  0.000
+ATOM      4  O   HOH B   2       2.976  0.000  0.000
+ATOM      5  H1  HOH B   2       2.656  0.757  0.492
+ATOM      6  H2  HOH B   2       2.656 -0.757  0.492
+END

@@ -25,45 +25,21 @@ from pyscf_input import CONFIG
 from wepy.boundary_conditions.boundary import NoBC
 from wepy.reporter.dashboard import DashboardReporter
 from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
-from wepy.resampling.distances.pyscf import QMGridDensityDistance
+from wepy.resampling.distances.pyscf import ProtonTransfer, QMGridDensityDistance
+from wepy.resampling.resamplers.resampler import NoResampler
 from wepy.resampling.resamplers.revo import REVOResampler
 from wepy.runners.pyscf import PySCFCPUWorkerMapper, PySCFGPUWorkerMapper, PySCFRunner, PySCFState, PySCFWalker
 from wepy.sim_manager import Manager
 from wepy.util.mdtraj import mdtraj_to_json_topology
 
-ALANINE_DIPEPTIDE_PDB = """\
-ATOM      1 1HH3 ACE     1       2.000   1.000  -0.000
-ATOM      2  CH3 ACE     1       2.000   2.090   0.000
-ATOM      3 2HH3 ACE     1       1.486   2.454   0.890
-ATOM      4 3HH3 ACE     1       1.486   2.454  -0.890
-ATOM      5  C   ACE     1       3.427   2.641  -0.000
-ATOM      6  O   ACE     1       4.391   1.877  -0.000
-ATOM      7  N   ALA     2       3.555   3.970  -0.000
-ATOM      8  H   ALA     2       2.733   4.556  -0.000
-ATOM      9  CA  ALA     2       4.853   4.614  -0.000
-ATOM     10  HA  ALA     2       5.408   4.316   0.890
-ATOM     11  CB  ALA     2       5.661   4.221  -1.232
-ATOM     12 1HB  ALA     2       5.123   4.521  -2.131
-ATOM     13 2HB  ALA     2       6.630   4.719  -1.206
-ATOM     14 3HB  ALA     2       5.809   3.141  -1.241
-ATOM     15  C   ALA     2       4.713   6.129   0.000
-ATOM     16  O   ALA     2       3.601   6.653   0.000
-ATOM     17  N   NME     3       5.846   6.835   0.000
-ATOM     18  H   NME     3       6.737   6.359  -0.000
-ATOM     19  CH3 NME     3       5.846   8.284   0.000
-ATOM     20 1HH3 NME     3       4.819   8.648   0.000
-ATOM     21 2HH3 NME     3       6.360   8.648   0.890
-ATOM     22 3HH3 NME     3       6.360   8.648  -0.890
-END
-"""
 
-
-def parse_with_mdtraj_topology(pdb_text):
-    with tempfile.NamedTemporaryFile(suffix=".pdb", mode="w", delete=True) as tmp:
-        tmp.write(pdb_text)
-        tmp.flush()
-        traj = mdj.load_pdb(tmp.name)
-
+def parse_with_mdtraj_topology(topology_file_path: str):
+    if topology_file_path.endswith(".pdb"):
+        traj = mdj.load_pdb(topology_file_path)
+    elif topology_file_path.endswith(".xyz"):
+        traj = mdj.load_xyz(topology_file_path)
+    else:
+        raise RuntimeError("Must be a pdb or xyz file.")
     topology = traj.topology
     # mdtraj stores positions in nm, convert to Angstrom, then Bohr (atomic units)
     positions = np.asarray(traj.xyz[0], dtype=float) * 10.0 / BOHR
@@ -92,8 +68,11 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
                 charge=0,
                 spin=0,
                 velocities=np.zeros_like(positions),
+                # TODO: Initialize with Maxwell-Boltzmann
                 accelerations=None,
                 # Store as 1D feature arrays so the HDF5 reporter can extend them
+                temperature=np.array([CONFIG.temperature_kelvin], dtype=float),
+                total_energy=np.array([np.nan], dtype=float),
                 potential=np.array([np.nan], dtype=float),
                 kinetic=np.array([np.nan], dtype=float),
                 **density_kwargs,
@@ -105,19 +84,21 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
 
 
 def build_revo_resampler(init_state):
-    distance = QMGridDensityDistance(grid_key="density_grid", normalize=True)
+    if CONFIG.resampler_parameters is None:
+        return NoResampler()
 
     return REVOResampler(
-        distance=distance,
+        distance=CONFIG.distance,
         init_state=init_state,
-        merge_dist=0.5,
-        char_dist=1.0,
-        pmin=1e-12,
-        pmax=0.99,
+        merge_dist=CONFIG.resampler_parameters.merge_dist,
+        char_dist=CONFIG.resampler_parameters.char_dist,
+        pmin=CONFIG.resampler_parameters.pmin,
+        pmax=CONFIG.resampler_parameters.pmax,
     )
 
 
 def main():
+    # build_mapper
     if CONFIG.backend == "gpu":
         if importlib.util.find_spec("cupy") is None:
             raise SystemExit(
@@ -125,32 +106,24 @@ def main():
                 "Install a CUDA-matched CuPy package (e.g. cupy-cuda12x) "
                 "or rerun with CPU.",
             )
-        # Get number of GPUs using nvidia-smi
-        try:
-            result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            num_gpus = len([line for line in result.stdout.strip().split("\n") if line])
 
-            if num_gpus == 0:
-                raise RuntimeError("No GPUs found.")
+        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", None)
+        if cuda_visible_devices is not None:
+            num_available = len([x for x in cuda_visible_devices.split(",") if x.strip()])
+            print(f"Found {num_available} available devices.")
+        else:
+            raise RuntimeError("No GPUs available: CUDA_VISIBLE_DEVICES is not set or empty.")
 
-            print(f"Found {num_gpus} GPU(s) available for PySCFRunner.")
+        if num_available == 0:
+            raise RuntimeError("No GPUs found.")
 
-            num_workers = CONFIG.num_workers or CONFIG.n_walkers
-            device_ids = [i % num_gpus for i in range(num_workers)]  # Round-robin assign workers to GPUs
-            mapper = PySCFGPUWorkerMapper(num_workers=num_workers, platform="CUDA", device_ids=device_ids)
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            raise RuntimeError("No GPUs found or nvidia-smi failed.") from None
+        device_ids = [i % num_available for i in range(CONFIG.n_walkers)]  # Round-robin assign workers to GPUs
+        mapper = PySCFGPUWorkerMapper(num_workers=CONFIG.n_walkers, platform="CUDA", device_ids=device_ids)
 
     elif CONFIG.backend == "cpu":
-        num_workers = CONFIG.num_workers or CONFIG.n_walkers
-        mapper = PySCFCPUWorkerMapper(num_workers=num_workers)
+        mapper = PySCFCPUWorkerMapper(num_workers=CONFIG.n_walkers)
 
-    mdj_top, symbols, positions = parse_with_mdtraj_topology(ALANINE_DIPEPTIDE_PDB)
+    mdj_top, symbols, positions = parse_with_mdtraj_topology(CONFIG.topology_file_path)
 
     walkers = generate_initial_walkers(
         symbols=symbols,
@@ -171,7 +144,7 @@ def main():
         density_grid_shape=CONFIG.density_grid_shape,
     )
 
-    resampler = build_revo_resampler(init_state=walkers[0].state)
+    resampler = build_revo_resampler(walkers[0].state)
 
     json_topology = mdtraj_to_json_topology(mdj_top)
     output_mode = "w" if CONFIG.overwrite else "x"
@@ -225,21 +198,29 @@ def main():
     total_time = perf_counter() - time
     print(
         f"\nCompleted REVO/PySCF {CONFIG.backend.upper()} run in {total_time:.3f} sec "
-        f"({total_time / CONFIG.n_cycles:.3f} sec / cycle)"
+        f"({total_time / CONFIG.n_cycles:.3f} sec / cycle)",
     )
     print(
         f"{len(end_walkers)} walkers, {CONFIG.n_cycles} cycles * {CONFIG.segment_length} steps "
-        f"({CONFIG.n_cycles * CONFIG.segment_length} total MD steps)"
+        f"({CONFIG.n_cycles * CONFIG.segment_length} total MD steps)",
     )
-    print(f"Basis: {CONFIG.basis}, Method: {CONFIG.method}" + (f"/{CONFIG.xc}" if CONFIG.xc else ""))
+    print(
+        f"System: {CONFIG.system.title()}, Basis: {CONFIG.basis}, Method: {CONFIG.method}"
+        + (f"/{CONFIG.xc}" if CONFIG.xc else ""),
+    )
     if CONFIG.backend == "gpu":
         print(f"GPU device IDs: {device_ids}")
     elif CONFIG.backend == "cpu":
-        print(f"CPU workers: {num_workers}")
+        print(f"CPU workers: {CONFIG.n_walkers}")
     print(f"OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
-    # print("Final walker potentials:", [walker.state.get("potential") for walker in end_walkers]) # Less precision
-    print("Final walker potentials:", [walker.state.get("potential").item() for walker in end_walkers])
-    # print("Final walker kinetics:", [walker.state.get("kinetic").item() for walker in end_walkers])
+    temperatures = [walker.state.get("temperature").item() for walker in end_walkers]
+    potentials = [walker.state.get("potential").item() for walker in end_walkers]
+    kinetics = [walker.state.get("kinetic").item() for walker in end_walkers]
+    energies = [p + k for p, k in zip(potentials, kinetics, strict=True)]
+    print("Final walker temperatures:", temperatures)
+    print("Final walker energies:", energies)
+    print("Final walker potentials:", potentials)
+    print("Final walker kinetics:", kinetics)
 
 
 if __name__ == "__main__":
