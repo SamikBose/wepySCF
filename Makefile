@@ -5,7 +5,7 @@
 ## docstring explanation...`. To leave a target undocumented simply provide no
 ## docstring.
 
-PYTHON=python3.11
+PYTHON=python3.14
 TMPDIR=.tmp
 
 ##@ Getting Started
