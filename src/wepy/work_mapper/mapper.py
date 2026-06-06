@@ -65,7 +65,7 @@ class ABCMapper(object):
             self._func = segment_func
 
         elif self.segment_func is None and segment_func is None:
-            ValueError("segment_func must be given since no default specified")
+            raise ValueError("segment_func must be given since no default specified")
 
         elif self.segment_func is None and segment_func is not None:
             self._func = segment_func
@@ -667,77 +667,46 @@ class WorkerMapper(ABCWorkerMapper):
         n_results_left = num_tasks
         results = []
         while n_results_left > 0:
-            # first check if any errors came back but don't wait,
-            # since the methods for querying whether it is empty or
-            # not are not reliable we just try and if we don't get
-            # anything we will come back around
             try:
-                proc_name, pid, exception = self._exception_queue.get_nowait()
-            except pyq.Empty:
-                pass
-
-            else:
-                logger.error(
-                    "Exception occured in process {}; pid {}.".format(proc_name, pid)
-                )
-
-                # we can handle Task and Worker exceptions differently
-                if type(exception) == TaskException:
-                    logger.critical(
-                        "Exception encountered in a task which is unrecoverable."
-                        "You will need to reconfigure your components in a stable manner."
-                    )
-
-                    self.force_shutdown()
-
-                    logger.critical("Shutdown complete.")
-                    raise exception
-
-                elif type(exception) == WorkerException:
-                    # we make just an error message to say that errors
-                    # in the worker may be due to the network or
-                    # something and could recover
-                    logger.error(
-                        "Exception encountered in the work mapper worker process."
-                        "Recovery possible, see further messages."
-                    )
-
-                    # However, the current implementation doesn't
-                    # support retries or whatever so we issue a
-                    # critical log informing that it has been elevated
-                    # to critical and will force shutdown
-                    logger.critical(
-                        "Worker error mode resiliency not supported at this time."
-                        "Performing force shutdown and simulation ending."
-                    )
-
-                    self.force_shutdown()
-
-                    logger.critical("Shutdown complete.")
-                    raise exception
-
-                else:
-                    logger.critical("Unknown exception encountered.")
-
-                    self.force_shutdown()
-
-                    logger.critical("Shutdown complete.")
-
-                    raise exception
-
-            # attempt to get something off of the results queue
-            try:
-                result = self._result_queue.get_nowait()
-            except pyq.Empty:
-                pass
-
-            # if we get something handle it
-            else:
-                logger.info("Retrieved result: {}".format(result))
+                result = self._result_queue.get(timeout=1.0)  # blocks, not busy
+                logger.debug(f"Retrieved result: {result}")
                 results.append(result)
 
                 # reduce the counter so we know when we are done
                 n_results_left -= 1
+            except pyq.Empty:  # noqa: PERF203
+                # check for task/worker exceptions
+                try:
+                    proc_name, pid, exception = self._exception_queue.get_nowait()
+
+                    logger.error(f"Exception in process {proc_name}; pid {pid}.")
+
+                    self.force_shutdown()
+
+                    logger.critical("Shutdown complete.")
+                    raise exception
+                except pyq.Empty:
+                    pass
+
+                # No result yet, check all workers for IRQ signals
+                for worker_idx, conn in enumerate(self._irq_parent_conns):
+                    if conn.poll():
+                        irq = conn.recv()
+                        if issubclass(type(irq), WorkerKilledError):
+                            logger.critical(
+                                f"Worker {self._workers[worker_idx].name} was killed "
+                                f"by SIGTERM, shutting down."
+                            )
+
+                            self.force_shutdown()
+
+                            logger.critical("Shutdown complete.")
+                            raise irq from None
+
+                        logger.error(
+                            f"Unexpected IRQ from worker {self._workers[worker_idx].name}: {irq}"
+                        )
+                continue
 
         # sort the results according to their task_idx
         results.sort()
@@ -748,7 +717,7 @@ class WorkerMapper(ABCWorkerMapper):
         # DEBUG: removing this because it should be set on init()
         # self._worker_segment_times = {i : [] for i in range(self.num_workers)}
 
-        for task_idx, worker_idx, task_time, result in results:
+        for _task_idx, worker_idx, task_time, _result in results:
             self._worker_segment_times[worker_idx].append(task_time)
 
         # then just return the values of the function
@@ -962,65 +931,54 @@ class Worker(mp.Process):
         # TODO remove when confirmed that this works
         # worker_process = mp.current_process()
         logger.info(
-            "{}: Worker process started as name: {}; PID: {}".format(
-                self.name, self.name, self.pid
-            )
+            f"{self.name}: Worker process started as name: {self.name}; PID: {self.pid}"
         )
 
         while True:
-            # check to see if there is any signals in the interrupt channel
-            if self._irq_channel.poll():
-                # get the message
-                message = self._irq_channel.recv()
+            # block waiting for a task, using timeout to periodically check IRQ
+            try:
+                task_idx, next_task = self._task_queue.get(block=True, timeout=1.0)
+                logger.debug(f"{self.name}: Got task {task_idx}")
+            except pyq.Empty:
+                # no task yet — check for IRQ signals
+                if self._irq_channel.poll():
+                    # get the message
+                    message = self._irq_channel.recv()
 
-                logger.debug(
-                    "{}: Received message from mapper on filehandle {}: {}".format(
-                        self.name, self._irq_channel.fileno(), message
-                    )
-                )
-
-                # handle the message
-
-                # a SIGTERM is a signal to kill the process
-                # unconditionally
-                if message is signal.SIGTERM:
-                    self._shutdown()
-
-                    # break from the event (while) loop and shut down
-                    break
-
-                # anything is not recognized and we will continue and
-                # report back that we don't recognize the message with
-                # a ValueError object
-                else:
-                    logger.error(
-                        "{}: Message not recognized, continuing operations and"
-                        " sending error to mapper".format(self.name)
-                    )
-                    self._irq_channel.send(
-                        ValueError(
-                            "Message: {} not recognized continuing operations".format(
-                                message
-                            )
+                    logger.debug(
+                        "{}: Received message from mapper on filehandle {}: {}".format(
+                            self.name, self._irq_channel.fileno(), message
                         )
                     )
 
-            # get the next task
-            try:
-                task_idx, next_task = self._task_queue.get(block=False, timeout=None)
+                    # handle the message
 
-                logger.debug("{}: Got task {}".format(self.name, task_idx))
+                    # a SIGTERM is a signal to kill the process
+                    # unconditionally
+                    if message is signal.SIGTERM:
+                        self._shutdown()
 
-            except pyq.Empty:
-                task_idx = None
-                next_task = Ellipsis
+                        # break from the event (while) loop and shut down
+                        break
+
+                    # anything is not recognized and we will continue and
+                    # report back that we don't recognize the message with
+                    # a ValueError object
+                    logger.error(
+                        f"{self.name}: Message not recognized, continuing operations and"
+                        " sending error to mapper"
+                    )
+                    self._irq_channel.send(
+                        ValueError(
+                            f"Message: {message} not recognized continuing operations"
+                        )
+                    )
+                continue
 
             # # check for the poison pill which is the signal to stop
             if next_task is None:
                 logger.info(
-                    "{}: received {} {}: FINISHED".format(
-                        self.name, task_idx, next_task
-                    )
+                    f"{self.name}: received {task_idx} {next_task}: FINISHED"
                 )
 
                 # TODO remove since we aren't using joinble queue anymore
@@ -1030,32 +988,23 @@ class Worker(mp.Process):
                 # and exit the loop
                 break
 
-            # only execute this if a task was actually receieved from
-            # the queue; an Ellipsis indicates continue the loop
-            elif next_task is not Ellipsis:
-                logger.info(
-                    "{}; task_idx : {}; args : {} ".format(
-                        self.name, task_idx, next_task.args
-                    )
-                )
+            logger.info(f"{self.name}; task_idx : {task_idx}; args : {next_task.args} ")
 
-                # run the task
-                start = time.time()
+            # run the task
+            start = time.time()
 
-                answer = self._run_task(next_task)
+            answer = self._run_task(next_task)
 
-                end = time.time()
-                task_time = end - start
+            end = time.time()
+            task_time = end - start
 
-                logger.info(
-                    "{}: task_idx : {}; COMPLETED in {} s".format(
-                        self.name, task_idx, task_time
-                    )
-                )
+            logger.info(
+                f"{self.name}: task_idx : {task_idx}; COMPLETED in {task_time} s"
+            )
 
-                # put the results into the results queue with it's task
-                # index so we can sort them later
-                self._result_queue.put((task_idx, self.worker_idx, task_time, answer))
+            # put the results into the results queue with it's task
+            # index so we can sort them later
+            self._result_queue.put((task_idx, self.worker_idx, task_time, answer))
 
     def run_task(self, task):
         """Actually executes the task.
