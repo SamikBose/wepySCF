@@ -7,14 +7,14 @@ import os
 from dataclasses import dataclass, field
 
 import pyscf.md as pyscf_md
-
-from wepy.resampling.distances.pyscf import ProtonTransfer, QMGridDensityDistance
+from wepy.resampling.distances.pyscf import ProtonTransferDistance, QMGridDensityDistance
 
 
 @dataclass
 class PySCFInput:
     # System name and info
-    topology_file_path = "./info/examples/PySCF/source/alanine_dipeptide.pdb"
+    topology_file_path: str = "./info/examples/PySCF/source/alanine_dipeptide.pdb"
+    # topology_file_path: str = "./info/examples/PySCF/source/water_dimer.pdb"
     system: str = "alanine"
     backend: str = "gpu"
 
@@ -37,11 +37,13 @@ class PySCFInput:
     integrator_cls: type = pyscf_md.integrators.LangevinMiddle
     integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1e-5})
 
+    @staticmethod
     def distance_qm_grid_density():
         return QMGridDensityDistance(grid_key="density_grid", normalize=True)
 
+    @staticmethod
     def distance_proton_transfer(break_pair: tuple[int, int], make_pair: tuple[int, int]):
-        return ProtonTransfer(break_pair=break_pair, make_pair=make_pair)
+        return ProtonTransferDistance(break_pair=break_pair, make_pair=make_pair)
 
     distance = distance_qm_grid_density()
 
@@ -53,7 +55,7 @@ class PySCFInput:
         pmax: float = 0.99
 
     # If resampler parameters is None, then no resampler is used
-    resampler_parameters: ResamplerParameters | None = ResamplerParameters()
+    resampler_parameters: ResamplerParameters | None = field(default_factory=ResamplerParameters)
 
     # Output control
     write_h5: bool = True
@@ -63,7 +65,7 @@ class PySCFInput:
     overwrite: bool = False
 
     # Read the OMP_NUM_THREADS environment variable (used for logging; user sets the value before running)
-    _omp_threads_env_var: str | None = os.environ.get("OMP_NUM_THREADS")
+    _omp_threads_env_var: str | None = field(default_factory=lambda: os.environ.get("OMP_NUM_THREADS", "unset"))
 
     def __post_init__(self) -> None:
         """Set output paths; need to do this after initialization since we need to wait for parameters to be set."""

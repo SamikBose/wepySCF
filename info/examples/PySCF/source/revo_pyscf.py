@@ -10,8 +10,6 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")  # Good default for PySCF CPU runs
 
 # Standard Library
 import importlib.util
-import subprocess
-import tempfile
 from time import perf_counter
 
 # Third Party Library
@@ -21,11 +19,9 @@ from pyscf.data.nist import BOHR
 
 # First Party Library
 from pyscf_input import CONFIG
-
 from wepy.boundary_conditions.boundary import NoBC
 from wepy.reporter.dashboard import DashboardReporter
 from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
-from wepy.resampling.distances.pyscf import ProtonTransfer, QMGridDensityDistance
 from wepy.resampling.resamplers.resampler import NoResampler
 from wepy.resampling.resamplers.revo import REVOResampler
 from wepy.runners.pyscf import PySCFCPUWorkerMapper, PySCFGPUWorkerMapper, PySCFRunner, PySCFState, PySCFWalker
@@ -54,7 +50,7 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
     density_kwargs = {}
     if density_grid_shape is not None:
         density_kwargs = {
-            "density_matrix": np.zeros((len(symbols), len(symbols))),  # TODO: Is this right?
+            "density_matrix": None,
             "density_grid": np.zeros(density_grid_shape),
             "density_grid_origin": np.zeros(3),
             "density_grid_spacing": np.ones(3),

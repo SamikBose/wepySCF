@@ -2,6 +2,9 @@
 
 # Standard Library
 import logging
+
+logger = logging.getLogger(__name__)
+# Standard Library
 import os
 from time import perf_counter
 
@@ -122,9 +125,8 @@ class PySCFRunner(Runner):
         self.integrator_kwargs = {} if integrator_kwargs is None else dict(integrator_kwargs)
         self.temperature_kelvin = float(temperature_kelvin)
         self.backend = backend.lower()
-        if density_grid_shape is not None:
-            self.density_grid_shape = tuple(density_grid_shape)
-            self.density_grid_padding = float(density_grid_padding)
+        self.density_grid_shape = density_grid_shape
+        self.density_grid_padding = float(density_grid_padding)
 
         if self.method not in self.SUPPORTED_METHODS:
             raise ValueError(
@@ -134,7 +136,7 @@ class PySCFRunner(Runner):
         self._cycle_backend = None
         self._cycle_platform_kwargs = None
 
-        self._last_cycle_segments_split_times = []  # TODO: Not used currently
+        self._last_cycle_segments_split_times = []
 
     def pre_cycle(self, backend=None, platform_kwargs=None, **kwargs):
         self._cycle_backend = backend
@@ -218,8 +220,8 @@ class PySCFRunner(Runner):
 
         return grad_method.as_scanner()
 
-    def _autoset_integrator_kwargs(self, integrator_cls, integrator_kwargs: dict):
-        """Auto-set integrator kwargs derived from runner settings.
+    def _generate_integrator_kwargs(self, integrator_cls, integrator_kwargs: dict):
+        """Generate integrator kwargs from runner settings.
 
         Sets integrator `T` equal to `temperature_kelvin`
         for temperature-aware integrators.
@@ -255,7 +257,7 @@ class PySCFRunner(Runner):
     def _build_integrator(self, scanner):
         """Construct the configured PySCF MD integrator for a given scanner."""
         integrator_kwargs = {} if self.integrator_kwargs is None else self.integrator_kwargs
-        integrator_kwargs = self._autoset_integrator_kwargs(self.integrator_cls, integrator_kwargs)
+        integrator_kwargs = self._generate_integrator_kwargs(self.integrator_cls, integrator_kwargs)
         self._validate_integrator_kwargs(self.integrator_cls, integrator_kwargs)
 
         kwargs = {"dt": self.dt, **integrator_kwargs}
@@ -382,6 +384,8 @@ class PySCFRunner(Runner):
         )
 
     def run_segment(self, walker: PySCFWalker, segment_length: int, **kwargs: dict):
+        run_segment_start = perf_counter()
+
         state: PySCFState = walker.state
 
         backend = kwargs.get("backend", self._cycle_backend or self.backend)
@@ -397,13 +401,21 @@ class PySCFRunner(Runner):
         if not self._method_supports_scanner(self.method):
             raise NotImplementedError("PySCF integrators only support RHF/UHF/RKS/UKS scanners.")
 
-        time = perf_counter()
-        init_mol = self._build_molecule(state)
-        print(f"Build mol: {perf_counter() - time} sec")
+        build_mol_start = perf_counter()
 
-        time = perf_counter()
+        init_mol = self._build_molecule(state)
+
+        build_mol_end = perf_counter()
+        build_mol_time = build_mol_end - build_mol_start
+        logger.info(f"Built mol in {build_mol_time} sec")
+
+        build_scanner_start = perf_counter()
+
         scanner = self._build_scanner(init_mol, state, backend, platform_kwargs)
-        print(f"Build scanner: {perf_counter() - time} sec")
+
+        build_scanner_end = perf_counter()
+        build_scanner_time = build_scanner_end - build_scanner_start
+        logger.info(f"Built scanner in {build_scanner_time} sec")
 
         # Build integrator and restore velocities/accelerations if present
         integrator = self._build_integrator(scanner)
@@ -414,9 +426,13 @@ class PySCFRunner(Runner):
 
         # Integrate over the total steps
         try:
-            time = perf_counter()
+            kernel_start = perf_counter()
+
             integrator.kernel(steps=total_steps)
-            print(f"Kernel: {perf_counter() - time} sec")
+
+            kernel_end = perf_counter()
+            kernel_time = kernel_end - kernel_start
+            logger.info(f"Integrator kernel took {kernel_time} sec")
         except RuntimeError as exc:
             raise RuntimeError("Integrator kernel execution failed.") from exc
 
@@ -429,9 +445,11 @@ class PySCFRunner(Runner):
         mid_velocities = getattr(integrator, "mid_veloc", None)
         extra_data = {"mid_velocities": mid_velocities} if mid_velocities is not None else {}
 
+        density_time_kwargs = {}
         density_kwargs = {}
-        if hasattr(self, "density_grid_shape"):
-            time = perf_counter()
+        if self.density_grid_shape is not None:
+            density_calc_start = perf_counter()
+
             # TODO: Check this calculation
             density_matrix = self._density_matrix_from_scanner(
                 scanner,
@@ -445,7 +463,11 @@ class PySCFRunner(Runner):
                 density_matrix,
                 positions,
             )
-            print(f"Density calc: {perf_counter() - time} sec")
+
+            density_calc_end = perf_counter()
+            density_calc_time = density_calc_end - density_calc_start
+            logger.info(f"Density calculation took {density_calc_time} sec")
+            density_time_kwargs.update({"density_time": density_calc_time})
 
             density_kwargs.update(
                 {
@@ -469,7 +491,23 @@ class PySCFRunner(Runner):
             extra_data=extra_data,
         )
 
-        return PySCFWalker(new_state, walker.weight)
+        new_walker = PySCFWalker(new_state, walker.weight)
+
+        run_segment_end = perf_counter()
+        run_segment_time = run_segment_end - run_segment_start
+        logger.info(f"Total internal run_segment time: {run_segment_time} sec")
+
+        segment_split_times = {
+            "build_mol_time": build_mol_time,
+            "build_scanner_time": build_scanner_time,
+            "kernel_time": kernel_time,
+            **density_time_kwargs,
+            "run_segment_time": run_segment_time,
+        }
+
+        self._last_cycle_segments_split_times.append(segment_split_times)
+
+        return new_walker
 
 
 class PySCFCPUWorker(Worker):
