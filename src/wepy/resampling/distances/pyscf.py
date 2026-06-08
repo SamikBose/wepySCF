@@ -104,8 +104,3 @@ class ProtonTransferDistance(Distance):
 
     def image_distance(self, image_a, image_b):
         return abs(float(image_a[0] - image_b[0]))
-
-
-class ProtonTransfer(ProtonTransferDistance):
-    """Backward-compatible alias for :class:`ProtonTransferDistance`."""
-
