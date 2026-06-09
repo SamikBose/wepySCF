@@ -47,18 +47,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
-import sys
 import time
 from copy import deepcopy
-
-# Third Party Library
-import numpy as np
 
 # First Party Library
 from wepy.work_mapper.mapper import Mapper
 
 
-class Manager(object):
+class Manager:
     """The class that coordinates wepy simulations.
 
     The Manager class is the lynchpin of wepy simulations and is where
@@ -377,7 +373,7 @@ class Manager(object):
         end = time.time()
         runner_postcycle_time = end - start
 
-        logger.info("End cycle {}".format(cycle_idx))
+        logger.info(f"End cycle {cycle_idx}")
 
         # boundary conditions should be optional;
 
@@ -403,7 +399,7 @@ class Manager(object):
             progress_data = bc_results[3]
 
             if len(warp_data) > 0:
-                logger.info("Returned warp record in cycle {}".format(cycle_idx))
+                logger.info(f"Returned warp record in cycle {cycle_idx}")
 
         # resample walkers
         start = time.time()
@@ -430,17 +426,14 @@ class Manager(object):
         # make a dictionary of all the results that will be reported
         seg_times = {}
         sampling_time = None
-        overhead_time = None
+        # overhead_time = None
 
         if hasattr(self.work_mapper, "worker_segment_times"):
             seg_times = deepcopy(self.work_mapper.worker_segment_times)
 
             # count up the total sampling time from the segments
             sampling_time = 0
-            for (
-                worker_id,
-                segments_times,
-            ) in self.work_mapper.worker_segment_times.items():
+            for segments_times in self.work_mapper.worker_segment_times.values():
                 for seg_time in segments_times:
                     sampling_time += seg_time
 
@@ -482,9 +475,7 @@ class Manager(object):
 
         # check that all of the keys that are specified for this sim
         # manager are present
-        assert all(
-            [True if rep_key in report else False for rep_key in self.REPORT_ITEM_KEYS]
-        )
+        assert all(rep_key in report for rep_key in self.REPORT_ITEM_KEYS)
 
         logger.info("Starting reporting")
         # report results to the reporters
@@ -674,17 +665,11 @@ class Manager(object):
         cycle_idx = 0
         walkers = self.init_walkers
         while time.time() - start_time < run_time:
-            logger.info(
-                "starting cycle {} at time {}".format(
-                    cycle_idx, time.time() - start_time
-                )
-            )
+            logger.info(f"starting cycle {cycle_idx} at time {time.time() - start_time}")
 
             walkers, filters = self.run_cycle(walkers, segments_length, cycle_idx)
 
-            logger.info(
-                "ending cycle {} at time {}".format(cycle_idx, time.time() - start_time)
-            )
+            logger.info(f"ending cycle {cycle_idx} at time {time.time() - start_time}")
 
             cycle_idx += 1
 
@@ -733,7 +718,7 @@ class Manager(object):
 
         self.init(num_workers=num_workers)
 
-        if type(segment_lengths) == int:
+        if isinstance(segment_lengths, int):
             segment_lengths = [segment_lengths for _ in range(n_cycles)]
 
         walkers = self.init_walkers
@@ -850,17 +835,11 @@ class Manager(object):
         cycle_idx = 0
         walkers = self.init_walkers
         while time.time() - start_time < run_time:
-            logger.info(
-                "starting cycle {} at time {}".format(
-                    cycle_idx, time.time() - start_time
-                )
-            )
+            logger.info(f"starting cycle {cycle_idx} at time {time.time() - start_time}")
 
             walkers, filters = self.run_cycle(walkers, segments_length, cycle_idx)
 
-            logger.info(
-                "ending cycle {} at time {}".format(cycle_idx, time.time() - start_time)
-            )
+            logger.info(f"ending cycle {cycle_idx} at time {time.time() - start_time}")
 
             # run the simulation monitor to get metrics on everything
             if self.monitor is not None:

@@ -196,6 +196,16 @@ class TaskMapper(ABCWorkerMapper):
                 try:
                     walker_idx, result = results_queue.get(timeout=1.0)  # blocks, not busy
                 except pyq.Empty:
+                    # check for task/worker exceptions first
+                    try:
+                        proc_name, pid, exception = self._exception_queue.get_nowait()
+                        logger.error(f"Exception in process {proc_name}; pid {pid}.")
+                        self.force_shutdown()
+                        logger.critical("Shutdown complete.")
+                        raise exception
+                    except pyq.Empty:
+                        pass
+
                     # no results yet, check for IRQ signals from still-pending walkers
                     for walker_idx in remaining:
                         if self._irq_parent_conns[walker_idx].poll():
