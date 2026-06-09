@@ -23,6 +23,7 @@ from pyscf.data.nist import BOHR
 
 # First Party Library
 from pyscf_input import CONFIG
+
 from wepy.boundary_conditions.boundary import NoBC
 from wepy.reporter.dashboard import DashboardReporter
 from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
@@ -161,6 +162,7 @@ def main():
         temperature_kelvin=CONFIG.temperature_kelvin,
         backend=CONFIG.backend,
         density_grid_shape=CONFIG.density_grid_shape,
+        use_scanner_caching=CONFIG.use_scanner_caching,
     )
 
     resampler = build_revo_resampler(walkers[0].state)
@@ -232,6 +234,7 @@ def main():
     elif CONFIG.backend == "cpu":
         print(f"CPU workers: {CONFIG.n_walkers}")
     print(f"OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
+    print(f"CUDA devices: [{os.environ.get('CUDA_VISIBLE_DEVICES', 'unset')}]")
     temperatures = [walker.state.get("temperature").item() for walker in end_walkers]
     potentials = [walker.state.get("potential").item() for walker in end_walkers]
     kinetics = [walker.state.get("kinetic").item() for walker in end_walkers]

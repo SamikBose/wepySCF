@@ -24,8 +24,6 @@ from wepy.runners.runner import Runner
 from wepy.walker import Walker, WalkerState
 from wepy.work_mapper.worker import Worker, WorkerMapper
 
-logger = logging.getLogger(__name__)
-
 # TODO: Enforce this
 # KEYS = (
 #     "symbols",
@@ -132,6 +130,7 @@ class PySCFRunner(Runner):
         backend: str = "cpu",
         density_grid_shape: tuple[int, int, int] | None = None,
         density_grid_padding: float = 2.0,
+        use_scanner_caching: bool = False,
     ):
         self.basis = basis
         self.method = method.upper()
@@ -153,6 +152,8 @@ class PySCFRunner(Runner):
 
         self._cycle_backend = None
         self._cycle_platform_kwargs = None
+
+        self._use_scanner_caching = use_scanner_caching
 
         self._last_cycle_segments_split_times = []
 
@@ -411,7 +412,6 @@ class PySCFRunner(Runner):
         backend = kwargs.get("backend", self._cycle_backend or self.backend)
         platform_kwargs: dict = kwargs.get("platform_kwargs") or self._cycle_platform_kwargs or {}
         scanner_cache: dict = kwargs.get("scanner_cache", {})
-        print(f"[debug] worker cache keys: {list(scanner_cache.keys())}")
 
         positions = state["positions"]
         last_velocities = state.get("velocities")
@@ -431,10 +431,10 @@ class PySCFRunner(Runner):
         cached_scanner = scanner_cache.get(walker_id)
 
         if cached_scanner is None:
-            print(f"[scanner] cold start for walker {walker_id}")
+            logger.info(f"[scanner] cold start for walker {walker_id}")
             scanner = self._build_scanner(init_mol, state, backend, platform_kwargs)
         else:
-            print(f"[scanner] warm start for walker {walker_id}")
+            logger.info(f"[scanner] warm start for walker {walker_id}")
             scanner = cached_scanner
             scanner.mol = init_mol
 
@@ -517,11 +517,9 @@ class PySCFRunner(Runner):
             extra_data=extra_data,
         )
 
-        print(f"[debug] walker_id in new_state: {new_state['walker_id']}")
-        assert new_state["walker_id"] == walker_id, "walker_id was stomped!"
-
-        scanner_cache.pop(walker_id, None)  # Remove the old entry (walker could move to different worker)
-        scanner_cache[new_state["walker_id"]] = scanner  # Add the new one (TODO: move this up into generate state?)
+        if self._use_scanner_caching:
+            scanner_cache.pop(walker_id, None)  # Remove the old entry (walker could move to different worker)
+            scanner_cache[new_state["walker_id"]] = scanner  # Add the new one
 
         new_walker = PySCFWalker(new_state, walker.weight)
 
