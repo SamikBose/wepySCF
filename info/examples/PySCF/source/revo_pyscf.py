@@ -5,6 +5,7 @@ This version uses a separate `pyscf_input.py` file for all PySCF/simulation para
 
 # Set the default number of threads before importing libraries
 import os
+from copy import deepcopy
 
 os.environ.setdefault("OMP_NUM_THREADS", "1")  # Good default for PySCF CPU runs, but can be overridden by the user
 
@@ -15,6 +16,8 @@ from time import perf_counter
 # Third Party Library
 import mdtraj as mdj
 import numpy as np
+import pyscf.gto as pyscf_gto
+import pyscf.md as pyscf_md
 from pyscf.data.nist import BOHR
 
 # First Party Library
@@ -44,6 +47,18 @@ def parse_with_mdtraj_topology(topology_file_path: str):
     return topology, symbols, positions
 
 
+def build_mol(symbols, positions, basis, charge, spin):
+    atom = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
+
+    return pyscf_gto.M(
+        atom=atom,
+        basis=basis,
+        charge=charge,
+        spin=spin,
+        unit="Bohr",
+    )
+
+
 def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
     weight = 1.0 / n_walkers
 
@@ -56,15 +71,21 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
             "density_grid_spacing": np.ones(3),
         }
 
+    mol = build_mol(symbols, positions, CONFIG.basis, CONFIG.charge, CONFIG.spin)
+
+    velocities = (
+        pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, CONFIG.temperature_kelvin)
+        if CONFIG.initialize_velocities
+        else np.zeros_like(positions)
+    )
+
     return [
         PySCFWalker(
             PySCFState(
                 symbols=symbols,
+                mol=deepcopy(mol),
                 positions=positions,
-                charge=0,
-                spin=0,
-                velocities=np.zeros_like(positions),
-                # TODO: Initialize with Maxwell-Boltzmann
+                velocities=velocities.copy(),
                 accelerations=None,
                 # Store as 1D feature arrays so the HDF5 reporter can extend them
                 temperature=np.array([CONFIG.temperature_kelvin], dtype=float),
@@ -201,7 +222,7 @@ def main():
         f"({CONFIG.n_cycles * CONFIG.segment_length} total MD steps)",
     )
     print(
-        f"System: {CONFIG.system.title()}, Basis: {CONFIG.basis}, Method: {CONFIG.method}"
+        f"System: {CONFIG.system}, Basis: {CONFIG.basis}, Method: {CONFIG.method}"
         + (f"/{CONFIG.xc}" if CONFIG.xc else ""),
     )
     if CONFIG.backend == "gpu":

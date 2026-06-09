@@ -28,10 +28,13 @@ class PySCFInput:
     method: str = "RHF"
     # Allowed methods include RHF/UHF, RKS/UKS
     xc: str | None = None
+    charge: int = 0
+    spin: int = 0
     dt: int = 21
     temperature_kelvin: float = 300.0
     # density_grid_shape: tuple[int, int, int] | None = None
     density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
+    initialize_velocities: bool = True  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
 
     # Select the PySCF MD integrator class and any kwargs passed to it
     integrator_cls: type = pyscf_md.integrators.LangevinMiddle
@@ -49,7 +52,7 @@ class PySCFInput:
 
     @dataclass
     class ResamplerParameters:
-        merge_dist: float = 0.05
+        merge_dist: float = 0.5
         char_dist: float = 0.1
         pmin: float = 1e-12
         pmax: float = 0.99
