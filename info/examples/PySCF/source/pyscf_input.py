@@ -39,7 +39,8 @@ class PySCFInput:
     dt: int = 21
     temperature_kelvin: float = 300.0
     # density_grid_shape: tuple[int, int, int] | None = None
-    density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)  # Used with distance_qm_grid_density()
+    density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
+    initialize_velocities: bool = True  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
 
     #
     # Select the PySCF MD integrator class and any kwargs passed to it

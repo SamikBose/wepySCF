@@ -57,11 +57,7 @@ def split(walker, number=2):
     # calculate the weight of all child walkers split uniformly
     split_prob = walker.weight / (number)
     # make the clones
-    clones = []
-    for i in range(number):
-        clones.append(type(walker)(walker.state, split_prob))
-
-    return clones
+    return [type(walker)(walker.state, split_prob) for _ in range(number)]
 
 
 def keep_merge(walkers, keep_idx):
@@ -85,9 +81,7 @@ def keep_merge(walkers, keep_idx):
     # but we add their weight to the new walker
     new_weight = sum(weights)
     # create a new walker with the keep_walker state
-    new_walker = type(walkers[0])(walkers[keep_idx].state, new_weight)
-
-    return new_walker
+    return type(walkers[0])(walkers[keep_idx].state, new_weight)
 
 
 def merge(walkers):
@@ -125,7 +119,7 @@ def merge(walkers):
     return new_walker, keep_idx
 
 
-class Walker(object):
+class Walker:
     """Reference implementation of the Walker interface.
 
     A container for:
@@ -173,11 +167,7 @@ class Walker(object):
         # calculate the weight of all child walkers split uniformly
         split_prob = self.weight / (number + 1)
         # make the clones
-        clones = []
-        for i in range(number + 1):
-            clones.append(type(self)(self.state, split_prob))
-
-        return clones
+        return [type(self)(self.state, split_prob) for _ in range(number + 1)]
 
     def squash(self, merge_target):
         """Add the weight of this walker to another.
