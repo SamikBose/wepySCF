@@ -757,7 +757,7 @@ class Manager:
         n_cycles : int
             Number of cycles to perform.
 
-        segment_lengths : int
+        segment_lengths : list
             The number of steps for each runner segment.
 
         num_workers : int

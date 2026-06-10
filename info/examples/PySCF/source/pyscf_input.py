@@ -18,14 +18,14 @@ class PySCFInput:
     #
     topology_file_path: str = "./info/examples/PySCF/source/alanine_dipeptide.pdb"
     system: str = "alanine"
-    backend: str = "gpu"
+    backend: str = "cpu"
 
     #
     # Simulation size
     #
     n_walkers: int = 4
-    n_cycles: int = 5
-    segment_length: int = 10
+    n_cycles: int = 3
+    segment_length: int = 1
 
     #
     # PySCF runner parameters
@@ -40,13 +40,14 @@ class PySCFInput:
     temperature_kelvin: float = 300.0
     # density_grid_shape: tuple[int, int, int] | None = None
     density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
-    initialize_velocities: bool = True  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
 
     #
     # Select the PySCF MD integrator class and any kwargs passed to it
     #
-    integrator_cls: type = pyscf_md.integrators.LangevinMiddle
-    integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1e-5})
+    integrator_cls: type = pyscf_md.integrators.VelocityVerlet
+    # integrator_cls: type = pyscf_md.integrators.LangevinMiddle
+    integrator_kwargs: dict = field(default_factory=dict)
+    # integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1e-5})
 
     #
     # Distance metric and resampler parameters
@@ -63,7 +64,7 @@ class PySCFInput:
 
     @dataclass
     class ResamplerParameters:
-        merge_dist: float = 0.5
+        merge_dist: float = 0.1
         char_dist: float = 0.1
         pmin: float = 1e-12
         pmax: float = 0.99
@@ -72,35 +73,41 @@ class PySCFInput:
     resampler_parameters: ResamplerParameters | None = field(default_factory=ResamplerParameters)
 
     #
+    # Misc
+    #
+    initialize_velocities: bool = False  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
+    use_scanner_caching: bool = True  # Cache scanners from the previous cycle to speed up first step greatly
+
+    #
+    # Read only stuff for naming/logging
+    #
+    _integrator_name: str = getattr(integrator_cls, "__name__", "integrator")
+    _omp_threads_env_var: str = os.environ.get("OMP_NUM_THREADS", "")
+    _cuda_visible_devices_env_var: str = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+    _num_gpus_visible = len([x for x in _cuda_visible_devices_env_var.split(",") if x.strip()])
+
+    #
     # Output control
     #
     write_h5: bool = True
     write_dash: bool = True
-    h5_path: str | None = None
-    dash_path: str | None = None
+    store_pickles: bool = True  # TODO: Are appended to h5 and dash files valid?
     overwrite: bool = False
 
-    #
-    # Misc
-    #
-    initialize_velocities: bool = True  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
-    use_scanner_caching: bool = False  # Cache scanners from the previous cycle to speed up first step greatly
+    output_directory = f"{system}_{n_walkers}W_{n_cycles}C_{segment_length}S_{_integrator_name}"
+    filename_base = f"{backend}_{_omp_threads_env_var}T_{_num_gpus_visible}G"
 
-    # Read the OMP_NUM_THREADS environment variable (used for logging; user sets the value before running)
-    _omp_threads_env_var: str | None = field(default_factory=lambda: os.environ.get("OMP_NUM_THREADS", "unset"))
+    def h5_path(self, sub_directory: str) -> str:
+        """Return the h5 path with an optional sub-directory (evaluated at runtime)."""
+        if sub_directory == "":
+            return f"{self.output_directory}/{self.filename_base}.wepy.h5"
+        return f"{self.output_directory}/{sub_directory}/{self.filename_base}.wepy.h5"
 
-    def __post_init__(self) -> None:
-        """Set output paths; need to do this after initialization since we need to wait for parameters to be set."""
-        integrator_name = getattr(self.integrator_cls, "__name__", "integrator")
-        # TODO: Don't use threads anymore in here? num gpus might be more helpful
-        filename_base = (
-            f"{self.system}_{self.backend}_{self.n_walkers}W_{self.n_cycles}C_"
-            f"{integrator_name}_{self._omp_threads_env_var}T"
-        )
-        if not self.h5_path:
-            self.h5_path = f"{filename_base}.wepy.h5"
-        if not self.dash_path:
-            self.dash_path = f"{filename_base}.dash.org"
+    def dash_path(self, sub_directory: str) -> str:
+        """Return the dash path an optional sub-directory (evaluated at runtime)."""
+        if sub_directory == "":
+            return f"{self.output_directory}/{self.filename_base}.dash.org"
+        return f"{self.output_directory}/{sub_directory}/{self.filename_base}.dash.org"
 
 
 CONFIG = PySCFInput()
