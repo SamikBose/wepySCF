@@ -351,6 +351,7 @@ class PySCFRunner(Runner):
     def generate_state(
         self,
         state_data,
+        mol,
         positions,
         velocities,
         accelerations,
@@ -371,6 +372,7 @@ class PySCFRunner(Runner):
         return PySCFState(
             **{
                 **state_data,
+                "mol": mol,
                 "positions": positions,
                 "velocities": velocities,
                 "accelerations": accelerations,
@@ -401,13 +403,7 @@ class PySCFRunner(Runner):
         if not self._method_supports_scanner(self.method):
             raise NotImplementedError("PySCF integrators only support RHF/UHF/RKS/UKS scanners.")
 
-        build_mol_start = perf_counter()
-
-        init_mol = self._build_molecule(state)
-
-        build_mol_end = perf_counter()
-        build_mol_time = build_mol_end - build_mol_start
-        logger.info(f"Built mol in {build_mol_time} sec")
+        init_mol = state.get("mol")
 
         build_scanner_start = perf_counter()
 
@@ -480,6 +476,7 @@ class PySCFRunner(Runner):
 
         new_state = self.generate_state(
             state_data=state._data,
+            mol=integrator.mol.copy(),
             positions=positions,
             velocities=integrator.veloc,
             accelerations=getattr(integrator, "accel", None),
@@ -498,7 +495,6 @@ class PySCFRunner(Runner):
         logger.info(f"Total internal run_segment time: {run_segment_time} sec")
 
         segment_split_times = {
-            "build_mol_time": build_mol_time,
             "build_scanner_time": build_scanner_time,
             "kernel_time": kernel_time,
             **density_time_kwargs,
