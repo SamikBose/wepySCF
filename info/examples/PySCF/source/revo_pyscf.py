@@ -245,22 +245,28 @@ def main():
 
     def get_next_dir_num(base_dir: str) -> int:
         """Get the next directory number given a base directory name."""
-        dirs = glob(f"{base_dir}_*")
+        dirs = [d for d in glob(f"{base_dir}_*") if osp.basename(d).rsplit("_", 1)[-1].isdigit()]
         return max(int(osp.basename(d).rsplit("_", 1)[-1]) for d in dirs) + 1 if dirs else 1
 
-    output_sub_directory = ""
+    # Directory creation is handled downstream, we just need to set the right value
     if args.sub_step is None:
+        if args.from_branch is not None:
+            raise ValueError("--from-branch is not supported without a sub-step specified.")
+
         print("Starting new simulation.")
         start_cycle = None
 
-        if CONFIG.overwrite:
-            print(f"Warning: output directory already exists, overwriting: {CONFIG.output_directory}/")
-        # Create new directory if not overwriting and it exists already
-        elif osp.isdir(CONFIG.output_directory):
-            new_dir_num = get_next_dir_num(CONFIG.output_directory)
-            CONFIG.output_directory = f"{CONFIG.output_directory}_{new_dir_num}"
-            print(f"Warning: output directory already exists, creating new directory: {CONFIG.output_directory}/")
-            # Directory creation is handled downstream, we just need to set the right value
+        # Output directory already exists
+        if osp.isdir(CONFIG.output_directory):
+            if CONFIG.overwrite:
+                print(f"Warning: output directory already exists, overwriting: {CONFIG.output_directory}/")
+            # Create new directory if not overwriting and it exists already
+            else:
+                next_dir_num = get_next_dir_num(CONFIG.output_directory)
+                CONFIG.output_directory = f"{CONFIG.output_directory}_{next_dir_num}"
+                print(f"Warning: output directory already exists, creating new directory: {CONFIG.output_directory}/")
+        else:
+            print(f"Creating output directory: {CONFIG.output_directory}/")
 
         walkers = generate_initial_walkers(
             symbols=symbols,
@@ -270,7 +276,30 @@ def main():
         )
     else:
         print(f"Restarting simulation at sub-step {args.sub_step}.")
-        start_cycle = args.sub_step * CONFIG.n_cycles
+        # FIXME: Calculate start cycle
+        # start_cycle = args.sub_step * CONFIG.n_cycles
+
+        sub_directory = f"sub_{args.sub_step}"
+        if args.from_branch is not None:
+            sub_directory += f"_branch_{args.from_branch}"
+
+        # Output directory already exists
+        if osp.isdir(osp.join(CONFIG.output_directory, sub_directory)):
+            if CONFIG.overwrite:
+                CONFIG.output_directory = osp.join(CONFIG.output_directory, sub_directory)
+                print(f"Warning: sub-step output directory already exists, overwriting: {CONFIG.output_directory}/")
+            # Create new directory if not overwriting and it exists already
+            else:
+                next_branch_num = get_next_dir_num(osp.join(CONFIG.output_directory, f"sub_{args.sub_step}_branch"))
+                CONFIG.output_directory = osp.join(
+                    CONFIG.output_directory, f"sub_{args.sub_step}_branch_{next_branch_num}"
+                )
+                print(
+                    f"Warning: sub-step output directory already exists, creating new directory: {CONFIG.output_directory}/"
+                )
+        else:
+            CONFIG.output_directory = osp.join(CONFIG.output_directory, sub_directory)
+            print(f"Creating sub-step output directory: {CONFIG.output_directory}/")
 
     runner = PySCFRunner(
         basis=CONFIG.basis,
@@ -294,7 +323,7 @@ def main():
     if CONFIG.store_pickles:
         reporters.append(
             WalkerPklReporter(
-                save_dir=osp.join(CONFIG.output_directory, output_sub_directory, "pkls"),
+                save_dir=CONFIG.pkls_path(),
                 freq=1,
                 num_backups=2,
                 start_cycle=start_cycle,
@@ -318,7 +347,7 @@ def main():
         reporters.append(
             PySCFHDF5Reporter(
                 save_fields=h5_save_fields,
-                file_paths=[CONFIG.h5_path(output_sub_directory)],
+                file_paths=[CONFIG.h5_path()],
                 modes=[output_mode],
                 topology=mdtraj_to_json_topology(mdj_top),
                 resampler=resampler,
@@ -328,7 +357,7 @@ def main():
     if CONFIG.write_dash:
         reporters.append(
             DashboardReporter(
-                file_paths=[CONFIG.dash_path(output_sub_directory)],
+                file_paths=[CONFIG.dash_path()],
                 modes=[output_mode],
                 runner_dash=PySCFRunnerDashboardSection(runner=runner),
             )

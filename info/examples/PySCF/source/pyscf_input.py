@@ -91,23 +91,23 @@ class PySCFInput:
     #
     write_h5: bool = True
     write_dash: bool = True
-    store_pickles: bool = True  # TODO: Are appended to h5 and dash files valid?
+    store_pickles: bool = True
     overwrite: bool = False
 
     output_directory = f"{system}_{n_walkers}W_{n_cycles}C_{segment_length}S_{_integrator_name}"
     filename_base = f"{backend}_{_omp_threads_env_var}T_{_num_gpus_visible}G"
 
-    def h5_path(self, sub_directory: str) -> str:
-        """Return the h5 path with an optional sub-directory (evaluated at runtime)."""
-        if sub_directory == "":
-            return f"{self.output_directory}/{self.filename_base}.wepy.h5"
-        return f"{self.output_directory}/{sub_directory}/{self.filename_base}.wepy.h5"
+    def h5_path(self) -> str:
+        """Return the h5 path (evaluated at runtime)."""
+        return f"{self.output_directory}/{self.filename_base}.wepy.h5"
 
-    def dash_path(self, sub_directory: str) -> str:
-        """Return the dash path an optional sub-directory (evaluated at runtime)."""
-        if sub_directory == "":
-            return f"{self.output_directory}/{self.filename_base}.dash.org"
-        return f"{self.output_directory}/{sub_directory}/{self.filename_base}.dash.org"
+    def dash_path(self) -> str:
+        """Return the dash path (evaluated at runtime)."""
+        return f"{self.output_directory}/{self.filename_base}.dash.org"
+
+    def pkls_path(self) -> str:
+        """Return the pkls path (evaluated at runtime)."""
+        return f"{self.output_directory}/pkls"
 
 
 CONFIG = PySCFInput()
