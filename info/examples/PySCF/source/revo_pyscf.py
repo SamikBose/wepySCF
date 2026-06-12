@@ -168,100 +168,39 @@ def main():
 
     args = parse_args()
 
-    # def get_sub_dir(base_dir, sub_step, branch=None, create=False):
-    #     """Get the directory for a substep."""
-    #     if branch is not None: # Reuse branch
-    #         path = osp.join(base_dir, f"sub_{sub_step}_branch_{branch}")
-    #     elif not create or not osp.isdir(osp.join(base_dir, f"sub_{sub_step}")):
-    #         path = osp.join(base_dir, f"sub_{sub_step}")
-    #     else:
-    #         existing_dirs = glob(osp.join(base_dir, f"sub_{sub_step}_branch_*"))
-    #         next_branch_num = (
-    #             max(int(osp.basename(p).rsplit("_", 1)[-1]) for p in existing_dirs) + 1 if existing_dirs else 1
-    #         )
-    #         path = osp.join(base_dir, f"sub_{sub_step}_branch_{next_branch_num}")
-
-    #     if create: # Create directory if needed
-    #         os.makedirs(path)
-    #     return path
-
-    # target_cycle = args.sub_step * CONFIG.n_cycles  # Target cycle to start at
-    # if args.sub_step == 0:
-    #     print("Starting new simulation.")
-
-    #     walkers = generate_initial_walkers(
-    #         symbols=symbols,
-    #         positions=positions,
-    #         n_walkers=CONFIG.n_walkers,
-    #         density_grid_shape=CONFIG.density_grid_shape,
-    #     )
-
-    #     # # Make the directory to store the log files if it doesn't exist
-    #     # if CONFIG.write_h5 or CONFIG.write_dash or CONFIG.store_pickles:
-    #     #     output_directory = CONFIG.output_directory
-
-    #     #     # Append a number if the directory already exists
-    #     #     if not CONFIG.overwrite and osp.isdir(output_directory):
-    #     #         i = 1
-    #     #         while osp.isdir(f"{output_directory}_{i}"):
-    #     #             i += 1
-    #     #         CONFIG.output_directory = output_directory = f"{output_directory}_{i}"
-    #     #         print(f"Warning: output directory already exists, creating new directory: {output_directory}/")
-
-    #     #     os.makedirs(output_directory, exist_ok=CONFIG.overwrite)
-    # else:
-    #     print(f"Restarting simulation at sub-step {args.sub_step}.")
-
-    #     # base_directory = CONFIG.output_directory
-
-    #     # # Find existing output directorys
-    #     # candidates = [d for d in [base_directory, *glob(f"{base_directory}_*")] if osp.isdir(d)]
-    #     # if not candidates:
-    #     #     raise FileNotFoundError(f"Can't restart simulation: couldn't find output directory {base_directory}")
-
-    #     # # Get the latest directory (highest number at the end)
-    #     # latest_directory = max(
-    #     #     candidates,
-    #     #     key=lambda d: int(d.removeprefix(base_directory + "_")) if d != base_directory else 0,
-    #     # )
-    #     # CONFIG.output_directory = latest_directory
-    #     # print(f"Using latest output directory: {latest_directory}/")
-
-    #     # # Check if pkls directory exists
-    #     # pkl_dir = osp.join(latest_directory, "pkls")
-    #     # if not osp.isdir(pkl_dir):
-    #     #     raise FileNotFoundError(f"Can't restart simulation: no pkls directory found in {latest_directory}")
-
-    #     # # Load walkers from sub-step target cycle
-    #     # target_cycle_idx = target_cycle - 1
-    #     # target_pkl = osp.join(pkl_dir, f"walkers_cycle_{target_cycle_idx}.pkl")
-    #     # if not osp.exists(target_pkl):
-    #     #     raise FileNotFoundError(f"Can't restart simulation: expected pickle not found: {target_pkl}")
-    #     # print(f"Resuming from pickle: {target_pkl}")
-
-    #     # Restore the walkers from the pkl
-    #     # with open(target_pkl, "rb") as f:
-    #     #     walkers = pickle.load(f)  # noqa: S301
-
     def get_next_dir_num(base_dir: str) -> int:
         """Get the next directory number given a base directory name."""
         dirs = [d for d in glob(f"{base_dir}_*") if osp.basename(d).rsplit("_", 1)[-1].isdigit()]
         return max(int(osp.basename(d).rsplit("_", 1)[-1]) for d in dirs) + 1 if dirs else 1
 
+    def get_latest_dir(base_dir: str) -> str:
+        """Get the latest versioned directory, or the base directory if no versioned ones exist."""
+        dirs = [d for d in glob(f"{base_dir}_*") if osp.basename(d).rsplit("_", 1)[-1].isdigit()]
+        if dirs:
+            return max(dirs, key=lambda d: int(osp.basename(d).rsplit("_", 1)[-1]))
+        return base_dir
+
+    def get_last_pkl(directory: str) -> str:
+        """Get the path to the last walker pkl file in a pkls directory."""
+        pkls = glob(osp.join(directory, "walkers_cycle_*.pkl"))
+        if not pkls:
+            raise FileNotFoundError(f"No walker pkl files found in {directory}/")
+        return max(pkls, key=lambda p: int(osp.basename(p).removeprefix("walkers_cycle_").removesuffix(".pkl")))
+
     # Directory creation is handled downstream, we just need to set the right value
+    start_cycle = None
     if args.sub_step is None:
         if args.from_branch is not None:
             raise ValueError("--from-branch is not supported without a sub-step specified.")
 
         print("Starting new simulation.")
-        start_cycle = None
 
-        # Output directory already exists
+        # Check base output directory first
         if osp.isdir(CONFIG.output_directory):
             if CONFIG.overwrite:
                 print(f"Warning: output directory already exists, overwriting: {CONFIG.output_directory}/")
-            # Create new directory if not overwriting and it exists already
             else:
+                # Create new directory if not overwriting and it exists already
                 next_dir_num = get_next_dir_num(CONFIG.output_directory)
                 CONFIG.output_directory = f"{CONFIG.output_directory}_{next_dir_num}"
                 print(f"Warning: output directory already exists, creating new directory: {CONFIG.output_directory}/")
@@ -274,22 +213,41 @@ def main():
             n_walkers=CONFIG.n_walkers,
             density_grid_shape=CONFIG.density_grid_shape,
         )
-    else:
-        print(f"Restarting simulation at sub-step {args.sub_step}.")
-        # FIXME: Calculate start cycle
-        # start_cycle = args.sub_step * CONFIG.n_cycles
+    else:  # Sub-step provided
+        # Resolve to the latest versioned base directory
+        CONFIG.output_directory = get_latest_dir(CONFIG.output_directory)
+        # Base directory must already exist in sub-step mode
+        if not osp.isdir(CONFIG.output_directory):
+            raise FileNotFoundError(f"Output directory does not exist: {CONFIG.output_directory}/")
 
+        if args.sub_step == 0:
+            if args.from_branch is not None:
+                raise ValueError("--from-branch is not supported with sub-step 0.")
+            print(f"Starting simulation in sub-step mode.")
+        else:
+            print(f"Continuing simulation at sub-step {args.sub_step}.")
+
+        # Get next sub directory and previous sub directory
         sub_directory = f"sub_{args.sub_step}"
+        prev_sub_directory = f"sub_{args.sub_step - 1}"
         if args.from_branch is not None:
             sub_directory += f"_branch_{args.from_branch}"
+            prev_sub_directory += f"_branch_{args.from_branch}"
+        prev_pkls_directory = osp.join(CONFIG.output_directory, prev_sub_directory, "pkls")
 
         # Output directory already exists
         if osp.isdir(osp.join(CONFIG.output_directory, sub_directory)):
             if CONFIG.overwrite:
                 CONFIG.output_directory = osp.join(CONFIG.output_directory, sub_directory)
                 print(f"Warning: sub-step output directory already exists, overwriting: {CONFIG.output_directory}/")
-            # Create new directory if not overwriting and it exists already
             else:
+                if args.from_branch is not None:
+                    raise ValueError(
+                        f"Sub-step directory already exists and overwrite is disabled: "
+                        f"{osp.join(CONFIG.output_directory, sub_directory)}"
+                    )
+
+                # Create new directory if not overwriting and it exists already
                 next_branch_num = get_next_dir_num(osp.join(CONFIG.output_directory, f"sub_{args.sub_step}_branch"))
                 CONFIG.output_directory = osp.join(
                     CONFIG.output_directory, f"sub_{args.sub_step}_branch_{next_branch_num}"
@@ -300,6 +258,28 @@ def main():
         else:
             CONFIG.output_directory = osp.join(CONFIG.output_directory, sub_directory)
             print(f"Creating sub-step output directory: {CONFIG.output_directory}/")
+
+        # Load or generate walkers
+        if args.sub_step == 0:
+            walkers = generate_initial_walkers(
+                symbols=symbols,
+                positions=positions,
+                n_walkers=CONFIG.n_walkers,
+                density_grid_shape=CONFIG.density_grid_shape,
+            )
+        else:
+            # Load walkers from the source directory
+            target_pkl = get_last_pkl(prev_pkls_directory)
+            print(f"Resuming from: {target_pkl}")
+
+            # Calculate the start cycle from the pickle index
+            start_cycle = (
+                int(target_pkl.rsplit("_", 1)[-1].removesuffix(".pkl")) + 2
+            )  # 0-based index so add 2 for next cycle
+
+            # Restore the walkers from the pkl
+            with open(target_pkl, "rb") as f:
+                walkers = pickle.load(f)  # noqa: S301
 
     runner = PySCFRunner(
         basis=CONFIG.basis,
@@ -323,7 +303,7 @@ def main():
     if CONFIG.store_pickles:
         reporters.append(
             WalkerPklReporter(
-                save_dir=CONFIG.pkls_path(),
+                save_dir=osp.join(CONFIG.output_directory, "pkls"),
                 freq=1,
                 num_backups=2,
                 start_cycle=start_cycle,

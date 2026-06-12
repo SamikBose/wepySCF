@@ -18,14 +18,14 @@ class PySCFInput:
     #
     topology_file_path: str = "./info/examples/PySCF/source/alanine_dipeptide.pdb"
     system: str = "alanine"
-    backend: str = "cpu"
+    backend: str = "gpu"
 
     #
     # Simulation size
     #
     n_walkers: int = 4
-    n_cycles: int = 3
-    segment_length: int = 1
+    n_cycles: int = 5
+    segment_length: int = 10
 
     #
     # PySCF runner parameters
@@ -44,10 +44,8 @@ class PySCFInput:
     #
     # Select the PySCF MD integrator class and any kwargs passed to it
     #
-    integrator_cls: type = pyscf_md.integrators.VelocityVerlet
-    # integrator_cls: type = pyscf_md.integrators.LangevinMiddle
-    integrator_kwargs: dict = field(default_factory=dict)
-    # integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1e-5})
+    integrator_cls: type = pyscf_md.integrators.LangevinMiddle
+    integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1e-5})
 
     #
     # Distance metric and resampler parameters
@@ -75,8 +73,8 @@ class PySCFInput:
     #
     # Misc
     #
-    initialize_velocities: bool = False  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
-    use_scanner_caching: bool = True  # Cache scanners from the previous cycle to speed up first step greatly
+    initialize_velocities: bool = True  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
+    use_scanner_caching: bool = False  # Cache scanners from the previous cycle to speed up first step greatly
 
     #
     # Read only stuff for naming/logging
@@ -104,10 +102,6 @@ class PySCFInput:
     def dash_path(self) -> str:
         """Return the dash path (evaluated at runtime)."""
         return f"{self.output_directory}/{self.filename_base}.dash.org"
-
-    def pkls_path(self) -> str:
-        """Return the pkls path (evaluated at runtime)."""
-        return f"{self.output_directory}/pkls"
 
 
 CONFIG = PySCFInput()

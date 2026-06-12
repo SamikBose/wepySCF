@@ -59,6 +59,5 @@ class WalkerPklReporter(Reporter):
                 old_pkl_fname = f"walkers_cycle_{old_idx}.pkl"
                 old_pkl_path = osp.join(self.save_dir, old_pkl_fname)
 
-                # prevent overwritting last run's final pickle
-                if osp.exists(old_pkl_path) and old_idx != self.start_cycle_idx:
+                if osp.exists(old_pkl_path):
                     os.remove(old_pkl_path)
