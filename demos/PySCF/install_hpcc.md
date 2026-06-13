@@ -147,7 +147,7 @@ export PYTHONPATH="${PYTHONPATH}:${CURRENT_PATH}"
 
 ```bash
 cd ../wepy_dev
-python info/examples/PySCF/source/revo_pyscf_alanine.py
+python info/examples/PySCF/source/revo_pyscf.py
 ```
 
 7. You might have to reinstall `mdtraj` if you get `numpy`-related error.
