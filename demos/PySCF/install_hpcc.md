@@ -133,7 +133,7 @@ cd gpu4pyscf
 ```bash
 ml load CMake # Ensure CMake is loaded
 cmake -S gpu4pyscf/lib -B build/temp.gpu4pyscf
-cmake --build build/temp.gpu4pyscf -j 4 # This will take a long time
+cmake --build build/temp.gpu4pyscf -j 16 # This will take a long time
 ```
 
 5. Add the `gpu4pyscf` library to your `PYTHONPATH` environment variable.
