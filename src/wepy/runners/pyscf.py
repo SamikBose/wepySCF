@@ -124,7 +124,7 @@ class PySCFRunner(Runner):
         charge=0,
         spin=0,
         dt: float = 21.0,
-        temperature_kelvin: float = 300.0,
+        integrator_temperature_kelvin: float = 300.0,
         integrator_cls=pyscf_md.integrators.VelocityVerlet,
         integrator_kwargs: dict | None = None,
         backend: str = "cpu",
@@ -140,7 +140,7 @@ class PySCFRunner(Runner):
         self.dt = float(dt)
         self.integrator_cls = integrator_cls
         self.integrator_kwargs = {} if integrator_kwargs is None else dict(integrator_kwargs)
-        self.temperature_kelvin = float(temperature_kelvin)
+        self.integrator_temperature_kelvin = float(integrator_temperature_kelvin)
         self.backend = backend.lower()
         self.density_grid_shape = density_grid_shape
         self.density_grid_padding = float(density_grid_padding)
@@ -164,19 +164,6 @@ class PySCFRunner(Runner):
     def post_cycle(self, **kwargs):
         self._cycle_backend = None
         self._cycle_platform_kwargs = None
-
-    def _build_molecule(self, state: PySCFState):
-        symbols = state["symbols"]
-        positions = state["positions"]
-        atom = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
-
-        return pyscf_gto.M(
-            atom=atom,
-            basis=state.get("basis", self.basis),
-            charge=state.get("charge", self.charge),
-            spin=state.get("spin", self.spin),
-            unit="Bohr",
-        )
 
     def _build_mean_field(self, mol, state):
         if self.method == "RHF":
@@ -249,14 +236,14 @@ class PySCFRunner(Runner):
         """
         name = getattr(integrator_cls, "__name__", "")
         if name in TEMPERATURE_AWARE_INTEGRATORS:
-            if "T" in integrator_kwargs and float(integrator_kwargs["T"]) != self.temperature_kelvin:
+            if "T" in integrator_kwargs and float(integrator_kwargs["T"]) != self.integrator_temperature_kelvin:
                 logger.warning(
                     "Overriding integrator_kwargs['T']=%s to match temperature_kelvin=%s for %s",
                     integrator_kwargs["T"],
-                    self.temperature_kelvin,
+                    self.integrator_temperature_kelvin,
                     name,
                 )
-            integrator_kwargs["T"] = self.temperature_kelvin
+            integrator_kwargs["T"] = self.integrator_temperature_kelvin
         if name in RANDOM_NOISE_INTEGRATORS:
             integrator_kwargs["rng"] = np.random.Generator(np.random.PCG64(None))
 
