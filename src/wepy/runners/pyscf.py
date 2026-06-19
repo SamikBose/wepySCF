@@ -130,6 +130,8 @@ class PySCFRunner(Runner):
         backend: str = "cpu",
         density_grid_shape: tuple[int, int, int] | None = None,
         density_grid_padding: float = 2.0,
+        density_fit: bool = False,
+        auxbasis: str | None = None,
         use_scanner_caching: bool = False,
     ):
         self.basis = basis
@@ -144,6 +146,8 @@ class PySCFRunner(Runner):
         self.backend = backend.lower()
         self.density_grid_shape = density_grid_shape
         self.density_grid_padding = float(density_grid_padding)
+        self.density_fit = bool(density_fit)
+        self.auxbasis = auxbasis
 
         if self.method not in self.SUPPORTED_METHODS:
             raise ValueError(
@@ -184,6 +188,9 @@ class PySCFRunner(Runner):
             mf.xc = xc
         else:
             raise ValueError(f"Unsupported PySCF mean-field method '{self.method}'.")
+
+        if self.density_fit:
+            mf = mf.density_fit(auxbasis=self.auxbasis)
 
         return mf
 

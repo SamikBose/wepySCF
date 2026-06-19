@@ -1,13 +1,9 @@
-"""Input configuration for CPU-only REVO/PySCF examples.
-
-Edit this file instead of passing command-line arguments.
-"""
+"""Input configuration for CPU-only REVO/PySCF examples."""
 
 import os
 from dataclasses import dataclass, field
 
 import pyscf.md as pyscf_md
-
 from wepy.resampling.distances.pyscf import ProtonTransferDistance, QMGridDensityDistance
 
 
@@ -40,12 +36,14 @@ class PySCFInput:
     temperature_kelvin: float = 300.0
     # density_grid_shape: tuple[int, int, int] | None = None
     density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
+    density_fit: bool = False
+    auxbasis: str | None = "def2-universal-jkfit"
 
     #
     # Select the PySCF MD integrator class and any kwargs passed to it
     #
     integrator_cls: type = pyscf_md.integrators.LangevinMiddle
-    integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1e-5})
+    integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1.0})
 
     #
     # Distance metric and resampler parameters
@@ -62,7 +60,7 @@ class PySCFInput:
 
     @dataclass
     class ResamplerParameters:
-        merge_dist: float = 0.1
+        merge_dist: float = 0.025
         char_dist: float = 0.1
         pmin: float = 1e-12
         pmax: float = 0.99

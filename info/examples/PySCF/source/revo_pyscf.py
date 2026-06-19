@@ -291,6 +291,8 @@ def main():
         integrator_temperature_kelvin=CONFIG.temperature_kelvin,
         backend=CONFIG.backend,
         density_grid_shape=CONFIG.density_grid_shape,
+        density_fit=CONFIG.density_fit,
+        auxbasis=CONFIG.auxbasis,
         use_scanner_caching=CONFIG.use_scanner_caching,
     )
 
@@ -376,11 +378,10 @@ def main():
     )
     if CONFIG.backend == "cpu":
         print(f"CPU workers: {CONFIG.n_walkers}")
+        print(f"OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
     elif CONFIG.backend == "gpu":
         print(f"GPUs: {CONFIG._num_gpus_visible}")  # noqa: SLF001
         print(f"CUDA devices: [{CONFIG._cuda_visible_devices_env_var}]")  # noqa: SLF001
-        # TODO: Does OpenMP threads affect when backend is GPU?
-    print(f"OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
     temperatures = [walker.state.get("temperature").item() for walker in end_walkers]
     potentials = [walker.state.get("potential").item() for walker in end_walkers]
     kinetics = [walker.state.get("kinetic").item() for walker in end_walkers]
