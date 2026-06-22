@@ -1,0 +1,15 @@
+HEADER    F- + CH3Cl SN2 ENTRANCE COMPLEX
+REMARK    charge=-1 spin=0 (singlet). Coordinates in Angstrom.
+REMARK    C-Cl=1.778, C-F=2.500 A; collinear backside, C3v.
+HETATM    1  C1  SN2 A   1       0.000   0.000   0.000  1.00  0.00           C
+HETATM    2 CL1  SN2 A   1       0.000   0.000   1.778  1.00  0.00          Cl
+HETATM    3  H1  SN2 A   1       1.029   0.000  -0.344  1.00  0.00           H
+HETATM    4  H2  SN2 A   1      -0.514   0.891  -0.344  1.00  0.00           H
+HETATM    5  H3  SN2 A   1      -0.514  -0.891  -0.344  1.00  0.00           H
+HETATM    6  F1  SN2 A   1       0.000   0.000  -2.500  1.00  0.00           F
+CONECT    1    2    3    4    5
+CONECT    2    1
+CONECT    3    1
+CONECT    4    1
+CONECT    5    1
+END
