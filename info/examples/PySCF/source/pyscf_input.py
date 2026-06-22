@@ -36,7 +36,7 @@ class PySCFInput:
     temperature_kelvin: float = 300.0
     # density_grid_shape: tuple[int, int, int] | None = None
     density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
-    density_fit: bool = False
+    use_density_fitting: bool = False
     auxbasis: str | None = "def2-universal-jkfit"
 
     #

@@ -291,7 +291,7 @@ def main():
         integrator_temperature_kelvin=CONFIG.temperature_kelvin,
         backend=CONFIG.backend,
         density_grid_shape=CONFIG.density_grid_shape,
-        density_fit=CONFIG.density_fit,
+        use_density_fitting=CONFIG.use_density_fitting,
         auxbasis=CONFIG.auxbasis,
         use_scanner_caching=CONFIG.use_scanner_caching,
     )
@@ -377,11 +377,9 @@ def main():
         + f"Integrator: {CONFIG._integrator_name}",  # noqa: SLF001
     )
     if CONFIG.backend == "cpu":
-        print(f"CPU workers: {CONFIG.n_walkers}")
-        print(f"OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
+        print(f"CPU workers: {CONFIG.n_walkers}, OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
     elif CONFIG.backend == "gpu":
-        print(f"GPUs: {CONFIG._num_gpus_visible}")  # noqa: SLF001
-        print(f"CUDA devices: [{CONFIG._cuda_visible_devices_env_var}]")  # noqa: SLF001
+        print(f"GPUs: {CONFIG._num_gpus_visible}, CUDA devices: [{CONFIG._cuda_visible_devices_env_var}]")  # noqa: SLF001
     temperatures = [walker.state.get("temperature").item() for walker in end_walkers]
     potentials = [walker.state.get("potential").item() for walker in end_walkers]
     kinetics = [walker.state.get("kinetic").item() for walker in end_walkers]
@@ -390,7 +388,11 @@ def main():
     print("Final walker energies:", energies)
     print("Final walker potentials:", potentials)
     print("Final walker kinetics:", kinetics)
-    print(f"Velocities initialized: {CONFIG.initialize_velocities}, Scanner caching: {CONFIG.use_scanner_caching}")
+    print(
+        f"Velocities initialized: {CONFIG.initialize_velocities}, "
+        f"Density fitting: {CONFIG.use_density_fitting}, "
+        f"Scanner caching: {CONFIG.use_scanner_caching}",
+    )
 
 
 if __name__ == "__main__":
