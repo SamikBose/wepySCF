@@ -155,7 +155,7 @@ class PySCFRunner(Runner):
         self._use_scanner_caching = use_scanner_caching
         self.scanner_cache_capacity = scanner_cache_capacity
 
-        self._last_cycle_segments_split_times = []
+        self._last_cycle_segments_split_times: list[dict] = []
 
     def pre_cycle(self, backend=None, platform_kwargs=None, **kwargs):
         self._cycle_backend = backend
@@ -215,9 +215,6 @@ class PySCFRunner(Runner):
                 raise RuntimeError("Requested GPU backend but PySCF mean-field object does not support to_gpu().")
 
         return mf
-
-    def _method_supports_scanner(self, method):
-        return method in ("RHF", "UHF", "RKS", "UKS")
 
     def _build_scanner(self, mol, state: PySCFState, backend: str, platform_kwargs: dict):
         """Build scanner for the requested backend."""
@@ -412,7 +409,7 @@ class PySCFRunner(Runner):
         extra_data: dict = state.get("extra_data", {})
         last_mid_velocities = extra_data.get("mid_velocities")  # Langevin Middle
 
-        if not self._method_supports_scanner(self.method):
+        if self.method not in self.SUPPORTED_METHODS:
             raise NotImplementedError("PySCF integrators only support RHF/UHF/RKS/UKS scanners.")
 
         init_mol = state.get("mol")
