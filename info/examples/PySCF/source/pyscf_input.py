@@ -73,6 +73,7 @@ class PySCFInput:
     #
     initialize_velocities: bool = True  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
     use_scanner_caching: bool = False  # Cache scanners from the previous cycle to speed up first step greatly
+    scanner_cache_capacity: int = n_walkers  # The amount of scanners the cache can hold
 
     #
     # Read only stuff for naming/logging

@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 # Standard Library
 import os
-import uuid
+from collections import OrderedDict
 from time import perf_counter
 
 # Third Party Library
@@ -15,7 +15,6 @@ import numpy as np
 # TODO: Lazy imports
 import pyscf.dft as pyscf_dft
 import pyscf.dft.numint as pyscf_numint
-import pyscf.gto as pyscf_gto
 import pyscf.md as pyscf_md
 import pyscf.scf as pyscf_scf
 
@@ -71,6 +70,18 @@ TEMPERATURE_AWARE_INTEGRATORS: set[str] = {"NVTBerendson", "Langevin", "Langevin
 RANDOM_NOISE_INTEGRATORS: set[str] = {"RandomNoiseVelocityVerlet", "Langevin", "LangevinMiddle"}
 
 
+class LRUDict(OrderedDict):
+    def __init__(self, max_len=8):
+        self.max_len = max_len
+
+    def __setitem__(self, key, value):
+        if key in self:
+            self.move_to_end(key)
+        super().__setitem__(key, value)
+        if len(self) > self.max_len:
+            self.popitem(last=False)
+
+
 def to_numpy(x) -> np.ndarray:
     """Convert an array-like object to a NumPy array of floats.
 
@@ -92,23 +103,6 @@ class PySCFWalker(Walker):
     def __init__(self, state, weight):
         assert isinstance(state, PySCFState), f"state must be an instance of PySCFState not {type(state)}"
         super().__init__(state, weight)
-
-    def clone(self, number=1):
-        """Override Wepy cloning algorithm to ensure unique walker ids."""
-        # Get the clones from the parent implementation
-        clones = super().clone(number=number)
-
-        print(f"[clone] Cloned {number} walkers")
-
-        # Create new walker_id for each clone so they never share a scanner cache entry
-        # Forces a cold start for each
-        return [
-            PySCFWalker(
-                PySCFState(**{**clone.state._data, "walker_id": str(uuid.uuid4())}),
-                clone.weight,
-            )
-            for clone in clones
-        ]
 
 
 class PySCFRunner(Runner):
@@ -133,6 +127,7 @@ class PySCFRunner(Runner):
         use_density_fitting: bool = False,
         auxbasis: str | None = None,
         use_scanner_caching: bool = False,
+        scanner_cache_capacity: int = 8,
     ):
         self.basis = basis
         self.method = method.upper()
@@ -158,6 +153,7 @@ class PySCFRunner(Runner):
         self._cycle_platform_kwargs = None
 
         self._use_scanner_caching = use_scanner_caching
+        self.scanner_cache_capacity = scanner_cache_capacity
 
         self._last_cycle_segments_split_times = []
 
@@ -405,7 +401,9 @@ class PySCFRunner(Runner):
 
         backend = kwargs.get("backend", self._cycle_backend or self.backend)
         platform_kwargs: dict = kwargs.get("platform_kwargs") or self._cycle_platform_kwargs or {}
-        scanner_cache: dict = kwargs.get("scanner_cache", {})
+        scanner_cache: LRUDict = kwargs.get("scanner_cache")
+        if len(scanner_cache) == 0:
+            scanner_cache.max_len = self.scanner_cache_capacity
 
         positions = state["positions"]
         last_velocities = state.get("velocities")
@@ -425,16 +423,16 @@ class PySCFRunner(Runner):
         cached_scanner = scanner_cache.get(walker_id)
 
         if cached_scanner is None:
-            logger.info(f"[scanner] cold start for walker {walker_id}")
+            logger.debug(f"[scanner] cold start for walker {walker_id}")
             scanner = self._build_scanner(init_mol, state, backend, platform_kwargs)
         else:
-            logger.info(f"[scanner] warm start for walker {walker_id}")
+            logger.debug(f"[scanner] warm start for walker {walker_id}")
             scanner = cached_scanner
             scanner.mol = init_mol
 
         build_scanner_end = perf_counter()
         build_scanner_time = build_scanner_end - build_scanner_start
-        logger.info(f"Built scanner in {build_scanner_time} sec")
+        logger.debug(f"Built scanner in {build_scanner_time} sec")
 
         # Build integrator and restore velocities/accelerations if present
         integrator = self._build_integrator(scanner)
@@ -451,7 +449,7 @@ class PySCFRunner(Runner):
 
             kernel_end = perf_counter()
             kernel_time = kernel_end - kernel_start
-            logger.info(f"Integrator kernel took {kernel_time} sec")
+            logger.debug(f"Integrator kernel took {kernel_time} sec")
         except RuntimeError as exc:
             raise RuntimeError("Integrator kernel execution failed.") from exc
 
@@ -485,7 +483,7 @@ class PySCFRunner(Runner):
 
             density_calc_end = perf_counter()
             density_calc_time = density_calc_end - density_calc_start
-            logger.info(f"Density calculation took {density_calc_time} sec")
+            logger.debug(f"Density calculation took {density_calc_time} sec")
             density_time_kwargs.update({"density_time": density_calc_time})
 
             density_kwargs.update(
@@ -512,7 +510,6 @@ class PySCFRunner(Runner):
         )
 
         if self._use_scanner_caching:
-            scanner_cache.pop(walker_id, None)  # Remove the old entry (walker could move to different worker)
             scanner_cache[new_state["walker_id"]] = scanner  # Add the new one
 
         new_walker = PySCFWalker(new_state, walker.weight)
@@ -530,6 +527,12 @@ class PySCFRunner(Runner):
 
         self._last_cycle_segments_split_times.append(segment_split_times)
 
+        logger.info(
+            f"Temperature: {new_state['temperature'][0]:.3f} K, "
+            f"Potential: {new_state['potential'][0]:.6f} Ha, "
+            f"Kinetic: {new_state['kinetic'][0]:.6f} Ha",
+        )
+
         return new_walker
 
 
@@ -543,7 +546,7 @@ class PySCFCPUWorker(Worker):
     def __init__(self, *args, **kwargs):
         num_threads = kwargs.pop("num_threads", self.DEFAULT_NUM_THREADS)
         super().__init__(*args, num_threads=num_threads, **kwargs)
-        self._scanner_cache: dict = {}
+        self._scanner_cache: LRUDict = LRUDict()
 
     def run_task(self, task):
         platform_options = {"Threads": str(self.attributes["num_threads"])}
@@ -554,12 +557,13 @@ class PySCFCPUWorker(Worker):
         )
 
 
+# FIXME: clone() not being called?
 class PySCFGPUWorker(Worker):
     NAME_TEMPLATE = "PySCFGPUWorker-{}"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._scanner_cache: dict = {}
+        self._scanner_cache: LRUDict = LRUDict()
 
     def run_task(self, task):
         device_id = self.mapper_attributes["device_ids"][self._worker_idx]
