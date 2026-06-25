@@ -81,6 +81,7 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
         }
 
     mol = build_mol(symbols, positions, CONFIG.basis, CONFIG.charge, CONFIG.spin)
+    mol.verbose = 0  # Suppress PySCF output
 
     velocities = (
         pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, CONFIG.temperature_kelvin)
@@ -110,11 +111,30 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
     ]
 
 
+class PySCFREVOResampler(REVOResampler):
+    def resample(self, walkers):
+        resampled_walkers, resampling_data, resampler_data = super().resample(walkers)
+
+        seen_ids = set()
+        fixed = []
+        for walker in resampled_walkers:
+            walker_id = walker.state.get("walker_id")
+            if walker_id in seen_ids:
+                # If duplicate ID, give fresh
+                new_state = PySCFState(**{**walker.state._data, "walker_id": str(uuid.uuid4())})
+                fixed.append(PySCFWalker(new_state, walker.weight))
+            else:
+                seen_ids.add(walker_id)
+                fixed.append(PySCFWalker(walker.state, walker.weight))
+
+        return fixed, resampling_data, resampler_data
+
+
 def build_revo_resampler(init_state):
     if CONFIG.resampler_parameters is None:
         return NoResampler()
 
-    return REVOResampler(
+    return PySCFREVOResampler(
         distance=CONFIG.distance,
         init_state=init_state,
         merge_dist=CONFIG.resampler_parameters.merge_dist,
@@ -294,6 +314,7 @@ def main():
         use_density_fitting=CONFIG.use_density_fitting,
         auxbasis=CONFIG.auxbasis,
         use_scanner_caching=CONFIG.use_scanner_caching,
+        scanner_cache_capacity=CONFIG.scanner_cache_capacity,
     )
 
     resampler = build_revo_resampler(walkers[0].state)
