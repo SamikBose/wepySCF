@@ -83,12 +83,6 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
     mol = build_mol(symbols, positions, CONFIG.basis, CONFIG.charge, CONFIG.spin)
     mol.verbose = 0  # Suppress PySCF output
 
-    velocities = (
-        pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, CONFIG.temperature_kelvin)
-        if CONFIG.initialize_velocities
-        else np.zeros_like(positions)
-    )
-
     return [
         PySCFWalker(
             PySCFState(
@@ -96,7 +90,11 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
                 symbols=symbols,
                 mol=deepcopy(mol),
                 positions=positions,
-                velocities=velocities.copy(),
+                velocities=(
+                    pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, CONFIG.temperature_kelvin)
+                    if CONFIG.initialize_velocities
+                    else np.zeros_like(positions)
+                ),
                 accelerations=None,
                 # Store as 1D feature arrays so the HDF5 reporter can extend them
                 temperature=np.array([CONFIG.temperature_kelvin], dtype=float),
