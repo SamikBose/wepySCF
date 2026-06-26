@@ -36,8 +36,13 @@ class PySCFInput:
     dt: int = 21
     temperature_kelvin: float = 200.0
     friction_coef: float = 1.0           # real field now (annotated)
+    
     density_grid_shape: tuple[int, int, int] | None = None
-
+    use_density_fitting: bool = False
+    auxbasis: str | None = "def2-universal-jkfit"
+    if use_density_fitting: density_fitting_tag = 'density_fit'
+    else: density_fitting_tag = 'no_density_fit'
+        
     integrator_cls: type = pyscf_md.integrators.LangevinMiddle
     # Leave empty here; built from self.friction_coef in __post_init__ (as a float!)
     integrator_kwargs: dict = field(default_factory=dict)
@@ -87,7 +92,7 @@ class PySCFInput:
         self.output_directory = (
             f"{self.system}_{self.n_walkers}walkers_{self.n_cycles}cycles_"
             f"{self.segment_length}steps_{md}mergedist_{self.temperature_kelvin}Temp_"
-            f"{self.dt}dt_{self._integrator_name}_{self.friction_coef}friction_{self.resampler_parameters.pmax}pmax_{self.scanner_tag}"
+            f"{self.dt}dt_{self._integrator_name}_{self.friction_coef}friction_{self.resampler_parameters.pmax}pmax_{self.scanner_tag}_{self.density_fitting_tag}"
         )
         self.filename_base = f"{self.xc}_{self.basis}"
 
