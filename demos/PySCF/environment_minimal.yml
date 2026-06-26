@@ -1,0 +1,16 @@
+name: wepy-dev
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.10
+  - openmm=8.0.0
+  - mdtraj=1.9.9
+  - pyscf>=2.13.0,<3
+  - setuptools<=81.0.0
+  - nox>=2026.4.10,<2027
+  - virtualenv>=21.3.0,<22
+  - pip
+  - pip:
+    - cutensor-cu12 2.2.0
+    - cupy-cuda12x 13.4.1
