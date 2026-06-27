@@ -295,6 +295,21 @@ def main():
 
     resampler = build_revo_resampler(walkers[0].state)
 
+    json_top = mdtraj_to_json_topology(mdj_top)
+
+    BOND_BREAK_DISTANCE = 0.5  # nm
+    BOND_MAKE_DISTANCE = 0.15  # nm
+
+    # Initialize the unbinding boundary conditions
+    bdbc = BondDistanceBC(
+        initial_states=[walker.state for walker in walkers],
+        # topology=json_top,
+        break_pairs=[(0, 1)],  # TODO: Use break/make pair from input file
+        break_cutoffs=[BOND_BREAK_DISTANCE],
+        make_pairs=[(0, 5)],
+        make_cutoffs=[BOND_MAKE_DISTANCE],
+    )
+
     reporters = []
     output_mode = "w" if CONFIG.overwrite else "x"
 
@@ -330,7 +345,8 @@ def main():
                 modes=[output_mode],
                 topology=mdtraj_to_json_topology(mdj_top),
                 resampler=resampler,
-                boundary_conditions=NoBC(),
+                # boundary_conditions=NoBC(),
+                boundary_conditions=bdbc,
             )
         )
     if CONFIG.write_dash:
@@ -348,7 +364,8 @@ def main():
         runner=runner,
         work_mapper=mapper,
         resampler=resampler,
-        boundary_conditions=NoBC(),
+        # boundary_conditions=NoBC(),
+        boundary_conditions=bdbc,
         reporters=reporters,
     )
 
