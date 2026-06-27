@@ -9,7 +9,6 @@ from typing import Literal
 from pyscf.md.integrators import _Integrator
 
 # First Party Library
-from wepy.boundary_conditions.boundary import BoundaryConditions
 from wepy.resampling.distances.distance import Distance
 
 
@@ -67,7 +66,11 @@ class PySCFInput:
     #
     # Boundary conditions
     #
-    boundary_conditions: BoundaryConditions = None
+    use_boundary_conditions: bool = False
+    break_pairs: list[tuple[int, int]] = field(default_factory=list)
+    break_cutoffs: list[float] = field(default_factory=list)
+    make_pairs: list[tuple[int, int]] = field(default_factory=list)
+    make_cutoffs: list[float] = field(default_factory=list)
 
     #
     # Misc
@@ -120,9 +123,6 @@ class PySCFInput:
 
         if self.distance_metric is None:
             raise ValueError("distance_metric must be specified")
-
-        if self.boundary_conditions is None:
-            raise ValueError("boundary_conditions must be specified")
 
         if self.scanner_cache_capacity is None:
             self.scanner_cache_capacity = self.n_walkers

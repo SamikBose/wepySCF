@@ -25,6 +25,8 @@ import pyscf.md as pyscf_md
 from pyscf.data.nist import BOHR
 
 # First Party Library
+from wepy.boundary_conditions.bond_distance import BondDistanceBC
+from wepy.boundary_conditions.boundary import NoBC
 from wepy.reporter.dashboard import DashboardReporter
 from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
 from wepy.reporter.walker_pkl import WalkerPklReporter
@@ -225,9 +227,7 @@ def run(config):
                     # Create new directory if not overwriting and it exists already
                     next_dir_num = get_next_dir_num(output_directory)
                     output_directory = f"{output_directory}_{next_dir_num}"
-                    print(
-                        f"Warning: output directory already exists, creating new directory: {output_directory}/"
-                    )
+                    print(f"Warning: output directory already exists, creating new directory: {output_directory}/")
             else:
                 print(f"Creating output directory: {output_directory}/")
 
@@ -274,12 +274,8 @@ def run(config):
 
                 # Create new directory if not overwriting and it exists already
                 next_branch_num = get_next_dir_num(osp.join(output_directory, f"sub_{args.sub_step}_branch"))
-                output_directory = osp.join(
-                    output_directory, f"sub_{args.sub_step}_branch_{next_branch_num}"
-                )
-                print(
-                    f"Warning: sub-step output directory already exists, creating new directory: {output_directory}/"
-                )
+                output_directory = osp.join(output_directory, f"sub_{args.sub_step}_branch_{next_branch_num}")
+                print(f"Warning: sub-step output directory already exists, creating new directory: {output_directory}/")
         else:
             output_directory = osp.join(output_directory, sub_directory)
             print(f"Creating sub-step output directory: {output_directory}/")
@@ -324,6 +320,19 @@ def run(config):
 
     resampler = build_revo_resampler(config, walkers[0].state)
 
+    boundary_conditions = (
+        NoBC()
+        if not config.use_boundary_conditions
+        else BondDistanceBC(
+            initial_states=[walker.state for walker in walkers],
+            # topology=json_top,
+            break_pairs=config.break_pairs,
+            break_cutoffs=config.break_cutoffs,
+            make_pairs=config.make_pairs,
+            make_cutoffs=config.make_cutoffs,
+        )
+    )
+
     json_top = mdtraj_to_json_topology(mdj_top)
 
     reporters = []
@@ -361,7 +370,7 @@ def run(config):
                 modes=[output_mode],
                 topology=json_top,
                 resampler=resampler,
-                boundary_conditions=config.boundary_conditions,
+                boundary_conditions=boundary_conditions,
             )
         )
     if config.write_dash:
@@ -379,7 +388,7 @@ def run(config):
         runner=runner,
         work_mapper=mapper,
         resampler=resampler,
-        boundary_conditions=config.boundary_conditions,
+        boundary_conditions=boundary_conditions,
         reporters=reporters,
     )
 

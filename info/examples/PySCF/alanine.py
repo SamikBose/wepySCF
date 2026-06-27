@@ -3,15 +3,13 @@
 # Standard Library
 from pathlib import Path
 
-# First Party Library
+# Third Party Library
 from pyscf.md.integrators import LangevinMiddle
 
-# Third Party Library
+# First Party Library
 from distance_metrics import qm_grid_density
 from pyscf_input import PySCFInput
 from revo_pyscf import run
-
-from wepy.boundary_conditions.boundary import NoBC
 
 CONFIG = PySCFInput(
     #
@@ -57,7 +55,7 @@ CONFIG = PySCFInput(
     #
     # Boundary conditions
     #
-    boundary_conditions=NoBC(),
+    use_boundary_conditions=False,
     #
     # Misc
     #
