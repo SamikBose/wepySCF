@@ -25,7 +25,7 @@ import pyscf.md as pyscf_md
 from pyscf.data.nist import BOHR
 
 # First Party Library
-from pyscf_input import CONFIG
+from pyscf_input_sn2 import CONFIG
 
 from wepy.boundary_conditions.bond_distance import BondDistanceBC
 from wepy.boundary_conditions.boundary import NoBC
