@@ -75,7 +75,9 @@ class PySCFInput:
     #
     # Misc
     #
+    # TODO: Remove initialize_velocities when done with debugging
     initialize_velocities: bool = True  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
+    unique_initial_velocities: bool = True  # Generate unique initial velocities for each walker
     use_scanner_caching: bool = True  # Cache scanners from the previous cycle to speed up first step greatly
     scanner_cache_capacity: int | None = None  # The amount of scanners the cache can hold (None uses n_walkers)
 
@@ -88,9 +90,6 @@ class PySCFInput:
 
     _omp_threads_env_var: str = os.environ.get("OMP_NUM_THREADS", "")
     _cuda_visible_devices_env_var: str = os.environ.get("CUDA_VISIBLE_DEVICES", "")
-    # @property
-    # def _num_gpus_visible(self) -> int:
-    #     return len([x for x in self._cuda_visible_devices_env_var.split(",") if x.strip()])
     _num_gpus_visible = len([x for x in _cuda_visible_devices_env_var.split(",") if x.strip()])
 
     #

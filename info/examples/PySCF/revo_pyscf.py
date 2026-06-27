@@ -66,6 +66,14 @@ def build_mol(symbols, positions, basis, charge, spin):
     )
 
 
+def _generate_MB_velocities(config, mol, positions):
+    return (
+        pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, config.temperature_kelvin)
+        if config.initialize_velocities
+        else np.zeros_like(positions)
+    )
+
+
 def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid_shape):
     weight = 1.0 / n_walkers
 
@@ -80,8 +88,8 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
 
     mol = build_mol(symbols, positions, config.basis, config.charge, config.spin)
     mol.verbose = 0  # Suppress PySCF output
-    # TODO: Test this with old PySCF
-    # mol.stdout = 0
+
+    shared_velocity = _generate_MB_velocities(config, mol, positions)
 
     return [
         PySCFWalker(
@@ -91,10 +99,10 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
                 mol=deepcopy(mol),
                 positions=positions,
                 velocities=(
-                    pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, config.temperature_kelvin)
-                    if config.initialize_velocities
-                    else np.zeros_like(positions)
-                ),  # TODO: Make this an option to only have 1 random or multiple random velocities
+                    np.copy(shared_velocity)
+                    if not config.unique_initial_velocities
+                    else (_generate_MB_velocities(config, mol, positions))
+                ),
                 accelerations=None,
                 # Store as 1D feature arrays so the HDF5 reporter can extend them
                 temperature=np.array([config.temperature_kelvin], dtype=float),
@@ -427,6 +435,7 @@ def run(config):
     print("Final walker kinetics:", kinetics)
     print(
         f"Velocities initialized: {config.initialize_velocities}, "
+        f"Unique velocities: {config.unique_initial_velocities}, "
         f"Density fitting: {config.use_density_fitting}, "
         f"Scanner caching: {config.use_scanner_caching}",
     )

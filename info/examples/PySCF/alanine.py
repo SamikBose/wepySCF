@@ -60,6 +60,7 @@ CONFIG = PySCFInput(
     # Misc
     #
     initialize_velocities=True,  # Initialize velocities from Maxwell-Boltzmann distribution (False uses zeros)
+    unique_initial_velocities=True,  # Generate unique initial velocities for each walker
     use_scanner_caching=True,  # Cache scanners from the previous cycle to speed up first step greatly
     scanner_cache_capacity=None,  # The amount of scanners the cache can hold (None uses n_walkers)
     #
