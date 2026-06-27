@@ -6,62 +6,35 @@
 ** This is a forked repo from DicksonLab's wepy software to run weighted ensemble simulation for QM and QMMM dynamics. 
 Here you can find specific runners and architecture required for running QM or QM/MM simulations in weighted ensemble formalism.
 
-The installation and documentation is same as main wepy repo:
+As we are in the testing/prerelease phase, the installation and documentation is quite different from the parent wepy software.
+Please follow the demo/PySCF[https://github.com/SamikBose/wepy_dev/blob/master/demos/PySCF/install_hpcc.md] to install in a hpc environment.
+Also, use the Update installation tab to be on top of the updates.
 
-[[https://adicksonlab.github.io/wepy/index.html][Sphinx Documentation]]
+If you have specific queiries regarding the qm or qmmm runners, distances, resamplers and boundary conditions: please contact Samik Bose at bosesami@msu.edu
 
-[[https://github.com/ADicksonLab/wepy/blob/master/info/README.org][Plaintext Org-Mode Docs]]
-
-Modular implementation and framework for running weighted ensemble (WE)
-simulations in pure python, where the aim is to have simple things
-simple and complicated things possible. The latter being the priority.
-
-If you have specific queiries regarding the qm or qmmm runners, please contact Samik Bose at bosesami@msu.edu
-
-Comes equipped with support for [[https://github.com/pandegroup/openmm][OpenMM]] molecular dynamics,
-parallelization using multiprocessing, the [[http://pubs.acs.org/doi/abs/10.1021/jp411479c][WExplore]] 
+Comes equipped with support for pyscf electronic structure package albeit a slightly modified md class can be found [[https://github.com/SamikBose/pyscf_dev][pyscf_dev]].
+Utilizes parallelization using multiprocessing and the [[http://pubs.acs.org/doi/abs/10.1021/jp411479c][WExplore]] 
 and [[https://pubmed.ncbi.nlm.nih.gov/31255090/][REVO]] (Resampling Ensembles by Variance Optimization) resampling
-algorithms, and an HDF5 file format and library for storing and
-querying your WE datasets that can be used from the command line.
+algorithms, and an HDF5 file format and library for storing and querying your WE datasets that can be used from the command line.
 
-The deeper architecture of ~wepy~ is intended to be loosely coupled,
-so that unforeseen use cases can be accomodated, but tightly
-integrated for the most common of use cases, i.e. molecular dynamics.
-
-This allows freedom for fast development of new methods.
+The deeper architecture of the parent ~wepy~ is maintained that allows freedom for fast development of new methods.
 
 Full [[https://github.com/ADicksonLab/wepy/blob/master/info/introduction.org][introduction]].
 
 ** Installation
-
-Also see: [[info/installation.org][Installation Instructions]]
+Please follow the demo/PySCF[https://github.com/SamikBose/wepy_dev/blob/master/demos/PySCF/install_hpcc.md] to install in a hpc environment.
+Please follow the pyscf and gpu4pyscf installation instructions there carefully.
 
 We recommend running this version of `wepy` in a conda environment using `python=3.10` or greater:
 
-#+BEGIN_SRC bash
-  conda create -n wepy python=3.10
-  conda activate wepy
-#+END_SRC
 
-The latest version of `wepy_dev` can be installed from the git repo source:
-#+BEGIN_SRC bash
-  git clone https://github.com/SamikBose/wepy_dev.git 
-  cd wepy_dev
-  pip install -e . 
-#+END_SRC
-
-Please install pyscf and gpuscf via conda (or pip) from here: https://pyscf.org/user/install.html#install-with-conda
-
-
-Cite wepy software as:
+Cite the parent wepy software as:
 
 #+begin_example
 Samuel D. Lotz, Nazanin Donyapour, Alex Dickson, Tom Dixon, Nicole Roussey, & Rob Hall. (2020, August 4). ADicksonLab/wepy: 1.0.0 Major version release (Version v1.0.0). Zenodo. http://doi.org/10.5281/zenodo.3973431
 #+end_example
 
-Accompanying journal article:
-
-- [[https://pubs.acs.org/doi/abs/10.1021/acsomega.0c03892][ACS Omega]] article
+[A second article on integration of QM softwares within wepy framework is coming up soon]
 
 
 
