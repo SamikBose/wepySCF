@@ -7,7 +7,7 @@
 Here you can find specific runners and architecture required for running QM or QM/MM simulations in weighted ensemble formalism.
 
 As we are in the testing/prerelease phase, the installation and documentation is quite different from the parent wepy software.
-Please follow the demo/PySCF[https://github.com/SamikBose/wepy_dev/blob/master/demos/PySCF/install_hpcc.md] to install in a hpc environment.
+Please follow the [[https://github.com/SamikBose/wepy_dev/blob/master/demos/PySCF/install_hpcc.md][ demo/PySCF]] to install in a hpc environment.
 Also, use the Update installation tab to be on top of the updates.
 
 If you have specific queiries regarding the qm or qmmm runners, distances, resamplers and boundary conditions: please contact Samik Bose at bosesami@msu.edu
@@ -22,7 +22,7 @@ The deeper architecture of the parent ~wepy~ is maintained that allows freedom f
 Full [[https://github.com/ADicksonLab/wepy/blob/master/info/introduction.org][introduction]].
 
 ** Installation
-Please follow the demo/PySCF[https://github.com/SamikBose/wepy_dev/blob/master/demos/PySCF/install_hpcc.md] to install in a hpc environment.
+Please follow the [[https://github.com/SamikBose/wepy_dev/blob/master/demos/PySCF/install_hpcc.md][ demo/PySCF]] to install in a hpc environment.
 Please follow the pyscf and gpu4pyscf installation instructions there carefully.
 
 We recommend running this version of `wepy` in a conda environment using `python=3.10` or greater:
