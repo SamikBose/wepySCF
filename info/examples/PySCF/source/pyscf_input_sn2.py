@@ -12,8 +12,8 @@ class PySCFInput:
     #
     # System name and info
     #
-    topology_file_path: str = "./info/examples/PySCF/source/alanine_dipeptide.pdb"
-    system: str = "alanine"
+    topology_file_path: str = "./info/examples/PySCF/source/sn2.pdb"
+    system: str = "SN2"
     backend: str = "gpu"
 
     #
@@ -26,24 +26,26 @@ class PySCFInput:
     #
     # PySCF runner parameters
     #
-    basis: str = "sto-3g"
-    method: str = "RHF"
+    basis: str = "aug-cc-pVDZ"
+    method: str = "RKS"
     # Allowed methods include RHF/UHF, RKS/UKS
-    xc: str | None = None
-    charge: int = 0
+    xc: str | None = "wb97x_v"
+    charge: int = -1
     spin: int = 0
     dt: int = 21
     temperature_kelvin: float = 300.0
-    # density_grid_shape: tuple[int, int, int] | None = None
-    density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
-    use_density_fitting: bool = False
+    density_grid_shape: tuple[int, int, int] | None = None
+    # density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
+    use_density_fitting: bool = True
     auxbasis: str | None = "def2-universal-jkfit"
 
     #
     # Select the PySCF MD integrator class and any kwargs passed to it
     #
-    integrator_cls: type = pyscf_md.integrators.LangevinMiddle
-    integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1.0})
+    # integrator_cls: type = pyscf_md.integrators.LangevinMiddle
+    integrator_cls: type = pyscf_md.integrators.VelocityVerlet
+    # integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1.0})
+    integrator_kwargs: dict = field(default_factory=dict)
 
     #
     # Distance metric and resampler parameters
@@ -56,7 +58,9 @@ class PySCFInput:
     def distance_proton_transfer(break_pair: tuple[int, int], make_pair: tuple[int, int]):
         return ProtonTransferDistance(break_pair=break_pair, make_pair=make_pair)
 
-    distance = distance_qm_grid_density()
+    # distance = distance_qm_grid_density()
+    # distance = distance_proton_transfer((0, 1), (0, 5))
+    distance = ProtonTransferDistance(break_pair=(0, 1), make_pair=(0, 5))
 
     @dataclass
     class ResamplerParameters:
@@ -71,10 +75,8 @@ class PySCFInput:
     #
     # Misc
     #
-    # TODO: Remove initialize_velocities when done with debugging
     initialize_velocities: bool = True  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
-    unique_initial_velocities: bool = True  # Generate unique initial velocities for each walker
-    use_scanner_caching: bool = False  # Cache scanners from the previous cycle to speed up first step greatly
+    use_scanner_caching: bool = True  # Cache scanners from the previous cycle to speed up first step greatly
     scanner_cache_capacity: int = n_walkers  # The amount of scanners the cache can hold
 
     #
