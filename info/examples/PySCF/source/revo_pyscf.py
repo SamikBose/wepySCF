@@ -68,6 +68,14 @@ def build_mol(symbols, positions, basis, charge, spin):
     )
 
 
+def _generate_MB_velocities(mol, positions):
+    return (
+        pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, CONFIG.temperature_kelvin)
+        if CONFIG.initialize_velocities
+        else np.zeros_like(positions)
+    )
+
+
 def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
     weight = 1.0 / n_walkers
 
@@ -82,6 +90,8 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
 
     mol = build_mol(symbols, positions, CONFIG.basis, CONFIG.charge, CONFIG.spin)
 
+    shared_velocity = _generate_MB_velocities(mol, positions)
+
     return [
         PySCFWalker(
             PySCFState(
@@ -90,9 +100,9 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
                 mol=deepcopy(mol),
                 positions=positions,
                 velocities=(
-                    pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, CONFIG.temperature_kelvin)
-                    if CONFIG.initialize_velocities
-                    else np.zeros_like(positions)
+                    np.copy(shared_velocity)
+                    if not CONFIG.unique_initial_velocities
+                    else (_generate_MB_velocities(mol, positions))
                 ),
                 accelerations=None,
                 # Store as 1D feature arrays so the HDF5 reporter can extend them
@@ -388,6 +398,7 @@ def main():
     print("Final walker kinetics:", kinetics)
     print(
         f"Velocities initialized: {CONFIG.initialize_velocities}, "
+        f"Unique velocities: {CONFIG.unique_initial_velocities}, "
         f"Density fitting: {CONFIG.use_density_fitting}, "
         f"Scanner caching: {CONFIG.use_scanner_caching}",
     )

@@ -71,7 +71,9 @@ class PySCFInput:
     #
     # Misc
     #
+    # TODO: Remove initialize_velocities when done with debugging
     initialize_velocities: bool = True  # Initialize velocities from Maxwell Boltzmann distribution (False uses zeros)
+    unique_initial_velocities: bool = True  # Generate unique initial velocities for each walker
     use_scanner_caching: bool = False  # Cache scanners from the previous cycle to speed up first step greatly
 
     #
