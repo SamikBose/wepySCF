@@ -4,20 +4,17 @@ This version uses a separate `pyscf_input.py` file for all PySCF/simulation para
 """
 
 # Set the default number of threads before importing libraries
-import argparse
 import os
-import os.path as osp
-import pickle
-from copy import deepcopy
-from glob import glob
-
-from wepy.reporter.walker_pkl import WalkerPklReporter
 
 os.environ.setdefault("OMP_NUM_THREADS", "1")  # Good default for PySCF CPU runs, but can be overridden by the user
-
 # Standard Library
+import argparse
 import importlib.util
+import os.path as osp
+import pickle
 import uuid
+from copy import deepcopy
+from glob import glob
 from time import perf_counter
 
 # Third Party Library
@@ -30,9 +27,12 @@ from pyscf.data.nist import BOHR
 # First Party Library
 from pyscf_input import CONFIG
 
+from wepy.boundary_conditions.bond_distance import BondDistanceBC
 from wepy.boundary_conditions.boundary import NoBC
 from wepy.reporter.dashboard import DashboardReporter
 from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
+from wepy.reporter.walker_pkl import WalkerPklReporter
+from wepy.resampling.resamplers.resampler import NoResampler
 from wepy.resampling.resamplers.revo import REVOResampler
 from wepy.runners.pyscf import PySCFCPUWorkerMapper, PySCFGPUWorkerMapper, PySCFRunner, PySCFState, PySCFWalker
 from wepy.sim_manager import Manager
@@ -40,6 +40,7 @@ from wepy.util.mdtraj import mdtraj_to_json_topology
 
 
 def parse_with_mdtraj_topology(topology_file_path: str):
+    """Parse a pdb or xyz file using mdtraj and return the topology, symbols, and positions."""
     if topology_file_path.endswith(".pdb"):
         traj = mdj.load_pdb(topology_file_path)
     elif topology_file_path.endswith(".xyz"):
@@ -80,12 +81,9 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
         }
 
     mol = build_mol(symbols, positions, CONFIG.basis, CONFIG.charge, CONFIG.spin)
-
-    velocities = (
-        pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, CONFIG.temperature_kelvin)
-        if CONFIG.initialize_velocities
-        else np.zeros_like(positions)
-    )
+    mol.verbose = 0  # Suppress PySCF output
+    # TODO: Test this with old PySCF
+    # mol.stdout = 0
 
     return [
         PySCFWalker(
@@ -94,7 +92,11 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
                 symbols=symbols,
                 mol=deepcopy(mol),
                 positions=positions,
-                velocities=velocities.copy(),
+                velocities=(
+                    pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, CONFIG.temperature_kelvin)
+                    if CONFIG.initialize_velocities
+                    else np.zeros_like(positions)
+                ),  # TODO: Make this an option to only have 1 random or multiple random velocities
                 accelerations=None,
                 # Store as 1D feature arrays so the HDF5 reporter can extend them
                 temperature=np.array([CONFIG.temperature_kelvin], dtype=float),
@@ -109,11 +111,33 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
     ]
 
 
-def build_revo_resampler(init_state):
-    #if CONFIG.resampler_parameters is None:
-    #    return NoResampler()
+class PySCFREVOResampler(REVOResampler):
+    """Resampler for PySCF walkers using REVO."""
 
-    return REVOResampler(
+    def resample(self, walkers):
+        """Resample walkers using REVO and regenerate duplicate IDs."""
+        resampled_walkers, resampling_data, resampler_data = super().resample(walkers)
+
+        seen_ids = set()
+        fixed = []
+        for walker in resampled_walkers:
+            walker_id = walker.state.get("walker_id")
+            if walker_id in seen_ids:
+                # If duplicate ID, give fresh
+                new_state = PySCFState(**{**walker.state._data, "walker_id": str(uuid.uuid4())})
+                fixed.append(PySCFWalker(new_state, walker.weight))
+            else:
+                seen_ids.add(walker_id)
+                fixed.append(PySCFWalker(walker.state, walker.weight))
+
+        return fixed, resampling_data, resampler_data
+
+
+def build_revo_resampler(init_state):
+    if CONFIG.resampler_parameters is None:
+        return NoResampler()
+
+    return PySCFREVOResampler(
         distance=CONFIG.distance,
         init_state=init_state,
         merge_dist=CONFIG.resampler_parameters.merge_dist,
@@ -142,7 +166,7 @@ def parse_args():
 
 
 def main():
-    # build_mapper
+    # TODO: build_mapper
     if CONFIG.backend == "cpu":
         mapper = PySCFCPUWorkerMapper(num_workers=CONFIG.n_walkers)
     elif CONFIG.backend == "gpu":
@@ -186,6 +210,7 @@ def main():
             raise FileNotFoundError(f"No walker pkl files found in {directory}/")
         return max(pkls, key=lambda p: int(osp.basename(p).removeprefix("walkers_cycle_").removesuffix(".pkl")))
 
+    # TODO: Move to function
     # Directory creation is handled downstream, we just need to set the right value
     start_cycle = None
     if args.sub_step is None:
@@ -195,16 +220,19 @@ def main():
         print("Starting new simulation.")
 
         # Check base output directory first
-        if osp.isdir(CONFIG.output_directory):
-            if CONFIG.overwrite:
-                print(f"Warning: output directory already exists, overwriting: {CONFIG.output_directory}/")
+        if CONFIG.write_h5 or CONFIG.write_dash or CONFIG.store_pickles:
+            if osp.isdir(CONFIG.output_directory):
+                if CONFIG.overwrite:
+                    print(f"Warning: output directory already exists, overwriting: {CONFIG.output_directory}/")
+                else:
+                    # Create new directory if not overwriting and it exists already
+                    next_dir_num = get_next_dir_num(CONFIG.output_directory)
+                    CONFIG.output_directory = f"{CONFIG.output_directory}_{next_dir_num}"
+                    print(
+                        f"Warning: output directory already exists, creating new directory: {CONFIG.output_directory}/"
+                    )
             else:
-                # Create new directory if not overwriting and it exists already
-                next_dir_num = get_next_dir_num(CONFIG.output_directory)
-                CONFIG.output_directory = f"{CONFIG.output_directory}_{next_dir_num}"
-                print(f"Warning: output directory already exists, creating new directory: {CONFIG.output_directory}/")
-        else:
-            print(f"Creating output directory: {CONFIG.output_directory}/")
+                print(f"Creating output directory: {CONFIG.output_directory}/")
 
         walkers = generate_initial_walkers(
             symbols=symbols,
@@ -290,7 +318,10 @@ def main():
         integrator_temperature_kelvin=CONFIG.temperature_kelvin,
         backend=CONFIG.backend,
         density_grid_shape=CONFIG.density_grid_shape,
+        use_density_fitting=CONFIG.use_density_fitting,
+        auxbasis=CONFIG.auxbasis,
         use_scanner_caching=CONFIG.use_scanner_caching,
+        scanner_cache_capacity=CONFIG.scanner_cache_capacity,
     )
 
     resampler = build_revo_resampler(walkers[0].state)
@@ -343,7 +374,7 @@ def main():
                 save_fields=h5_save_fields,
                 file_paths=[CONFIG.h5_path()],
                 modes=[output_mode],
-                topology=mdtraj_to_json_topology(mdj_top),
+                topology=json_top,
                 resampler=resampler,
                 # boundary_conditions=NoBC(),
                 boundary_conditions=bdbc,
@@ -391,12 +422,9 @@ def main():
         + f"Integrator: {CONFIG._integrator_name}",  # noqa: SLF001
     )
     if CONFIG.backend == "cpu":
-        print(f"CPU workers: {CONFIG.n_walkers}")
+        print(f"CPU workers: {CONFIG.n_walkers}, OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
     elif CONFIG.backend == "gpu":
-        print(f"GPUs: {CONFIG._num_gpus_visible}")  # noqa: SLF001
-        print(f"CUDA devices: [{CONFIG._cuda_visible_devices_env_var}]")  # noqa: SLF001
-        # TODO: Does OpenMP threads affect when backend is GPU?
-    print(f"OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
+        print(f"GPUs: {CONFIG._num_gpus_visible}, CUDA devices: [{CONFIG._cuda_visible_devices_env_var}]")  # noqa: SLF001
     temperatures = [walker.state.get("temperature").item() for walker in end_walkers]
     potentials = [walker.state.get("potential").item() for walker in end_walkers]
     kinetics = [walker.state.get("kinetic").item() for walker in end_walkers]
@@ -405,7 +433,11 @@ def main():
     print("Final walker energies:", energies)
     print("Final walker potentials:", potentials)
     print("Final walker kinetics:", kinetics)
-    print(f"Velocities initialized: {CONFIG.initialize_velocities}, Scanner caching: {CONFIG.use_scanner_caching}")
+    print(
+        f"Velocities initialized: {CONFIG.initialize_velocities}, "
+        f"Density fitting: {CONFIG.use_density_fitting}, "
+        f"Scanner caching: {CONFIG.use_scanner_caching}",
+    )
 
 
 if __name__ == "__main__":
