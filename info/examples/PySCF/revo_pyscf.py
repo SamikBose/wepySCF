@@ -209,6 +209,7 @@ def run(config):
     # TODO: Move to function
     # Directory creation is handled downstream, we just need to set the right value
     start_cycle = None
+    output_directory = config.output_directory
     if args.sub_step is None:
         if args.from_branch is not None:
             raise ValueError("--from-branch is not supported without a sub-step specified.")
@@ -217,18 +218,18 @@ def run(config):
 
         # Check base output directory first
         if config.write_h5 or config.write_dash or config.store_pickles:
-            if osp.isdir(config.output_directory):
+            if osp.isdir(output_directory):
                 if config.overwrite:
-                    print(f"Warning: output directory already exists, overwriting: {config.output_directory}/")
+                    print(f"Warning: output directory already exists, overwriting: {output_directory}/")
                 else:
                     # Create new directory if not overwriting and it exists already
-                    next_dir_num = get_next_dir_num(config.output_directory)
-                    config.output_directory = f"{config.output_directory}_{next_dir_num}"
+                    next_dir_num = get_next_dir_num(output_directory)
+                    output_directory = f"{output_directory}_{next_dir_num}"
                     print(
-                        f"Warning: output directory already exists, creating new directory: {config.output_directory}/"
+                        f"Warning: output directory already exists, creating new directory: {output_directory}/"
                     )
             else:
-                print(f"Creating output directory: {config.output_directory}/")
+                print(f"Creating output directory: {output_directory}/")
 
         walkers = generate_initial_walkers(
             config=config,
@@ -239,10 +240,10 @@ def run(config):
         )
     else:  # Sub-step provided
         # Resolve to the latest versioned base directory
-        config.output_directory = get_latest_dir(config.output_directory)
+        output_directory = get_latest_dir(output_directory)
         # Base directory must already exist in sub-step mode
-        if not osp.isdir(config.output_directory):
-            raise FileNotFoundError(f"Output directory does not exist: {config.output_directory}/")
+        if not osp.isdir(output_directory):
+            raise FileNotFoundError(f"Output directory does not exist: {output_directory}/")
 
         if args.sub_step == 0:
             if args.from_branch is not None:
@@ -257,31 +258,31 @@ def run(config):
         if args.from_branch is not None:
             sub_directory += f"_branch_{args.from_branch}"
             prev_sub_directory += f"_branch_{args.from_branch}"
-        prev_pkls_directory = osp.join(config.output_directory, prev_sub_directory, "pkls")
+        prev_pkls_directory = osp.join(output_directory, prev_sub_directory, "pkls")
 
         # Output directory already exists
-        if osp.isdir(osp.join(config.output_directory, sub_directory)):
+        if osp.isdir(osp.join(output_directory, sub_directory)):
             if config.overwrite:
-                config.output_directory = osp.join(config.output_directory, sub_directory)
-                print(f"Warning: sub-step output directory already exists, overwriting: {config.output_directory}/")
+                output_directory = osp.join(output_directory, sub_directory)
+                print(f"Warning: sub-step output directory already exists, overwriting: {output_directory}/")
             else:
                 if args.from_branch is not None:
                     raise ValueError(
                         f"Sub-step directory already exists and overwrite is disabled: "
-                        f"{osp.join(config.output_directory, sub_directory)}"
+                        f"{osp.join(output_directory, sub_directory)}"
                     )
 
                 # Create new directory if not overwriting and it exists already
-                next_branch_num = get_next_dir_num(osp.join(config.output_directory, f"sub_{args.sub_step}_branch"))
-                config.output_directory = osp.join(
-                    config.output_directory, f"sub_{args.sub_step}_branch_{next_branch_num}"
+                next_branch_num = get_next_dir_num(osp.join(output_directory, f"sub_{args.sub_step}_branch"))
+                output_directory = osp.join(
+                    output_directory, f"sub_{args.sub_step}_branch_{next_branch_num}"
                 )
                 print(
-                    f"Warning: sub-step output directory already exists, creating new directory: {config.output_directory}/"
+                    f"Warning: sub-step output directory already exists, creating new directory: {output_directory}/"
                 )
         else:
-            config.output_directory = osp.join(config.output_directory, sub_directory)
-            print(f"Creating sub-step output directory: {config.output_directory}/")
+            output_directory = osp.join(output_directory, sub_directory)
+            print(f"Creating sub-step output directory: {output_directory}/")
 
         # Load or generate walkers
         if args.sub_step == 0:
@@ -332,7 +333,7 @@ def run(config):
     if config.store_pickles:
         reporters.append(
             WalkerPklReporter(
-                save_dir=osp.join(config.output_directory, "pkls"),
+                save_dir=osp.join(output_directory, "pkls"),
                 freq=1,
                 num_backups=2,
                 start_cycle=start_cycle,
@@ -356,7 +357,7 @@ def run(config):
         reporters.append(
             PySCFHDF5Reporter(
                 save_fields=h5_save_fields,
-                file_paths=[config.h5_path()],
+                file_paths=[config.get_h5_path(output_directory)],
                 modes=[output_mode],
                 topology=json_top,
                 resampler=resampler,
@@ -366,7 +367,7 @@ def run(config):
     if config.write_dash:
         reporters.append(
             DashboardReporter(
-                file_paths=[config.dash_path()],
+                file_paths=[config.get_dash_path(output_directory)],
                 modes=[output_mode],
                 runner_dash=PySCFRunnerDashboardSection(runner=runner),
             )

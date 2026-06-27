@@ -1,14 +1,13 @@
 """Input configuration for alanine dipeptide."""
 
 # Third Party Library
-from pyscf.md.integrators import LangevinMiddle
+import pyscf.md as pyscf_md
 
 # First Party Library
-from distance_metrics import qm_grid_density
-from pyscf_input import PySCFInput
-from revo_pyscf import run
-
-from wepy.boundary_conditions.boundary import NoBC
+import .distance_metrics
+from .pyscf_input import PySCFInput
+from .revo_pyscf import run
+from wepy.boundary_conditions.bond_distance import BondDistanceBC
 
 CONFIG = PySCFInput(
     #
@@ -22,7 +21,7 @@ CONFIG = PySCFInput(
     backend="gpu",
     n_walkers=4,
     n_cycles=5,
-    segment_length=10,
+    segment_length=1, # TODO: Make 10
     #
     # PySCF runner parameters
     #
@@ -39,12 +38,12 @@ CONFIG = PySCFInput(
     #
     # PySCF integrator and any kwargs passed to it
     #
-    integrator_cls=LangevinMiddle,
+    integrator_cls=pyscf_md.integrators.LangevinMiddle,
     integrator_kwargs={"friction_coef": 1.0},
     #
     # Distance metric and resampler parameters
     #
-    distance_metric=qm_grid_density(),
+    distance_metric=distance_metrics.qm_grid_density(),
     resampler_parameters=PySCFInput.ResamplerParameters(
         merge_dist=0.025,
         char_dist=0.1,
@@ -54,12 +53,20 @@ CONFIG = PySCFInput(
     #
     # Boundary conditions
     #
-    boundary_conditions=NoBC(),
+    boundary_conditions=BondDistanceBC(
+        # FIXME: auto gen initial states variable here?
+        initial_states=[walker.state for walker in walkers],
+        # topology=json_top,
+        break_pairs=[(0, 1)],  # TODO: Use break/make pair from input file
+        break_cutoffs=[0.5],  # nm
+        make_pairs=[(0, 5)],
+        make_cutoffs=[0.15],  # nm
+    ),
     #
     # Misc
     #
     initialize_velocities=True,  # Initialize velocities from Maxwell-Boltzmann distribution (False uses zeros)
-    use_scanner_caching=True,  # Cache scanners from the previous cycle to speed up first step greatly
+    use_scanner_caching=False,  # Cache scanners from the previous cycle to speed up first step greatly
     scanner_cache_capacity=None,  # The amount of scanners the cache can hold (None uses n_walkers)
     #
     # Output control
