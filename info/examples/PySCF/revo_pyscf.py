@@ -1,6 +1,6 @@
-"""Set up a REVO simulation with PySCF dynamics for alanine dipeptide.
+"""Run a REVO simulation with PySCF dynamics.
 
-This version uses a separate `pyscf_input.py` file for all PySCF/simulation parameters.
+This file should not be run on its own.
 """
 
 # Set the default number of threads before importing libraries
@@ -25,8 +25,6 @@ import pyscf.md as pyscf_md
 from pyscf.data.nist import BOHR
 
 # First Party Library
-from pyscf_input_sn2 import CONFIG
-
 from wepy.boundary_conditions.bond_distance import BondDistanceBC
 from wepy.boundary_conditions.boundary import NoBC
 from wepy.reporter.dashboard import DashboardReporter
@@ -68,7 +66,15 @@ def build_mol(symbols, positions, basis, charge, spin):
     )
 
 
-def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
+def _generate_MB_velocities(config, mol, positions):
+    return (
+        pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, config.temperature_kelvin)
+        if config.initialize_velocities
+        else np.zeros_like(positions)
+    )
+
+
+def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid_shape):
     weight = 1.0 / n_walkers
 
     density_kwargs = {}
@@ -80,10 +86,10 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
             "density_grid_spacing": np.ones(3),
         }
 
-    mol = build_mol(symbols, positions, CONFIG.basis, CONFIG.charge, CONFIG.spin)
+    mol = build_mol(symbols, positions, config.basis, config.charge, config.spin)
     mol.verbose = 0  # Suppress PySCF output
-    # TODO: Test this with old PySCF
-    # mol.stdout = 0
+
+    shared_velocity = _generate_MB_velocities(config, mol, positions)
 
     return [
         PySCFWalker(
@@ -93,13 +99,13 @@ def generate_initial_walkers(symbols, positions, n_walkers, density_grid_shape):
                 mol=deepcopy(mol),
                 positions=positions,
                 velocities=(
-                    pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, CONFIG.temperature_kelvin)
-                    if CONFIG.initialize_velocities
-                    else np.zeros_like(positions)
-                ),  # TODO: Make this an option to only have 1 random or multiple random velocities
+                    np.copy(shared_velocity)
+                    if not config.unique_initial_velocities
+                    else (_generate_MB_velocities(config, mol, positions))
+                ),
                 accelerations=None,
                 # Store as 1D feature arrays so the HDF5 reporter can extend them
-                temperature=np.array([CONFIG.temperature_kelvin], dtype=float),
+                temperature=np.array([config.temperature_kelvin], dtype=float),
                 total_energy=np.array([np.nan], dtype=float),
                 potential=np.array([np.nan], dtype=float),
                 kinetic=np.array([np.nan], dtype=float),
@@ -133,17 +139,17 @@ class PySCFREVOResampler(REVOResampler):
         return fixed, resampling_data, resampler_data
 
 
-def build_revo_resampler(init_state):
-    if CONFIG.resampler_parameters is None:
+def build_revo_resampler(config, init_state):
+    if config.resampler_parameters is None:
         return NoResampler()
 
     return PySCFREVOResampler(
-        distance=CONFIG.distance,
+        distance=config.distance_metric,
         init_state=init_state,
-        merge_dist=CONFIG.resampler_parameters.merge_dist,
-        char_dist=CONFIG.resampler_parameters.char_dist,
-        pmin=CONFIG.resampler_parameters.pmin,
-        pmax=CONFIG.resampler_parameters.pmax,
+        merge_dist=config.resampler_parameters.merge_dist,
+        char_dist=config.resampler_parameters.char_dist,
+        pmin=config.resampler_parameters.pmin,
+        pmax=config.resampler_parameters.pmax,
     )
 
 
@@ -165,11 +171,11 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def run(config):
     # TODO: build_mapper
-    if CONFIG.backend == "cpu":
-        mapper = PySCFCPUWorkerMapper(num_workers=CONFIG.n_walkers)
-    elif CONFIG.backend == "gpu":
+    if config.backend == "cpu":
+        mapper = PySCFCPUWorkerMapper(num_workers=config.n_walkers)
+    elif config.backend == "gpu":
         if importlib.util.find_spec("cupy") is None:
             raise SystemExit(
                 "GPU backend requested but CuPy is not installed. "
@@ -177,17 +183,17 @@ def main():
                 "or rerun with CPU.",
             )
 
-        cuda_visible_devices = CONFIG._cuda_visible_devices_env_var  # noqa: SLF001
+        cuda_visible_devices = config._cuda_visible_devices_env_var  # noqa: SLF001
         if cuda_visible_devices != "":
-            num_available = CONFIG._num_gpus_visible  # noqa: SLF001
+            num_available = config._num_gpus_visible  # noqa: SLF001
             print(f"Found {num_available} available devices.")
         else:
             raise RuntimeError("No GPUs available: CUDA_VISIBLE_DEVICES is not set or empty.")
 
-        device_ids = [i % num_available for i in range(CONFIG.n_walkers)]  # Round-robin assign workers to GPUs
-        mapper = PySCFGPUWorkerMapper(num_workers=CONFIG.n_walkers, platform="CUDA", device_ids=device_ids)
+        device_ids = [i % num_available for i in range(config.n_walkers)]  # Round-robin assign workers to GPUs
+        mapper = PySCFGPUWorkerMapper(num_workers=config.n_walkers, platform="CUDA", device_ids=device_ids)
 
-    mdj_top, symbols, positions = parse_with_mdtraj_topology(CONFIG.topology_file_path)
+    mdj_top, symbols, positions = parse_with_mdtraj_topology(config.topology_file_path)
 
     args = parse_args()
 
@@ -213,6 +219,7 @@ def main():
     # TODO: Move to function
     # Directory creation is handled downstream, we just need to set the right value
     start_cycle = None
+    output_directory = config.output_directory
     if args.sub_step is None:
         if args.from_branch is not None:
             raise ValueError("--from-branch is not supported without a sub-step specified.")
@@ -220,32 +227,31 @@ def main():
         print("Starting new simulation.")
 
         # Check base output directory first
-        if CONFIG.write_h5 or CONFIG.write_dash or CONFIG.store_pickles:
-            if osp.isdir(CONFIG.output_directory):
-                if CONFIG.overwrite:
-                    print(f"Warning: output directory already exists, overwriting: {CONFIG.output_directory}/")
+        if config.write_h5 or config.write_dash or config.store_pickles:
+            if osp.isdir(output_directory):
+                if config.overwrite:
+                    print(f"Warning: output directory already exists, overwriting: {output_directory}/")
                 else:
                     # Create new directory if not overwriting and it exists already
-                    next_dir_num = get_next_dir_num(CONFIG.output_directory)
-                    CONFIG.output_directory = f"{CONFIG.output_directory}_{next_dir_num}"
-                    print(
-                        f"Warning: output directory already exists, creating new directory: {CONFIG.output_directory}/"
-                    )
+                    next_dir_num = get_next_dir_num(output_directory)
+                    output_directory = f"{output_directory}_{next_dir_num}"
+                    print(f"Warning: output directory already exists, creating new directory: {output_directory}/")
             else:
-                print(f"Creating output directory: {CONFIG.output_directory}/")
+                print(f"Creating output directory: {output_directory}/")
 
         walkers = generate_initial_walkers(
+            config=config,
             symbols=symbols,
             positions=positions,
-            n_walkers=CONFIG.n_walkers,
-            density_grid_shape=CONFIG.density_grid_shape,
+            n_walkers=config.n_walkers,
+            density_grid_shape=config.density_grid_shape,
         )
     else:  # Sub-step provided
         # Resolve to the latest versioned base directory
-        CONFIG.output_directory = get_latest_dir(CONFIG.output_directory)
+        output_directory = get_latest_dir(output_directory)
         # Base directory must already exist in sub-step mode
-        if not osp.isdir(CONFIG.output_directory):
-            raise FileNotFoundError(f"Output directory does not exist: {CONFIG.output_directory}/")
+        if not osp.isdir(output_directory):
+            raise FileNotFoundError(f"Output directory does not exist: {output_directory}/")
 
         if args.sub_step == 0:
             if args.from_branch is not None:
@@ -260,39 +266,35 @@ def main():
         if args.from_branch is not None:
             sub_directory += f"_branch_{args.from_branch}"
             prev_sub_directory += f"_branch_{args.from_branch}"
-        prev_pkls_directory = osp.join(CONFIG.output_directory, prev_sub_directory, "pkls")
+        prev_pkls_directory = osp.join(output_directory, prev_sub_directory, "pkls")
 
         # Output directory already exists
-        if osp.isdir(osp.join(CONFIG.output_directory, sub_directory)):
-            if CONFIG.overwrite:
-                CONFIG.output_directory = osp.join(CONFIG.output_directory, sub_directory)
-                print(f"Warning: sub-step output directory already exists, overwriting: {CONFIG.output_directory}/")
+        if osp.isdir(osp.join(output_directory, sub_directory)):
+            if config.overwrite:
+                output_directory = osp.join(output_directory, sub_directory)
+                print(f"Warning: sub-step output directory already exists, overwriting: {output_directory}/")
             else:
                 if args.from_branch is not None:
                     raise ValueError(
                         f"Sub-step directory already exists and overwrite is disabled: "
-                        f"{osp.join(CONFIG.output_directory, sub_directory)}"
+                        f"{osp.join(output_directory, sub_directory)}"
                     )
 
                 # Create new directory if not overwriting and it exists already
-                next_branch_num = get_next_dir_num(osp.join(CONFIG.output_directory, f"sub_{args.sub_step}_branch"))
-                CONFIG.output_directory = osp.join(
-                    CONFIG.output_directory, f"sub_{args.sub_step}_branch_{next_branch_num}"
-                )
-                print(
-                    f"Warning: sub-step output directory already exists, creating new directory: {CONFIG.output_directory}/"
-                )
+                next_branch_num = get_next_dir_num(osp.join(output_directory, f"sub_{args.sub_step}_branch"))
+                output_directory = osp.join(output_directory, f"sub_{args.sub_step}_branch_{next_branch_num}")
+                print(f"Warning: sub-step output directory already exists, creating new directory: {output_directory}/")
         else:
-            CONFIG.output_directory = osp.join(CONFIG.output_directory, sub_directory)
-            print(f"Creating sub-step output directory: {CONFIG.output_directory}/")
+            output_directory = osp.join(output_directory, sub_directory)
+            print(f"Creating sub-step output directory: {output_directory}/")
 
         # Load or generate walkers
         if args.sub_step == 0:
             walkers = generate_initial_walkers(
                 symbols=symbols,
                 positions=positions,
-                n_walkers=CONFIG.n_walkers,
-                density_grid_shape=CONFIG.density_grid_shape,
+                n_walkers=config.n_walkers,
+                density_grid_shape=config.density_grid_shape,
             )
         else:
             # Load walkers from the source directory
@@ -309,46 +311,46 @@ def main():
                 walkers = pickle.load(f)  # noqa: S301
 
     runner = PySCFRunner(
-        basis=CONFIG.basis,
-        method=CONFIG.method,
-        xc=CONFIG.xc,
-        dt=CONFIG.dt,
-        integrator_cls=CONFIG.integrator_cls,
-        integrator_kwargs=CONFIG.integrator_kwargs,
-        integrator_temperature_kelvin=CONFIG.temperature_kelvin,
-        backend=CONFIG.backend,
-        density_grid_shape=CONFIG.density_grid_shape,
-        use_density_fitting=CONFIG.use_density_fitting,
-        auxbasis=CONFIG.auxbasis,
-        use_scanner_caching=CONFIG.use_scanner_caching,
-        scanner_cache_capacity=CONFIG.scanner_cache_capacity,
+        basis=config.basis,
+        method=config.method,
+        xc=config.xc,
+        dt=config.dt,
+        integrator_cls=config.integrator_cls,
+        integrator_kwargs=config.integrator_kwargs,
+        integrator_temperature_kelvin=config.temperature_kelvin,
+        backend=config.backend,
+        density_grid_shape=config.density_grid_shape,
+        use_density_fitting=config.use_density_fitting,
+        auxbasis=config.auxbasis,
+        use_scanner_caching=config.use_scanner_caching,
+        scanner_cache_capacity=config.scanner_cache_capacity,
     )
 
-    resampler = build_revo_resampler(walkers[0].state)
+    resampler = build_revo_resampler(config, walkers[0].state)
+
+    boundary_conditions = (
+        NoBC()
+        if not config.use_boundary_conditions
+        else BondDistanceBC(
+            initial_states=[walker.state for walker in walkers],
+            # topology=json_top,
+            break_pairs=config.break_pairs,
+            break_cutoffs=config.break_cutoffs,
+            make_pairs=config.make_pairs,
+            make_cutoffs=config.make_cutoffs,
+        )
+    )
 
     json_top = mdtraj_to_json_topology(mdj_top)
 
-    BOND_BREAK_DISTANCE = 0.5  # nm
-    BOND_MAKE_DISTANCE = 0.15  # nm
-
-    # Initialize the unbinding boundary conditions
-    bdbc = BondDistanceBC(
-        initial_states=[walker.state for walker in walkers],
-        # topology=json_top,
-        break_pairs=[(0, 1)],  # TODO: Use break/make pair from input file
-        break_cutoffs=[BOND_BREAK_DISTANCE],
-        make_pairs=[(0, 5)],
-        make_cutoffs=[BOND_MAKE_DISTANCE],
-    )
-
     reporters = []
-    output_mode = "w" if CONFIG.overwrite else "x"
+    output_mode = "w" if config.overwrite else "x"
 
     # Add the pickle reporter (pickles walkers at the end of every cycle)
-    if CONFIG.store_pickles:
+    if config.store_pickles:
         reporters.append(
             WalkerPklReporter(
-                save_dir=osp.join(CONFIG.output_directory, "pkls"),
+                save_dir=osp.join(output_directory, "pkls"),
                 freq=1,
                 num_backups=2,
                 start_cycle=start_cycle,
@@ -357,7 +359,7 @@ def main():
 
     # Add density fields if needed
     h5_save_fields = PySCFHDF5Reporter.DEFAULT_SAVE_FIELDS
-    if CONFIG.density_grid_shape is not None:
+    if config.density_grid_shape is not None:
         # Omit `density_matrix` by default because its array shape depends on
         # the AO basis size and can be expensive to store. Could store this later.
         h5_save_fields += (
@@ -368,22 +370,21 @@ def main():
         )
 
     # Add the logging reporters
-    if CONFIG.write_h5:
+    if config.write_h5:
         reporters.append(
             PySCFHDF5Reporter(
                 save_fields=h5_save_fields,
-                file_paths=[CONFIG.h5_path()],
+                file_paths=[config.get_h5_path(output_directory)],
                 modes=[output_mode],
                 topology=json_top,
                 resampler=resampler,
-                # boundary_conditions=NoBC(),
-                boundary_conditions=bdbc,
+                boundary_conditions=boundary_conditions,
             )
         )
-    if CONFIG.write_dash:
+    if config.write_dash:
         reporters.append(
             DashboardReporter(
-                file_paths=[CONFIG.dash_path()],
+                file_paths=[config.get_dash_path(output_directory)],
                 modes=[output_mode],
                 runner_dash=PySCFRunnerDashboardSection(runner=runner),
             )
@@ -395,36 +396,35 @@ def main():
         runner=runner,
         work_mapper=mapper,
         resampler=resampler,
-        # boundary_conditions=NoBC(),
-        boundary_conditions=bdbc,
+        boundary_conditions=boundary_conditions,
         reporters=reporters,
     )
 
     # Run the simulation
     time = perf_counter()
     end_walkers, _ = sim_manager.run_simulation(
-        n_cycles=CONFIG.n_cycles,
-        segment_lengths=CONFIG.segment_length,
+        n_cycles=config.n_cycles,
+        segment_lengths=config.segment_length,
     )
     total_time = perf_counter() - time
 
     print(
-        f"\nCompleted REVO/PySCF {CONFIG.backend.upper()} run in {total_time:.3f} sec "
-        f"({total_time / CONFIG.n_cycles:.3f} sec / cycle)",
+        f"\nCompleted REVO/PySCF {config.backend.upper()} run in {total_time:.3f} sec "
+        f"({total_time / config.n_cycles:.3f} sec / cycle)",
     )
     print(
-        f"{len(end_walkers)} walkers, {CONFIG.n_cycles} cycles * {CONFIG.segment_length} steps "
-        f"({CONFIG.n_cycles * CONFIG.segment_length} total MD steps)",
+        f"{len(end_walkers)} walkers, {config.n_cycles} cycles * {config.segment_length} steps "
+        f"({config.n_cycles * config.segment_length} total MD steps)",
     )
     print(
-        f"System: {CONFIG.system}, Basis: {CONFIG.basis}, Method: {CONFIG.method}"
-        + (f"/{CONFIG.xc}, " if CONFIG.xc is not None else ", ")
-        + f"Integrator: {CONFIG._integrator_name}",  # noqa: SLF001
+        f"System: {config.system_name}, Basis: {config.basis}, Method: {config.method}"
+        + (f"/{config.xc}, " if config.xc is not None else ", ")
+        + f"Integrator: {config._integrator_name}",  # noqa: SLF001
     )
-    if CONFIG.backend == "cpu":
-        print(f"CPU workers: {CONFIG.n_walkers}, OpenMP threads: {CONFIG._omp_threads_env_var}")  # noqa: SLF001
-    elif CONFIG.backend == "gpu":
-        print(f"GPUs: {CONFIG._num_gpus_visible}, CUDA devices: [{CONFIG._cuda_visible_devices_env_var}]")  # noqa: SLF001
+    if config.backend == "cpu":
+        print(f"CPU workers: {config.n_walkers}, OpenMP threads: {config._omp_threads_env_var}")  # noqa: SLF001
+    elif config.backend == "gpu":
+        print(f"GPUs: {config._num_gpus_visible}, CUDA devices: [{config._cuda_visible_devices_env_var}]")  # noqa: SLF001
     temperatures = [walker.state.get("temperature").item() for walker in end_walkers]
     potentials = [walker.state.get("potential").item() for walker in end_walkers]
     kinetics = [walker.state.get("kinetic").item() for walker in end_walkers]
@@ -434,11 +434,8 @@ def main():
     print("Final walker potentials:", potentials)
     print("Final walker kinetics:", kinetics)
     print(
-        f"Velocities initialized: {CONFIG.initialize_velocities}, "
-        f"Density fitting: {CONFIG.use_density_fitting}, "
-        f"Scanner caching: {CONFIG.use_scanner_caching}",
+        f"Velocities initialized: {config.initialize_velocities}, "
+        f"Unique velocities: {config.unique_initial_velocities}, "
+        f"Density fitting: {config.use_density_fitting}, "
+        f"Scanner caching: {config.use_scanner_caching}",
     )
-
-
-if __name__ == "__main__":
-    main()
