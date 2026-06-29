@@ -61,13 +61,14 @@ REQUIRED_KWARGS_BY_INTEGRATOR: dict[str, tuple] = {
     "VelocityVerlet": (),
     "RandomNoiseVelocityVerlet": (),
     "NVTBerendson": ("T", "taut"),
+    "NVTBussi": ("T", "taut"),
     "Langevin": ("T",),
     "LangevinMiddle": ("T",),
 }
 
 
-TEMPERATURE_AWARE_INTEGRATORS: set[str] = {"NVTBerendson", "Langevin", "LangevinMiddle"}
-RANDOM_NOISE_INTEGRATORS: set[str] = {"RandomNoiseVelocityVerlet", "Langevin", "LangevinMiddle"}
+TEMPERATURE_AWARE_INTEGRATORS: set[str] = {"NVTBerendson", "NVTBussi", "Langevin", "LangevinMiddle"}
+RANDOM_NOISE_INTEGRATORS: set[str] = {"RandomNoiseVelocityVerlet", "NVTBussi", "Langevin", "LangevinMiddle"}
 
 
 class LRUDict(OrderedDict):
