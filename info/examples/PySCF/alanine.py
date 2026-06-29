@@ -81,6 +81,7 @@ class PySCFInput:
     unique_initial_velocities: bool = True  # Generate unique initial velocities for each walker
     use_scanner_caching: bool = True  # Cache scanners from the previous cycle to speed up first step greatly
     scanner_cache_capacity: int | None = None  # The amount of scanners the cache can hold (None uses n_walkers)
+    suppress_pyscf_output: bool = True  # Suppress PySCF gradient/velocity/position output
 
     #
     # Output control

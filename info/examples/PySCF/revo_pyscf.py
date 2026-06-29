@@ -87,7 +87,8 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
         }
 
     mol = build_mol(symbols, positions, config.basis, config.charge, config.spin)
-    mol.verbose = 0  # Suppress PySCF output
+    if config.suppress_pyscf_output:
+        mol.verbose = 0  # Suppress PySCF output
 
     shared_velocity = _generate_MB_velocities(config, mol, positions)
 
