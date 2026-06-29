@@ -85,7 +85,7 @@ Branching relies on walker pickle files, that maintain a continuous cycle index 
     │   └── pkls
     │       ├── walkers_cycle_38.pkl
     │       └── walkers_cycle_39.pkl
-    └── sub_3_branch_2                 # --sub-step 3 --branch 2
+    └── sub_3_branch_2                 # --sub-step 3 --from-branch 2
         └── pkls
             ├── walkers_cycle_38.pkl
             └── walkers_cycle_39.pkl
