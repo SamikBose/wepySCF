@@ -147,10 +147,10 @@ export PYTHONPATH="${PYTHONPATH}:${CURRENT_PATH}"
 
 ```bash
 cd ../wepy_dev
-python info/examples/PySCF/source/revo_pyscf.py
+python info/examples/PySCF/alanine.py
 ```
 
-7. You might have to reinstall `mdtraj` if you get `numpy`-related error.
+7. You might have to reinstall `mdtraj` if you get a `numpy`-related error.
 
 ```bash
 pip install --upgrade --force-reinstall mdtraj --no-cache-dir
