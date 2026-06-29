@@ -563,6 +563,11 @@ class PySCFGPUWorker(Worker):
         super().__init__(*args, **kwargs)
         self._scanner_cache = LRUDict()
 
+    def run(self):
+        device_id = self.mapper_attributes["device_ids"][self._worker_idx]
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)  # Ensure GPU4PySCF only uses the assigned device
+        super().run()
+
     def run_task(self, task):
         device_id = self.mapper_attributes["device_ids"][self._worker_idx]
         platform_options = {"DeviceIndex": str(device_id)}
