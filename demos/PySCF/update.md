@@ -9,6 +9,7 @@ Run the following commands to update to the latest version:
 ```bash
 cd wepy_dev
 git pull
+ml purge && ml load Miniforge3 OpenBLAS CUDA
 make build && pip uninstall wepy -y && pip install dist/wepy-1.1.0-py2.py3-none-any.whl
 ```
 
