@@ -20,5 +20,6 @@ Run the following commands to update to the latest version:
 ```bash
 cd pyscf_dev
 git pull
+ml purge && ml load Miniforge3 OpenBLAS CUDA
 ./conda/build.sh
 ```
