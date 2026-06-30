@@ -12,10 +12,11 @@ from pyscf.md.integrators import LangevinMiddle
 # First Party Library
 from distance_metrics import proton_transfer
 from revo_pyscf import run
+import pyscf.md as pyscf_md
 
 BREAK_PAIR = (0, 1)
 MAKE_PAIR = (0, 5)
-BREAK_CUTOFF = 0.5  # nm
+BREAK_CUTOFF = 0.4  # nm
 MAKE_CUTOFF = 0.15  # nm
 
 
@@ -31,41 +32,52 @@ class PySCFInput:
     # Simulation parameters
     #
     backend: Literal["cpu", "gpu"] = "gpu"
-    n_walkers = 4
-    n_cycles = 5
+    n_walkers = 24
+    n_cycles = 100
     segment_length = 10
 
     #
     # PySCF runner parameters
     #
     basis: str = "aug-cc-pVDZ"
+    ecp: str | dict | None = None
     method: Literal["RHF", "UHF", "RKS", "UKS"] = "RKS"
     xc: str | None = "wb97x_v"
     charge: int = -1
     spin: int = 0
     dt: int = 21
-    temperature_kelvin: float = 300.0
+    temperature_kelvin: float = 100.0
+    friction_coef: float = 0.1          #real field now 
     density_grid_shape: tuple[int, int, int] | None = None
     use_density_fitting: bool = True
-    auxbasis: str | None = "def2-universal-jkfit"
+    auxbasis: str | None = "aug-cc-pVDZ-jkfit"
+
+
+    integrator_cls: type = pyscf_md.integrators.LangevinMiddle
+    # Leave empty here; built from self.friction_coef in __post_init__ (as a float!)
+    integrator_kwargs: dict = field(default_factory=dict)
 
     #
     # PySCF integrator and any kwargs passed to it
     #
-    integrator_cls = LangevinMiddle
-    integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1.0})
-
+    #integrator_cls = LangevinMiddle
+    #integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1.0})
+    #def __post_init__(self) -> None:
+    #    # integrator kwargs as a FLOAT, derived from the field
+    #    if not self.integrator_kwargs:
+    #        self.integrator_kwargs = {"friction_coef": self.friction_coef}
     #
-    # Distance metric and resampler parameters
+
+    # Distance metric and resamplwqer parameters
     #
     distance_metric = proton_transfer(BREAK_PAIR, MAKE_PAIR)
 
     @dataclass
     class ResamplerParameters:
-        merge_dist: float = 0.025
+        merge_dist: float = 0.05
         char_dist: float = 0.1
         pmin: float = 1e-12
-        pmax: float = 0.99
+        pmax: float = 0.20
 
     # If resampler parameters is None, then no resampler is used
     resampler_parameters: ResamplerParameters | None = field(default_factory=ResamplerParameters)
@@ -86,8 +98,8 @@ class PySCFInput:
     unique_initial_velocities: bool = True  # Generate unique initial velocities for each walker
     use_scanner_caching: bool = True  # Cache scanners from the previous cycle to speed up first step greatly
     scanner_cache_capacity: int | None = None  # The amount of scanners the cache can hold (None uses n_walkers)
-    suppress_pyscf_output: bool = True  # Suppress PySCF gradient/velocity/position output
-
+    suppress_pyscf_output: bool = True  # Suppress PySCF gradient/velocity/position output 
+    
     #
     # Output control
     #
@@ -107,13 +119,26 @@ class PySCFInput:
     _cuda_visible_devices_env_var: str = environ.get("CUDA_VISIBLE_DEVICES", "")
     _num_gpus_visible = len([x for x in _cuda_visible_devices_env_var.split(",") if x.strip()])
 
+
     @property
     def output_directory(self) -> str:
-        return f"{self.system_name}_{self.n_walkers}W_{self.n_cycles}C_{self.segment_length}S_{self._integrator_name}"
+        parts = [
+            self.system_name,
+            f"{self.n_walkers}W",
+            f"{self.n_cycles}C",
+            f"{self.segment_length}S",
+	    self._integrator_name,
+            f"{self.temperature_kelvin}K",
+            f"{self.friction_coef}fric",
+                ]
+        if self.resampler_parameters is not None:
+            parts.append(f"{self.resampler_parameters.merge_dist}mergedist")
+        return "_".join(parts)
+
 
     @property
     def filename_base(self) -> str:
-        return f"{self.backend}_{self._omp_threads_env_var}T_{self._num_gpus_visible}G"
+        return f"{self.xc}_{self.basis}"
 
     def get_h5_path(self, output_directory: str) -> str:
         """Return the h5 path (evaluated at runtime)."""
@@ -123,16 +148,18 @@ class PySCFInput:
         """Return the dash path (evaluated at runtime)."""
         return f"{output_directory}/{self.filename_base}.dash.org"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.integrator_cls is None:
             raise ValueError("integrator_cls must be specified")
 
         if self.distance_metric is None:
             raise ValueError("distance_metric must be specified")
 
+        if not self.integrator_kwargs:
+            self.integrator_kwargs = {"friction_coef": self.friction_coef}
+
         if self.scanner_cache_capacity is None:
             self.scanner_cache_capacity = self.n_walkers
-
 
 if __name__ == "__main__":
     CONFIG = PySCFInput()

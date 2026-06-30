@@ -54,12 +54,12 @@ def parse_with_mdtraj_topology(topology_file_path: str):
     return topology, symbols, positions
 
 
-def build_mol(symbols, positions, basis, charge, spin):
+def build_mol(symbols, positions, basis, charge, spin, ecp=None):
     atom = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
-
     return pyscf_gto.M(
         atom=atom,
         basis=basis,
+        ecp=ecp,
         charge=charge,
         spin=spin,
         unit="Bohr",
@@ -85,10 +85,9 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
             "density_grid_origin": np.zeros(3),
             "density_grid_spacing": np.ones(3),
         }
-
-    mol = build_mol(symbols, positions, config.basis, config.charge, config.spin)
-    if config.suppress_pyscf_output:
-        mol.verbose = 0  # Suppress PySCF output
+    
+    mol = build_mol(symbols, positions, config.basis, config.charge, config.spin, config.ecp)
+    mol.verbose = 0  # Suppress PySCF output
 
     shared_velocity = _generate_MB_velocities(config, mol, positions)
 
@@ -186,15 +185,12 @@ def run(config):
 
         cuda_visible_devices = config._cuda_visible_devices_env_var  # noqa: SLF001
         if cuda_visible_devices != "":
-            available_ids = [int(x) for x in cuda_visible_devices.split(",")]
             num_available = config._num_gpus_visible  # noqa: SLF001
             print(f"Found {num_available} available devices.")
         else:
             raise RuntimeError("No GPUs available: CUDA_VISIBLE_DEVICES is not set or empty.")
 
-        # Round-robin assign workers to GPUs
-        device_ids = [available_ids[i % num_available] for i in range(config.n_walkers)]
-
+        device_ids = [i % num_available for i in range(config.n_walkers)]  # Round-robin assign workers to GPUs
         mapper = PySCFGPUWorkerMapper(num_workers=config.n_walkers, platform="CUDA", device_ids=device_ids)
 
     mdj_top, symbols, positions = parse_with_mdtraj_topology(config.topology_file_path)
@@ -253,15 +249,15 @@ def run(config):
     else:  # Sub-step provided
         # Resolve to the latest versioned base directory
         output_directory = get_latest_dir(output_directory)
+        # Base directory must already exist in sub-step mode
+        if not osp.isdir(output_directory):
+            raise FileNotFoundError(f"Output directory does not exist: {output_directory}/")
 
         if args.sub_step == 0:
             if args.from_branch is not None:
                 raise ValueError("--from-branch is not supported with sub-step 0.")
             print(f"Starting simulation in sub-step mode.")
         else:
-            # Base directory must already exist in sub-step mode
-            if not osp.isdir(output_directory):
-                raise FileNotFoundError(f"Output directory does not exist: {output_directory}/")
             print(f"Continuing simulation at sub-step {args.sub_step}.")
 
         # Get next sub directory and previous sub directory
@@ -295,7 +291,6 @@ def run(config):
         # Load or generate walkers
         if args.sub_step == 0:
             walkers = generate_initial_walkers(
-                config=config,
                 symbols=symbols,
                 positions=positions,
                 n_walkers=config.n_walkers,
