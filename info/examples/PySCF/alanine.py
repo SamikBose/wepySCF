@@ -34,6 +34,7 @@ class PySCFInput:
     # PySCF runner parameters
     #
     basis: str = "sto-3g"
+    ecp: str | dict | None = None
     method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF"
     xc: str | None = None
     charge: int = 0
@@ -104,11 +105,31 @@ class PySCFInput:
 
     @property
     def output_directory(self) -> str:
-        return f"{self.system_name}_{self.n_walkers}W_{self.n_cycles}C_{self.segment_length}S_{self._integrator_name}"
+        parts = [
+            self.system_name,
+            f"{self.n_walkers}W",
+            f"{self.n_cycles}C",
+            f"{self.segment_length}S",
+            self._integrator_name,
+            f"{self.temperature_kelvin}K",
+        ]
+
+        # Add friction/taut parameters from integrator_kwargs
+        if self.integrator_kwargs is not None:
+            if "friction_coef" in self.integrator_kwargs:
+                parts.append(f"{self.integrator_kwargs['friction_coef']}fric")
+            elif "taut" in self.integrator_kwargs:
+                parts.append(f"{self.integrator_kwargs['taut']}taut")
+
+        # Add merge distance parameter from resampler_parameters
+        if self.resampler_parameters is not None:
+            parts.append(f"{self.resampler_parameters.merge_dist}mergedist")
+
+        return "_".join(parts)
 
     @property
     def filename_base(self) -> str:
-        return f"{self.backend}_{self._omp_threads_env_var}T_{self._num_gpus_visible}G"
+        return f"{self.xc}_{self.basis}"
 
     def get_h5_path(self, output_directory: str) -> str:
         """Return the h5 path (evaluated at runtime)."""
@@ -118,7 +139,7 @@ class PySCFInput:
         """Return the dash path (evaluated at runtime)."""
         return f"{output_directory}/{self.filename_base}.dash.org"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.integrator_cls is None:
             raise ValueError("integrator_cls must be specified")
 

@@ -12,7 +12,6 @@ from pyscf.md.integrators import LangevinMiddle
 # First Party Library
 from distance_metrics import proton_transfer
 from revo_pyscf import run
-import pyscf.md as pyscf_md
 
 BREAK_PAIR = (0, 1)
 MAKE_PAIR = (0, 5)
@@ -47,28 +46,18 @@ class PySCFInput:
     spin: int = 0
     dt: int = 21
     temperature_kelvin: float = 100.0
-    friction_coef: float = 0.1          #real field now 
     density_grid_shape: tuple[int, int, int] | None = None
     use_density_fitting: bool = True
     auxbasis: str | None = "aug-cc-pVDZ-jkfit"
 
-
-    integrator_cls: type = pyscf_md.integrators.LangevinMiddle
-    # Leave empty here; built from self.friction_coef in __post_init__ (as a float!)
-    integrator_kwargs: dict = field(default_factory=dict)
-
     #
     # PySCF integrator and any kwargs passed to it
     #
-    #integrator_cls = LangevinMiddle
-    #integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1.0})
-    #def __post_init__(self) -> None:
-    #    # integrator kwargs as a FLOAT, derived from the field
-    #    if not self.integrator_kwargs:
-    #        self.integrator_kwargs = {"friction_coef": self.friction_coef}
-    #
+    integrator_cls = LangevinMiddle
+    integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1.0})
 
-    # Distance metric and resamplwqer parameters
+    #
+    # Distance metric and resampler parameters
     #
     distance_metric = proton_transfer(BREAK_PAIR, MAKE_PAIR)
 
@@ -98,8 +87,8 @@ class PySCFInput:
     unique_initial_velocities: bool = True  # Generate unique initial velocities for each walker
     use_scanner_caching: bool = True  # Cache scanners from the previous cycle to speed up first step greatly
     scanner_cache_capacity: int | None = None  # The amount of scanners the cache can hold (None uses n_walkers)
-    suppress_pyscf_output: bool = True  # Suppress PySCF gradient/velocity/position output 
-    
+    suppress_pyscf_output: bool = True  # Suppress PySCF gradient/velocity/position output
+
     #
     # Output control
     #
@@ -119,7 +108,6 @@ class PySCFInput:
     _cuda_visible_devices_env_var: str = environ.get("CUDA_VISIBLE_DEVICES", "")
     _num_gpus_visible = len([x for x in _cuda_visible_devices_env_var.split(",") if x.strip()])
 
-
     @property
     def output_directory(self) -> str:
         parts = [
@@ -127,14 +115,22 @@ class PySCFInput:
             f"{self.n_walkers}W",
             f"{self.n_cycles}C",
             f"{self.segment_length}S",
-	    self._integrator_name,
+            self._integrator_name,
             f"{self.temperature_kelvin}K",
-            f"{self.friction_coef}fric",
-                ]
+        ]
+
+        # Add friction/taut parameters from integrator_kwargs
+        if self.integrator_kwargs is not None:
+            if "friction_coef" in self.integrator_kwargs:
+                parts.append(f"{self.integrator_kwargs['friction_coef']}fric")
+            elif "taut" in self.integrator_kwargs:
+                parts.append(f"{self.integrator_kwargs['taut']}taut")
+
+        # Add merge distance parameter from resampler_parameters
         if self.resampler_parameters is not None:
             parts.append(f"{self.resampler_parameters.merge_dist}mergedist")
-        return "_".join(parts)
 
+        return "_".join(parts)
 
     @property
     def filename_base(self) -> str:
@@ -155,11 +151,9 @@ class PySCFInput:
         if self.distance_metric is None:
             raise ValueError("distance_metric must be specified")
 
-        if not self.integrator_kwargs:
-            self.integrator_kwargs = {"friction_coef": self.friction_coef}
-
         if self.scanner_cache_capacity is None:
             self.scanner_cache_capacity = self.n_walkers
+
 
 if __name__ == "__main__":
     CONFIG = PySCFInput()
