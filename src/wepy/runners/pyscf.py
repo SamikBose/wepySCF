@@ -83,14 +83,19 @@ class LRUDict(OrderedDict):
             self.popitem(last=False)
 
 
-def to_numpy(x) -> np.ndarray:
-    """Convert an array-like object to a NumPy array of floats.
+# TODO: Remove this?
+def _to_numpy(arr) -> np.ndarray:
+    """Convert an array-like object to a NumPy array of floats."""
+    if hasattr(arr, "get"):
+        arr = arr.get()
+    return np.asarray(arr, dtype=float)
 
-    Fixes issue with GPU PySCF since we need to convert CuPy arrays to NumPy arrays.
-    """
-    if hasattr(x, "get"):
-        x = x.get()
-    return np.asarray(x, dtype=float)
+
+def _to_cpu_mol(mol):
+    """Ensure mol is a CPU object, not a GPU object."""
+    if hasattr(mol, "to_cpu"):
+        return mol.to_cpu()
+    return mol
 
 
 class PySCFState(WalkerState):
@@ -191,12 +196,8 @@ class PySCFRunner(Runner):
 
         return mf
 
-    def _configure_hardware(self, mf, backend: str, platform_kwargs: dict):
+    def _configure_hardware(self, mf, backend: str):
         if backend and str(backend).lower() == "gpu":
-            device_id = platform_kwargs.get("DeviceIndex")
-            if device_id is not None:
-                os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
-
             if hasattr(mf, "to_gpu"):
                 try:
                     mf = mf.to_gpu()
@@ -220,7 +221,7 @@ class PySCFRunner(Runner):
     def _build_scanner(self, mol, state: PySCFState, backend: str, platform_kwargs: dict):
         """Build scanner for the requested backend."""
         mf = self._build_mean_field(mol, state)
-        mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
+        mf = self._configure_hardware(mf, backend=backend)
         grad_method = mf.nuc_grad_method()
         if not hasattr(grad_method, "as_scanner"):
             return None
@@ -322,7 +323,7 @@ class PySCFRunner(Runner):
         """
         if scanner is not None and hasattr(scanner, "make_rdm1"):
             try:
-                return to_numpy(scanner.make_rdm1())
+                return _to_numpy(scanner.make_rdm1())
             except Exception as exc:
                 logger.debug("Failed to get density matrix from scanner.make_rdm1(): %s", exc)
 
@@ -331,7 +332,7 @@ class PySCFRunner(Runner):
         scan_base = getattr(scanner, "base", None)
         if scan_base is not None and hasattr(scan_base, "make_rdm1"):
             try:
-                return to_numpy(scan_base.make_rdm1())
+                return _to_numpy(scan_base.make_rdm1())
             except Exception as exc:
                 logger.debug("Failed to get density matrix from scanner.base.make_rdm1(): %s", exc)
 
@@ -344,16 +345,16 @@ class PySCFRunner(Runner):
             if obj is None or not hasattr(obj, "make_rdm1"):
                 continue
             try:
-                return to_numpy(obj.make_rdm1())
+                return _to_numpy(obj.make_rdm1())
             except Exception as exc:
                 logger.debug("Failed to get density matrix from %s.make_rdm1(): %s", type(obj), exc)
 
         # Fall back: rerun an SCF calculation at the final geometry. This is more
         # expensive but is robust
         mf = self._build_mean_field(mol, state)
-        mf = self._configure_hardware(mf, backend=backend, platform_kwargs=platform_kwargs)
+        mf = self._configure_hardware(mf, backend=backend)
         mf.kernel()
-        return to_numpy(mf.make_rdm1())
+        return _to_numpy(mf.make_rdm1())
 
     def generate_state(
         self,
@@ -495,7 +496,7 @@ class PySCFRunner(Runner):
 
         new_state = self.generate_state(
             state_data=state._data,
-            mol=integrator.mol.copy(),
+            mol=_to_cpu_mol(integrator.mol),  # To CPU avoids pickling GPU object (also returns a new object)
             positions=positions,
             velocities=integrator.veloc,
             accelerations=getattr(integrator, "accel", None),
@@ -555,13 +556,17 @@ class PySCFCPUWorker(Worker):
         )
 
 
-# FIXME: clone() not being called?
 class PySCFGPUWorker(Worker):
     NAME_TEMPLATE = "PySCFGPUWorker-{}"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._scanner_cache: LRUDict = LRUDict()
+        self._scanner_cache = LRUDict()
+
+    def run(self):
+        device_id = self.mapper_attributes["device_ids"][self._worker_idx]
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)  # Ensure GPU4PySCF only uses the assigned device
+        super().run()
 
     def run_task(self, task):
         device_id = self.mapper_attributes["device_ids"][self._worker_idx]

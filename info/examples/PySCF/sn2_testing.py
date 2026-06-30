@@ -33,13 +33,13 @@ class PySCFInput:
     backend: Literal["cpu", "gpu"] = "gpu"
     n_walkers = 4
     n_cycles = 5
-    segment_length = 10
+    segment_length = 1
 
     #
     # PySCF runner parameters
     #
-    basis: str = "aug-cc-pVDZ"
-    method: Literal["RHF", "UHF", "RKS", "UKS"] = "RKS"
+    basis: str = "sto-3g"
+    method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF"
     xc: str | None = "wb97x_v"
     charge: int = -1
     spin: int = 0
