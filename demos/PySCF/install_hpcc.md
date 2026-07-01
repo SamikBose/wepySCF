@@ -32,6 +32,8 @@ ml purge && ml load Miniforge3 OpenBLAS CUDA
 
 4. Create and activate the Conda environment from the `environment_minimal.yml` template.
 
+# Ensure that the yml file is in correct path/ working directory.
+
 ```bash
 conda env create -f environment_minimal.yml
 conda activate wepy-dev
