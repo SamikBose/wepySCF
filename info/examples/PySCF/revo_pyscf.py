@@ -259,6 +259,9 @@ def run(config):
                 raise ValueError("--from-branch is not supported with sub-step 0.")
             print(f"Starting simulation in sub-step mode.")
         else:
+            # Base directory must already exist in sub-step mode
+            if not osp.isdir(output_directory):
+                raise FileNotFoundError(f"Output directory does not exist: {output_directory}/")
             print(f"Continuing simulation at sub-step {args.sub_step}.")
 
         # Get next sub directory and previous sub directory
