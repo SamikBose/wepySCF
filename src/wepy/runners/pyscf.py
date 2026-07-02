@@ -154,7 +154,8 @@ class PySCFRunner(Runner):
 
         if self.method not in self.SUPPORTED_METHODS:
             raise ValueError(
-                f"Unsupported PySCF mean-field method '{self.method}'. Must be one of: {self.SUPPORTED_METHODS}"
+                f"Unsupported PySCF mean-field method '{self.method}'. "
+                f"PySCF integrators only support: {self.SUPPORTED_METHODS}"
             )
 
         self._last_cycle_segments_split_times: list[dict] = []
@@ -314,7 +315,7 @@ class PySCFRunner(Runner):
             try:
                 return _to_numpy(scanner.make_rdm1())
             except Exception as exc:
-                logger.debug("Failed to get density matrix from scanner.make_rdm1(): %s", exc)
+                logger.warning(f"Failed to get density matrix from scanner.make_rdm1(): {exc}")
 
         # Common PySCF pattern: grad_scanner.base is a SCF single-point scanner
         # (see pyscf.scf.hf.as_scanner), which generally supports make_rdm1()
@@ -323,7 +324,7 @@ class PySCFRunner(Runner):
             try:
                 return _to_numpy(scan_base.make_rdm1())
             except Exception as exc:
-                logger.debug("Failed to get density matrix from scanner.base.make_rdm1(): %s", exc)
+                logger.warning(f"Failed to get density matrix from scanner.base.make_rdm1(): {exc}")
 
         # Some scanner wrappers may stash the mean-field object under `.base` or `._scf`
         for obj in (
@@ -336,7 +337,7 @@ class PySCFRunner(Runner):
             try:
                 return _to_numpy(obj.make_rdm1())
             except Exception as exc:
-                logger.debug("Failed to get density matrix from %s.make_rdm1(): %s", type(obj), exc)
+                logger.warning(f"Failed to get density matrix from {type(obj)}.make_rdm1(): {exc}")
 
         # Fall back: rerun an SCF calculation at the final geometry. This is more
         # expensive but is robust
@@ -382,35 +383,29 @@ class PySCFRunner(Runner):
 
         state: PySCFState = walker.state
 
-        backend = kwargs.get("backend", self.backend)
         scanner_cache: LRUDict = kwargs.get("scanner_cache")
         if len(scanner_cache) == 0:
             scanner_cache.max_len = self.scanner_cache_capacity
 
-        positions = state["positions"]
         last_velocities = state.get("velocities")
         last_accelerations = state.get("accelerations")
 
         extra_data: dict = state.get("extra_data", {})
         last_mid_velocities = extra_data.get("mid_velocities")  # Langevin Middle
 
-        if self.method not in self.SUPPORTED_METHODS:
-            raise NotImplementedError("PySCF integrators only support RHF/UHF/RKS/UKS scanners.")
-
-        init_mol = state.get("mol")
+        mol = state.get("mol")
 
         build_scanner_start = perf_counter()
 
         walker_id = state.get("walker_id")
         cached_scanner = scanner_cache.get(walker_id)
-
         if cached_scanner is None:
             logger.debug(f"[scanner] cold start for walker {walker_id}")
-            scanner = self._build_scanner(init_mol, state, backend)
+            scanner = self._build_scanner(mol, state, self.backend)
         else:
             logger.debug(f"[scanner] warm start for walker {walker_id}")
             scanner = cached_scanner
-            scanner.mol = init_mol
+            scanner.mol = mol
 
         build_scanner_end = perf_counter()
         build_scanner_time = build_scanner_end - build_scanner_start
@@ -451,7 +446,7 @@ class PySCFRunner(Runner):
                 scanner,
                 integrator.mol,
                 state,
-                backend=backend,
+                backend=self.backend,
             )
             density_grid, density_grid_origin, density_grid_spacing = self._compute_density_grid(
                 integrator.mol,
@@ -487,6 +482,12 @@ class PySCFRunner(Runner):
         if self._use_scanner_caching:
             scanner_cache[new_state["walker_id"]] = scanner  # Add the new one
 
+        logger.info(
+            f"Temperature: {new_state['temperature'][0]:.3f} K, "
+            f"Potential: {new_state['potential'][0]:.6f} Ha, "
+            f"Kinetic: {new_state['kinetic'][0]:.6f} Ha",
+        )
+
         new_walker = PySCFWalker(new_state, walker.weight)
 
         run_segment_end = perf_counter()
@@ -501,12 +502,6 @@ class PySCFRunner(Runner):
         }
 
         self._last_cycle_segments_split_times.append(segment_split_times)
-
-        logger.info(
-            f"Temperature: {new_state['temperature'][0]:.3f} K, "
-            f"Potential: {new_state['potential'][0]:.6f} Ha, "
-            f"Kinetic: {new_state['kinetic'][0]:.6f} Ha",
-        )
 
         return new_walker
 
