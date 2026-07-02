@@ -44,9 +44,9 @@ Note that the output folder will be written to the directory you ran your system
 
 To modify the parameters of the simulation, you will need to edit the `info/examples/PySCF/alanine.py` file, which contains many different options. You can also create your own file to run a simulation for a different system. Use the provided examples for reference. These files define the `PySCFInput` class to define the simulation parameters and run the wepy simulation with the `run()` method from `revo_pyscf.py`.
 
-## Branching
+## Sub-Steps and Branching
 
-The branching feature allows you to resume a simulation from a previous checkpoint and explore multiple trajectories from the same starting point. Branches are automatically created when a sub-step is ran multiple times to avoid overwriting previous results. Two optional parameters are available:
+The sub-step and branching features allows you to resume a simulation from a previous checkpoint and explore multiple trajectories from the same starting point. Branches are automatically created when a sub-step is ran multiple times to avoid overwriting previous results. Two optional parameters are available:
 
 - `--sub-step SUB_STEP` - Enables sub-step mode, organizing outputs into numbered sub-directories (sub_0, sub_1, ...) so a simulation can be paused and resumed across multiple runs. Must be set to 0 on the first run to enable sub-step mode for future continuation; omitting it doesn't create the required sub-step directories.
 - `--from-branch FROM_BRANCH` - Requires `--sub-step`. Specifies which branch of the previous sub-step to resume from. Defaults to the latest branch. For example, running `--sub-step 1 --from-branch 2` resumes from `sub_0_branch_2` and writes output to `sub_1_branch_2`. Useful for exploring different trajectories from the same checkpoint without overwriting previous results.
