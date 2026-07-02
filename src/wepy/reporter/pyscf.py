@@ -96,6 +96,9 @@ class PySCFHDF5Reporter(WepyHDF5Reporter):
         "total_energy",
         "potential",
         "kinetic",
+        "mo_energy",
+        "pop",
+        "charges",
     )
 
     def __init__(

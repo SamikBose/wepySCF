@@ -351,6 +351,9 @@ class PySCFRunner(Runner):
         state_data,
         positions,
         integrator,
+        mo_energy,
+        pop,
+        charges,
         density_kwargs: dict,
         extra_data: dict | None = None,
     ):
@@ -373,6 +376,9 @@ class PySCFRunner(Runner):
                 "total_energy": total_energy_fv,
                 "potential": potential_fv,
                 "kinetic": kinetic_fv,
+                "mo_energy": _to_numpy(mo_energy),
+                "pop": _to_numpy(pop),
+                "charges": _to_numpy(charges),
                 **density_kwargs,
                 "extra_data": extra_data,
             }
@@ -437,6 +443,8 @@ class PySCFRunner(Runner):
         # TODO: Store in PySCF state for reporter?
         energy_and_charges_start = perf_counter()
 
+        mo_energy = scanner.base.mo_energy  # TODO: _to_numpy?
+
         dm = _to_numpy(scanner.base.make_rdm1())
         s = _to_numpy(scanner.base.get_ovlp())
         dm_total = dm[0] + dm[1] if dm.ndim == 3 else dm
@@ -445,7 +453,7 @@ class PySCFRunner(Runner):
         energy_and_charges_end = perf_counter()
         energy_and_charges_time = energy_and_charges_end - energy_and_charges_start
 
-        logger.info(f"mo_energy: {scanner.base.mo_energy}")
+        logger.info(f"mo_energy: {mo_energy}")
         logger.info(f"pop: {pop}")
         logger.info(f"charges: {charges}")
         logger.info(f"Energy and charges calculation took {energy_and_charges_time} sec")
@@ -491,6 +499,9 @@ class PySCFRunner(Runner):
             state_data=state._data,
             positions=positions,
             integrator=integrator,
+            mo_energy=mo_energy,
+            pop=pop,
+            charges=charges,
             density_kwargs=density_kwargs,
             extra_data=extra_data,
         )
