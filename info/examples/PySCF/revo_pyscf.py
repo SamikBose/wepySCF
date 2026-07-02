@@ -313,6 +313,7 @@ def run(config):
                 walkers = pickle.load(f)  # noqa: S301
 
     runner = PySCFRunner(
+        backend=config.backend,
         basis=config.basis,
         method=config.method,
         xc=config.xc,
@@ -320,7 +321,6 @@ def run(config):
         integrator_cls=config.integrator_cls,
         integrator_kwargs=config.integrator_kwargs,
         integrator_temperature_kelvin=config.temperature_kelvin,
-        backend=config.backend,
         density_grid_shape=config.density_grid_shape,
         use_density_fitting=config.use_density_fitting,
         auxbasis=config.auxbasis,
