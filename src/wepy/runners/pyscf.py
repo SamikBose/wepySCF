@@ -434,6 +434,22 @@ class PySCFRunner(Runner):
         # Create new state
         #
 
+        # TODO: Store in PySCF state for reporter?
+        energy_and_charges_start = perf_counter()
+
+        dm = _to_numpy(scanner.base.make_rdm1())
+        s = _to_numpy(scanner.base.get_ovlp())
+        dm_total = dm[0] + dm[1] if dm.ndim == 3 else dm
+        pop, charges = pyscf_scf.hf.mulliken_pop(scanner.base.mol, dm_total, s, verbose=0)
+
+        energy_and_charges_end = perf_counter()
+        energy_and_charges_time = energy_and_charges_end - energy_and_charges_start
+
+        logger.info(f"mo_energy: {scanner.base.mo_energy}")
+        logger.info(f"pop: {pop}")
+        logger.info(f"charges: {charges}")
+        logger.info(f"Energy and charges calculation took {energy_and_charges_time} sec")
+
         positions = integrator.mol.atom_coords()
 
         density_time_kwargs = {}
@@ -497,6 +513,7 @@ class PySCFRunner(Runner):
         segment_split_times = {
             "build_scanner_time": build_scanner_time,
             "kernel_time": kernel_time,
+            "energy_and_charges_time": energy_and_charges_time,
             **density_time_kwargs,
             "run_segment_time": run_segment_time,
         }
