@@ -2,6 +2,7 @@ mutagen.yml.lock
 
 # wepy specific stuff that might be in here from the examples
 *.h5
+*.org
 *.pkl
 *.log
 *.dcd

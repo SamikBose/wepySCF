@@ -110,6 +110,9 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
                 total_energy=np.array([np.nan], dtype=float),
                 potential=np.array([np.nan], dtype=float),
                 kinetic=np.array([np.nan], dtype=float),
+                mo_energy=np.array([np.nan], dtype=float),
+                pop=np.array([np.nan], dtype=float),
+                charges=np.array([np.nan], dtype=float),
                 **density_kwargs,
             ),
             weight,
@@ -259,6 +262,9 @@ def run(config):
                 raise ValueError("--from-branch is not supported with sub-step 0.")
             print(f"Starting simulation in sub-step mode.")
         else:
+            # Base directory must already exist in sub-step mode
+            if not osp.isdir(output_directory):
+                raise FileNotFoundError(f"Output directory does not exist: {output_directory}/")
             print(f"Continuing simulation at sub-step {args.sub_step}.")
 
         # Get next sub directory and previous sub directory
@@ -313,6 +319,7 @@ def run(config):
                 walkers = pickle.load(f)  # noqa: S301
 
     runner = PySCFRunner(
+        backend=config.backend,
         basis=config.basis,
         method=config.method,
         xc=config.xc,
@@ -320,7 +327,6 @@ def run(config):
         integrator_cls=config.integrator_cls,
         integrator_kwargs=config.integrator_kwargs,
         integrator_temperature_kelvin=config.temperature_kelvin,
-        backend=config.backend,
         density_grid_shape=config.density_grid_shape,
         use_density_fitting=config.use_density_fitting,
         auxbasis=config.auxbasis,

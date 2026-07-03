@@ -91,11 +91,11 @@ def _to_numpy(arr) -> np.ndarray:
     return np.asarray(arr, dtype=float)
 
 
-def _to_cpu_mol(mol):
-    """Ensure mol is a CPU object, not a GPU object."""
-    if hasattr(mol, "to_cpu"):
-        return mol.to_cpu()
-    return mol
+def _to_cpu(obj):
+    """Ensure object is a CPU object, not a GPU object."""
+    if hasattr(obj, "to_cpu"):
+        return obj.to_cpu()
+    return obj
 
 
 class PySCFState(WalkerState):
@@ -118,16 +118,16 @@ class PySCFRunner(Runner):
     # TODO: Type hints?
     def __init__(
         self,
+        backend: str = "cpu",
         basis: str = "6-31g*",
         method: str = "RHF",
-        xc=None,
-        charge=0,
-        spin=0,
-        dt: float = 21.0,
+        xc: str | None = None,
+        charge: int = 0,
+        spin: int = 0,
+        dt: int = 21,
         integrator_temperature_kelvin: float = 300.0,
-        integrator_cls=pyscf_md.integrators.VelocityVerlet,
+        integrator_cls: pyscf_md.integrators._Integrator = pyscf_md.integrators.VelocityVerlet,
         integrator_kwargs: dict | None = None,
-        backend: str = "cpu",
         density_grid_shape: tuple[int, int, int] | None = None,
         density_grid_padding: float = 2.0,
         use_density_fitting: bool = False,
@@ -135,41 +135,30 @@ class PySCFRunner(Runner):
         use_scanner_caching: bool = False,
         scanner_cache_capacity: int = 8,
     ):
+        self.backend = backend.lower()
         self.basis = basis
         self.method = method.upper()
         self.xc = xc
         self.charge = charge
         self.spin = spin
-        self.dt = float(dt)
+        self.dt = dt
         self.integrator_cls = integrator_cls
         self.integrator_kwargs = {} if integrator_kwargs is None else dict(integrator_kwargs)
-        self.integrator_temperature_kelvin = float(integrator_temperature_kelvin)
-        self.backend = backend.lower()
+        self._integrator_temperature_kelvin = float(integrator_temperature_kelvin)
         self.density_grid_shape = density_grid_shape
         self.density_grid_padding = float(density_grid_padding)
-        self.use_density_fitting = bool(use_density_fitting)
+        self._use_density_fitting = bool(use_density_fitting)
         self.auxbasis = auxbasis
+        self._use_scanner_caching = bool(use_scanner_caching)
+        self.scanner_cache_capacity = scanner_cache_capacity
 
         if self.method not in self.SUPPORTED_METHODS:
             raise ValueError(
-                f"Unsupported PySCF mean-field method '{self.method}'. Must be one of: {self.SUPPORTED_METHODS}"
+                f"Unsupported PySCF mean-field method '{self.method}'. "
+                f"PySCF integrators only support: {self.SUPPORTED_METHODS}"
             )
 
-        self._cycle_backend = None
-        self._cycle_platform_kwargs = None
-
-        self._use_scanner_caching = use_scanner_caching
-        self.scanner_cache_capacity = scanner_cache_capacity
-
         self._last_cycle_segments_split_times: list[dict] = []
-
-    def pre_cycle(self, backend=None, platform_kwargs=None, **kwargs):
-        self._cycle_backend = backend
-        self._cycle_platform_kwargs = platform_kwargs
-
-    def post_cycle(self, **kwargs):
-        self._cycle_backend = None
-        self._cycle_platform_kwargs = None
 
     def _build_mean_field(self, mol, state):
         if self.method == "RHF":
@@ -191,11 +180,12 @@ class PySCFRunner(Runner):
         else:
             raise ValueError(f"Unsupported PySCF mean-field method '{self.method}'.")
 
-        if self.use_density_fitting:
+        if self._use_density_fitting:
             mf = mf.density_fit(auxbasis=self.auxbasis)
 
         return mf
 
+    # TODO: Only do this once
     def _configure_hardware(self, mf, backend: str):
         if backend and str(backend).lower() == "gpu":
             if hasattr(mf, "to_gpu"):
@@ -218,7 +208,7 @@ class PySCFRunner(Runner):
 
         return mf
 
-    def _build_scanner(self, mol, state: PySCFState, backend: str, platform_kwargs: dict):
+    def _build_scanner(self, mol, state: PySCFState, backend: str):
         """Build scanner for the requested backend."""
         mf = self._build_mean_field(mol, state)
         mf = self._configure_hardware(mf, backend=backend)
@@ -238,14 +228,14 @@ class PySCFRunner(Runner):
         """
         name = getattr(integrator_cls, "__name__", "")
         if name in TEMPERATURE_AWARE_INTEGRATORS:
-            if "T" in integrator_kwargs and float(integrator_kwargs["T"]) != self.integrator_temperature_kelvin:
+            if "T" in integrator_kwargs and float(integrator_kwargs["T"]) != self._integrator_temperature_kelvin:
                 logger.warning(
                     "Overriding integrator_kwargs['T']=%s to match temperature_kelvin=%s for %s",
                     integrator_kwargs["T"],
-                    self.integrator_temperature_kelvin,
+                    self._integrator_temperature_kelvin,
                     name,
                 )
-            integrator_kwargs["T"] = self.integrator_temperature_kelvin
+            integrator_kwargs["T"] = self._integrator_temperature_kelvin
         if name in RANDOM_NOISE_INTEGRATORS:
             integrator_kwargs["rng"] = np.random.Generator(np.random.PCG64(None))
 
@@ -305,7 +295,7 @@ class PySCFRunner(Runner):
         return rho_grid, origin, spacing
 
     # TODO: Check this
-    def _density_matrix_from_scanner(self, scanner, mol, state: PySCFState, backend: str, platform_kwargs: dict):
+    def _density_matrix_from_scanner(self, scanner, mol, state: PySCFState, backend: str):
         """Extract an AO-basis 1-RDM from a PySCF scanner.
 
         This is intended to mirror the old per-step behavior where we ran
@@ -325,7 +315,7 @@ class PySCFRunner(Runner):
             try:
                 return _to_numpy(scanner.make_rdm1())
             except Exception as exc:
-                logger.debug("Failed to get density matrix from scanner.make_rdm1(): %s", exc)
+                logger.warning(f"Failed to get density matrix from scanner.make_rdm1(): {exc}")
 
         # Common PySCF pattern: grad_scanner.base is a SCF single-point scanner
         # (see pyscf.scf.hf.as_scanner), which generally supports make_rdm1()
@@ -334,7 +324,7 @@ class PySCFRunner(Runner):
             try:
                 return _to_numpy(scan_base.make_rdm1())
             except Exception as exc:
-                logger.debug("Failed to get density matrix from scanner.base.make_rdm1(): %s", exc)
+                logger.warning(f"Failed to get density matrix from scanner.base.make_rdm1(): {exc}")
 
         # Some scanner wrappers may stash the mean-field object under `.base` or `._scf`
         for obj in (
@@ -347,7 +337,7 @@ class PySCFRunner(Runner):
             try:
                 return _to_numpy(obj.make_rdm1())
             except Exception as exc:
-                logger.debug("Failed to get density matrix from %s.make_rdm1(): %s", type(obj), exc)
+                logger.warning(f"Failed to get density matrix from {type(obj)}.make_rdm1(): {exc}")
 
         # Fall back: rerun an SCF calculation at the final geometry. This is more
         # expensive but is robust
@@ -359,35 +349,36 @@ class PySCFRunner(Runner):
     def generate_state(
         self,
         state_data,
-        mol,
         positions,
-        velocities,
-        accelerations,
-        temperature: float,
-        potential: float,
-        kinetic: float,
-        total_energy: float,
+        integrator,
+        mo_energy,
+        pop,
+        charges,
         density_kwargs: dict,
         extra_data: dict | None = None,
     ):
+
         # Store scalar observables as 1D feature arrays (shape (1,)) so the HDF5
         # reporter can wrap them into (n_frames, 1) feature vectors
-        temperature_fv = np.asarray(temperature, dtype=float).reshape(-1)
-        total_energy_fv = np.asarray(total_energy, dtype=float).reshape(-1)
-        potential_fv = np.asarray(potential, dtype=float).reshape(-1)
-        kinetic_fv = np.asarray(kinetic, dtype=float).reshape(-1)
+        temperature_fv = np.asarray(integrator.temperature(), dtype=float).reshape(-1)
+        total_energy_fv = np.asarray(integrator.epot + integrator.ekin, dtype=float).reshape(-1)
+        potential_fv = np.asarray(integrator.epot, dtype=float).reshape(-1)
+        kinetic_fv = np.asarray(integrator.ekin, dtype=float).reshape(-1)
 
         return PySCFState(
             **{
                 **state_data,
-                "mol": mol,
+                "mol": _to_cpu(integrator.mol),  # To CPU avoids pickling GPU object (also returns a new object)
                 "positions": positions,
-                "velocities": velocities,
-                "accelerations": accelerations,
+                "velocities": integrator.veloc,
+                "accelerations": getattr(integrator, "accel", None),
                 "temperature": temperature_fv,
                 "total_energy": total_energy_fv,
                 "potential": potential_fv,
                 "kinetic": kinetic_fv,
+                "mo_energy": _to_numpy(mo_energy),
+                "pop": _to_numpy(pop),
+                "charges": _to_numpy(charges),
                 **density_kwargs,
                 "extra_data": extra_data,
             }
@@ -398,36 +389,29 @@ class PySCFRunner(Runner):
 
         state: PySCFState = walker.state
 
-        backend = kwargs.get("backend", self._cycle_backend or self.backend)
-        platform_kwargs: dict = kwargs.get("platform_kwargs") or self._cycle_platform_kwargs or {}
         scanner_cache: LRUDict = kwargs.get("scanner_cache")
         if len(scanner_cache) == 0:
             scanner_cache.max_len = self.scanner_cache_capacity
 
-        positions = state["positions"]
         last_velocities = state.get("velocities")
         last_accelerations = state.get("accelerations")
 
         extra_data: dict = state.get("extra_data", {})
         last_mid_velocities = extra_data.get("mid_velocities")  # Langevin Middle
 
-        if self.method not in self.SUPPORTED_METHODS:
-            raise NotImplementedError("PySCF integrators only support RHF/UHF/RKS/UKS scanners.")
-
-        init_mol = state.get("mol")
+        mol = state.get("mol")
 
         build_scanner_start = perf_counter()
 
         walker_id = state.get("walker_id")
         cached_scanner = scanner_cache.get(walker_id)
-
         if cached_scanner is None:
             logger.debug(f"[scanner] cold start for walker {walker_id}")
-            scanner = self._build_scanner(init_mol, state, backend, platform_kwargs)
+            scanner = self._build_scanner(mol, state, self.backend)
         else:
             logger.debug(f"[scanner] warm start for walker {walker_id}")
             scanner = cached_scanner
-            scanner.mol = init_mol
+            scanner.mol = mol
 
         build_scanner_end = perf_counter()
         build_scanner_time = build_scanner_end - build_scanner_start
@@ -456,10 +440,25 @@ class PySCFRunner(Runner):
         # Create new state
         #
 
-        positions = integrator.mol.atom_coords()
+        # TODO: Store in PySCF state for reporter?
+        energy_and_charges_start = perf_counter()
 
-        mid_velocities = getattr(integrator, "mid_veloc", None)
-        extra_data = {"mid_velocities": mid_velocities} if mid_velocities is not None else {}
+        mo_energy = scanner.base.mo_energy  # TODO: _to_numpy?
+
+        dm = _to_numpy(scanner.base.make_rdm1())
+        s = _to_numpy(scanner.base.get_ovlp())
+        dm_total = dm[0] + dm[1] if dm.ndim == 3 else dm
+        pop, charges = pyscf_scf.hf.mulliken_pop(scanner.base.mol, dm_total, s, verbose=0)
+
+        energy_and_charges_end = perf_counter()
+        energy_and_charges_time = energy_and_charges_end - energy_and_charges_start
+
+        logger.info(f"mo_energy: {mo_energy}")
+        logger.info(f"pop: {pop}")
+        logger.info(f"charges: {charges}")
+        logger.info(f"Energy and charges calculation took {energy_and_charges_time} sec")
+
+        positions = integrator.mol.atom_coords()
 
         density_time_kwargs = {}
         density_kwargs = {}
@@ -471,8 +470,7 @@ class PySCFRunner(Runner):
                 scanner,
                 integrator.mol,
                 state,
-                backend=backend,
-                platform_kwargs=platform_kwargs,
+                backend=self.backend,
             )
             density_grid, density_grid_origin, density_grid_spacing = self._compute_density_grid(
                 integrator.mol,
@@ -494,22 +492,28 @@ class PySCFRunner(Runner):
                 },
             )
 
+        mid_velocities = getattr(integrator, "mid_veloc", None)
+        extra_data = {"mid_velocities": mid_velocities} if mid_velocities is not None else {}
+
         new_state = self.generate_state(
             state_data=state._data,
-            mol=_to_cpu_mol(integrator.mol),  # To CPU avoids pickling GPU object (also returns a new object)
             positions=positions,
-            velocities=integrator.veloc,
-            accelerations=getattr(integrator, "accel", None),
-            temperature=integrator.temperature(),
-            potential=integrator.epot,
-            kinetic=integrator.ekin,
-            total_energy=integrator.epot + integrator.ekin,
+            integrator=integrator,
+            mo_energy=mo_energy,
+            pop=pop,
+            charges=charges,
             density_kwargs=density_kwargs,
             extra_data=extra_data,
         )
 
         if self._use_scanner_caching:
             scanner_cache[new_state["walker_id"]] = scanner  # Add the new one
+
+        logger.info(
+            f"Temperature: {new_state['temperature'][0]:.3f} K, "
+            f"Potential: {new_state['potential'][0]:.6f} Ha, "
+            f"Kinetic: {new_state['kinetic'][0]:.6f} Ha",
+        )
 
         new_walker = PySCFWalker(new_state, walker.weight)
 
@@ -520,17 +524,12 @@ class PySCFRunner(Runner):
         segment_split_times = {
             "build_scanner_time": build_scanner_time,
             "kernel_time": kernel_time,
+            "energy_and_charges_time": energy_and_charges_time,
             **density_time_kwargs,
             "run_segment_time": run_segment_time,
         }
 
         self._last_cycle_segments_split_times.append(segment_split_times)
-
-        logger.info(
-            f"Temperature: {new_state['temperature'][0]:.3f} K, "
-            f"Potential: {new_state['potential'][0]:.6f} Ha, "
-            f"Kinetic: {new_state['kinetic'][0]:.6f} Ha",
-        )
 
         return new_walker
 
