@@ -3,13 +3,10 @@
 This file should not be run on its own.
 """
 
-# Set the default number of threads before importing libraries
-import os
-
-os.environ.setdefault("OMP_NUM_THREADS", "1")  # Good default for PySCF CPU runs, but can be overridden by the user
 # Standard Library
 import argparse
 import importlib.util
+import os
 import os.path as osp
 import pickle
 import uuid
