@@ -221,7 +221,6 @@ def run(config):
         return max(pkls, key=lambda p: int(osp.basename(p).removeprefix("walkers_cycle_").removesuffix(".pkl")))
 
     # TODO: Move to function
-    # Directory creation is handled downstream, we just need to set the right value
     start_cycle = None
     output_directory = config.output_directory
     if args.sub_step is None:
@@ -314,6 +313,9 @@ def run(config):
             # Restore the walkers from the pkl
             with open(target_pkl, "rb") as f:
                 walkers = pickle.load(f)  # noqa: S301
+
+    if not osp.exists(output_directory):
+        os.makedirs(output_directory)
 
     runner = PySCFRunner(
         backend=config.backend,
