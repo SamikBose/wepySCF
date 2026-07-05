@@ -1,8 +1,12 @@
 """Input configuration for SN2 reaction."""
 
+# Set the default number of threads before importing libraries
+from os import environ
+
+environ.setdefault("OMP_NUM_THREADS", "1")  # Good default, but can be overridden by the user
+
 # Standard Library
 from dataclasses import dataclass, field
-from os import environ
 from pathlib import Path
 from typing import Literal
 
