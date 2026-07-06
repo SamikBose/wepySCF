@@ -36,13 +36,14 @@ class PySCFInput:
     n_cycles = 100
     segment_length = 10
 
+    basis: str | dict = "aug-cc-pVDZ"
+    ecp:   str | dict | None = None
+    auxbasis: str | None = None          # or "aug-cc-pVDZ-jkfit"
     #
     # PySCF runner parameters
-    basis: str | dict = field(default_factory=lambda: {"Br": "aug-cc-pvdz-pp", "default": "aug-cc-pvdz"})
-    ecp:   str | dict | None = field(default_factory=lambda: {"Br": "aug-cc-pvdz-pp"})
-    auxbasis: str | None = None
-    #basis = {"Br": "aug-cc-pvdz-pp", "default": "aug-cc-pvdz"}
-    #ecp   = {"Br": "aug-cc-pvdz-pp"}
+    #basis: str | dict = field(default_factory=lambda: {"Br": "aug-cc-pvdz-pp", "default": "aug-cc-pvdz"})
+    #ecp:   str | dict | None = field(default_factory=lambda: {"Br": "aug-cc-pvdz-pp"})
+    #auxbasis: str | None = None
     method: Literal["RHF", "UHF", "RKS", "UKS"] = "RKS"
     xc: str | None = "wb97x_v"
     charge: int = -1
