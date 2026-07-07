@@ -352,7 +352,7 @@ class PySCFRunner(Runner):
         positions,
         integrator,
         mo_energy,
-        pop,
+        #pop,
         charges,
         density_kwargs: dict,
         extra_data: dict | None = None,
@@ -377,7 +377,6 @@ class PySCFRunner(Runner):
                 "potential": potential_fv,
                 "kinetic": kinetic_fv,
                 "mo_energy": _to_numpy(mo_energy),
-                "pop": _to_numpy(pop),
                 "charges": _to_numpy(charges),
                 **density_kwargs,
                 "extra_data": extra_data,
@@ -454,7 +453,7 @@ class PySCFRunner(Runner):
         energy_and_charges_time = energy_and_charges_end - energy_and_charges_start
 
         logger.info(f"mo_energy: {mo_energy}")
-        logger.info(f"pop: {pop}")
+        #logger.info(f"pop: {pop}")
         logger.info(f"charges: {charges}")
         logger.info(f"Energy and charges calculation took {energy_and_charges_time} sec")
 
@@ -500,7 +499,7 @@ class PySCFRunner(Runner):
             positions=positions,
             integrator=integrator,
             mo_energy=mo_energy,
-            pop=pop,
+            #pop=pop,
             charges=charges,
             density_kwargs=density_kwargs,
             extra_data=extra_data,

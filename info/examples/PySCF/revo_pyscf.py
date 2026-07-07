@@ -3,10 +3,13 @@
 This file should not be run on its own.
 """
 
+# Set the default number of threads before importing libraries
+import os
+
+os.environ.setdefault("OMP_NUM_THREADS", "1")  # Good default for PySCF CPU runs, but can be overridden by the user
 # Standard Library
 import argparse
 import importlib.util
-import os
 import os.path as osp
 import pickle
 import uuid
@@ -18,6 +21,7 @@ from time import perf_counter
 import mdtraj as mdj
 import numpy as np
 import pyscf.gto as pyscf_gto
+import pyscf.dft as pyscf_dft
 import pyscf.md as pyscf_md
 from pyscf.data.nist import BOHR
 
@@ -82,10 +86,20 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
             "density_grid_origin": np.zeros(3),
             "density_grid_spacing": np.ones(3),
         }
-
+    
     mol = build_mol(symbols, positions, config.basis, config.charge, config.spin, config.ecp)
-    if config.suppress_pyscf_output:
-        mol.verbose = 0  # Suppress PySCF output
+    mol.verbose = 0  # Suppress PySCF output
+   
+    n_atoms = len(symbols)
+    nmo = mol.nao_nr()    # or nmo = mo_energy0.shape[0] from the single-point above    
+
+    mf0 = pyscf_dft.RKS(mol)
+    mf0.xc = config.xc
+    if config.use_density_fitting:
+       mf0 = mf0.density_fit(auxbasis=config.auxbasis)
+    mf0.kernel()
+    mo_energy0 = np.asarray(mf0.mo_energy)   # length = true nmo, whatever pyscf kept
+    nmo = mo_energy0.shape[0]
 
     shared_velocity = _generate_MB_velocities(config, mol, positions)
 
@@ -107,9 +121,9 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
                 total_energy=np.array([np.nan], dtype=float),
                 potential=np.array([np.nan], dtype=float),
                 kinetic=np.array([np.nan], dtype=float),
-                mo_energy=np.array([np.nan], dtype=float),
-                pop=np.array([np.nan], dtype=float),
-                charges=np.array([np.nan], dtype=float),
+                mo_energy= mo_energy0.copy(),
+                #np.full(nmo, np.nan, dtype=float),     # (nmo,) filled each cycle
+                charges=np.full(n_atoms, np.nan, dtype=float),   # (natoms,) per-atom charge
                 **density_kwargs,
             ),
             weight,
@@ -186,15 +200,12 @@ def run(config):
 
         cuda_visible_devices = config._cuda_visible_devices_env_var  # noqa: SLF001
         if cuda_visible_devices != "":
-            available_ids = [int(x) for x in cuda_visible_devices.split(",")]
             num_available = config._num_gpus_visible  # noqa: SLF001
             print(f"Found {num_available} available devices.")
         else:
             raise RuntimeError("No GPUs available: CUDA_VISIBLE_DEVICES is not set or empty.")
 
-        # Round-robin assign workers to GPUs
-        device_ids = [available_ids[i % num_available] for i in range(config.n_walkers)]
-
+        device_ids = [i % num_available for i in range(config.n_walkers)]  # Round-robin assign workers to GPUs
         mapper = PySCFGPUWorkerMapper(num_workers=config.n_walkers, platform="CUDA", device_ids=device_ids)
 
     mdj_top, symbols, positions = parse_with_mdtraj_topology(config.topology_file_path)
@@ -221,6 +232,7 @@ def run(config):
         return max(pkls, key=lambda p: int(osp.basename(p).removeprefix("walkers_cycle_").removesuffix(".pkl")))
 
     # TODO: Move to function
+    # Directory creation is handled downstream, we just need to set the right value
     start_cycle = None
     output_directory = config.output_directory
     if args.sub_step is None:
@@ -252,15 +264,15 @@ def run(config):
     else:  # Sub-step provided
         # Resolve to the latest versioned base directory
         output_directory = get_latest_dir(output_directory)
+        # Base directory must already exist in sub-step mode
+        if not osp.isdir(output_directory):
+            raise FileNotFoundError(f"Output directory does not exist: {output_directory}/")
 
         if args.sub_step == 0:
             if args.from_branch is not None:
                 raise ValueError("--from-branch is not supported with sub-step 0.")
             print(f"Starting simulation in sub-step mode.")
         else:
-            # Base directory must already exist in sub-step mode
-            if not osp.isdir(output_directory):
-                raise FileNotFoundError(f"Output directory does not exist: {output_directory}/")
             print(f"Continuing simulation at sub-step {args.sub_step}.")
 
         # Get next sub directory and previous sub directory
@@ -294,7 +306,6 @@ def run(config):
         # Load or generate walkers
         if args.sub_step == 0:
             walkers = generate_initial_walkers(
-                config=config,
                 symbols=symbols,
                 positions=positions,
                 n_walkers=config.n_walkers,
@@ -314,11 +325,7 @@ def run(config):
             with open(target_pkl, "rb") as f:
                 walkers = pickle.load(f)  # noqa: S301
 
-    if not osp.exists(output_directory):
-        os.makedirs(output_directory)
-
     runner = PySCFRunner(
-        backend=config.backend,
         basis=config.basis,
         method=config.method,
         xc=config.xc,
@@ -326,6 +333,7 @@ def run(config):
         integrator_cls=config.integrator_cls,
         integrator_kwargs=config.integrator_kwargs,
         integrator_temperature_kelvin=config.temperature_kelvin,
+        backend=config.backend,
         density_grid_shape=config.density_grid_shape,
         use_density_fitting=config.use_density_fitting,
         auxbasis=config.auxbasis,
