@@ -93,7 +93,6 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
         PySCFWalker(
             PySCFState(
                 walker_id=str(uuid.uuid4()),
-                symbols=symbols,
                 mol=deepcopy(mol),
                 positions=positions,
                 velocities=(
@@ -108,7 +107,6 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
                 potential=np.array([np.nan], dtype=float),
                 kinetic=np.array([np.nan], dtype=float),
                 mo_energy=np.array([np.nan], dtype=float),
-                pop=np.array([np.nan], dtype=float),
                 charges=np.array([np.nan], dtype=float),
                 **density_kwargs,
             ),
