@@ -19,8 +19,8 @@ from revo_pyscf import run
 
 BREAK_PAIR = (0, 1)
 MAKE_PAIR = (0, 5)
-BREAK_CUTOFF = 0.4  # nm
-MAKE_CUTOFF = 0.15  # nm
+BREAK_CUTOFF = 7.56  # Bohr  (= 4.0 Å; C-Br counted broken)  [0.4 nm]
+MAKE_CUTOFF = 2.83  # Bohr  (= 1.5 Å; C-F counted formed)  [0.15 nm]
 
 
 @dataclass
@@ -35,7 +35,7 @@ class PySCFInput:
     # Simulation parameters
     #
     backend: Literal["cpu", "gpu"] = "gpu"
-    n_walkers = 24
+    n_walkers = 12
     n_cycles = 100
     segment_length = 10
 
@@ -44,6 +44,7 @@ class PySCFInput:
     #
     basis: str = "aug-cc-pVDZ"
     ecp: str | dict | None = None
+    auxbasis: str | None = "aug-cc-pVDZ-jkfit"  # None automatically selects an appropriate auxbasis
     method: Literal["RHF", "UHF", "RKS", "UKS"] = "RKS"
     xc: str | None = "wb97x_v"
     charge: int = -1
@@ -51,8 +52,6 @@ class PySCFInput:
     dt: int = 21
     temperature_kelvin: float = 100.0
     density_grid_shape: tuple[int, int, int] | None = None
-    use_density_fitting: bool = True
-    auxbasis: str | None = "aug-cc-pVDZ-jkfit"
 
     #
     # PySCF integrator and any kwargs passed to it
@@ -89,6 +88,7 @@ class PySCFInput:
     #
     initialize_velocities: bool = True  # Initialize velocities from Maxwell-Boltzmann distribution (False uses zeros)
     unique_initial_velocities: bool = True  # Generate unique initial velocities for each walker
+    use_density_fitting: bool = True  # Use density fitting with the auxbasis
     use_scanner_caching: bool = True  # Cache scanners from the previous cycle to speed up first step greatly
     scanner_cache_capacity: int | None = None  # The amount of scanners the cache can hold (None uses n_walkers)
     suppress_pyscf_output: bool = True  # Suppress PySCF gradient/velocity/position output
