@@ -1,0 +1,10 @@
+HEADER    SN2 entrance complex F- + CH3Br (wb97x_v/aug-cc-pvdz, charge=-1 spin=0). Angstrom.
+HETATM    1  C1  SNB A   1      -0.002   0.000  -0.103  1.00  0.00           C
+HETATM    2 Br2  SNB A   1       0.006   0.000   1.921  1.00  0.00          Br
+HETATM    3  H3  SNB A   1       1.039  -0.000  -0.416  1.00  0.00           H
+HETATM    4  H4  SNB A   1      -0.525   0.903  -0.410  1.00  0.00           H
+HETATM    5  H5  SNB A   1      -0.525  -0.903  -0.410  1.00  0.00           H
+HETATM    6  F6  SNB A   1      -0.012  -0.000  -2.551  1.00  0.00           F
+CONECT    1    2    3    4    5
+CONECT    1    6
+END
