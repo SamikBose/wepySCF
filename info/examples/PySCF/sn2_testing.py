@@ -47,6 +47,7 @@ class PySCFInput:
     auxbasis: str | None = "aug-cc-pVDZ-jkfit"  # None automatically selects an appropriate auxbasis
     method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF"
     xc: str | None = "wb97x_v"
+    population_method: Literal["mulliken", "meta-lowdin", "lowdin"] = "meta-lowdin"
     charge: int = -1
     spin: int = 0
     dt: int = 21

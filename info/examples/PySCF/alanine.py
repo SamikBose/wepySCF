@@ -42,6 +42,7 @@ class PySCFInput:
     auxbasis: str | None = "def2-universal-jkfit"  # None automatically selects an appropriate auxbasis
     method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF"
     xc: str | None = None
+    population_method: Literal["mulliken", "meta-lowdin", "lowdin"] = "meta-lowdin"
     charge: int = 0
     spin: int = 0
     dt: int = 21
