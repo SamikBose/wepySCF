@@ -320,6 +320,7 @@ def run(config):
         basis=config.basis,
         method=config.method,
         xc=config.xc,
+        population_method=config.population_method,
         dt=config.dt,
         integrator_cls=config.integrator_cls,
         integrator_kwargs=config.integrator_kwargs,

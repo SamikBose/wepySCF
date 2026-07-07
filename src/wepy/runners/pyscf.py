@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 import os
 from collections import OrderedDict
 from time import perf_counter
+from typing import Literal
 
 # Third Party Library
 import numpy as np
@@ -120,8 +121,10 @@ class PySCFRunner(Runner):
         self,
         backend: str = "cpu",
         basis: str = "6-31g*",
-        method: str = "RHF",
+        auxbasis: str | None = None,
+        method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF",
         xc: str | None = None,
+        population_method: Literal["mulliken", "meta-lowdin", "lowdin"] = "meta-lowdin",
         charge: int = 0,
         spin: int = 0,
         dt: int = 21,
@@ -131,7 +134,6 @@ class PySCFRunner(Runner):
         density_grid_shape: tuple[int, int, int] | None = None,
         density_grid_padding: float = 2.0,
         use_density_fitting: bool = False,
-        auxbasis: str | None = None,
         use_scanner_caching: bool = False,
         scanner_cache_capacity: int = 8,
     ):
@@ -139,6 +141,7 @@ class PySCFRunner(Runner):
         self.basis = basis
         self.method = method.upper()
         self.xc = xc
+        self.population_method = population_method
         self.charge = charge
         self.spin = spin
         self.dt = dt
@@ -155,7 +158,7 @@ class PySCFRunner(Runner):
         if self.method not in self.SUPPORTED_METHODS:
             raise ValueError(
                 f"Unsupported PySCF mean-field method '{self.method}'. "
-                f"PySCF integrators only support: {self.SUPPORTED_METHODS}"
+                f"PySCF integrators only support: {self.SUPPORTED_METHODS}",
             )
 
         self._last_cycle_segments_split_times: list[dict] = []
@@ -196,12 +199,12 @@ class PySCFRunner(Runner):
                         raise RuntimeError(
                             "GPU backend requested but CuPy is not installed. "
                             "Install a CuPy build compatible with your CUDA version "
-                            "(e.g. cupy-cuda12x) or run with CPU backend."
+                            "(e.g. cupy-cuda12x) or run with CPU backend.",
                         ) from exc
                     raise
                 except AttributeError as exc:
                     raise RuntimeError(
-                        "Requested GPU backend but PySCF mean-field object does not support to_gpu()."
+                        "Requested GPU backend but PySCF mean-field object does not support to_gpu().",
                     ) from exc
             else:
                 raise RuntimeError("Requested GPU backend but PySCF mean-field object does not support to_gpu().")
@@ -270,6 +273,38 @@ class PySCFRunner(Runner):
         if hasattr(integrator, "accel") and accelerations is not None:
             integrator.accel = accelerations
 
+    @staticmethod
+    def _lowdin_pop(mol, dm_total, s):
+        """Symmetric (Lowdin) population analysis: pop_AO = diag(S^1/2 P S^1/2), aggregated per atom.
+
+        No reference basis needed. Returns (pop_ao, charges).
+        """
+        e, u = np.linalg.eigh(s)
+        s_half = (u * np.sqrt(e)) @ u.T  # S^{1/2}
+        pop_ao = np.einsum("ij,ji->i", s_half @ dm_total, s_half)
+        charges = np.zeros(mol.natm)
+        aoslices = mol.aoslice_by_atom()
+        for a in range(mol.natm):
+            p0, p1 = aoslices[a][2], aoslices[a][3]
+            charges[a] = mol.atom_charge(a) - pop_ao[p0:p1].sum()
+        return pop_ao, charges
+
+    def _population_analysis(self, mol, dm_total, s):
+        """Per-atom partial charges via the configured population scheme.
+
+        Returns (pop, charges), matching pyscf.scf.hf.mulliken_pop.
+        """
+        if self.population_method == "mulliken":
+            return pyscf_scf.hf.mulliken_pop(mol, dm_total, s, verbose=0)
+        if self.population_method == "meta-lowdin":
+            # meta-Lowdin: robust, weakly basis-dependent (needs an ANO reference,
+            # available for all common main-group elements incl. C/H/F/Cl)
+            return pyscf_scf.hf.mulliken_meta(mol, dm_total, s=s, verbose=0)
+            # return pyscf_scf.hf.mulliken_meta(mol, dm_total, verbose=0)
+        if self.population_method == "lowdin":
+            return self._lowdin_pop(mol, dm_total, s)  # TODO: Convert inputs to numpy?
+        raise ValueError(f"Unknown population_method '{self.population_method}'")
+
     def _make_density_grid_coords(self, positions):
         mins = np.min(positions, axis=0) - self.density_grid_padding
         maxs = np.max(positions, axis=0) + self.density_grid_padding
@@ -307,7 +342,6 @@ class PySCFRunner(Runner):
         2) Otherwise, rerun an SCF calculation at the provided `mol` geometry.
 
         Returns:
-
         dm : np.ndarray
             AO density matrix. For UHF/UKS this may be shape (2,nao,nao).
         """
@@ -379,7 +413,7 @@ class PySCFRunner(Runner):
                 "charges": _to_numpy(charges),
                 **density_kwargs,
                 "extra_data": extra_data,
-            }
+            },
         )
 
     def run_segment(self, walker: PySCFWalker, segment_length: int, **kwargs: dict):
@@ -446,7 +480,8 @@ class PySCFRunner(Runner):
         dm = _to_numpy(scanner.base.make_rdm1())
         s = _to_numpy(scanner.base.get_ovlp())
         dm_total = dm[0] + dm[1] if dm.ndim == 3 else dm
-        _, charges = pyscf_scf.hf.mulliken_pop(scanner.base.mol, dm_total, s, verbose=0)
+
+        _, charges = self._population_analysis(scanner.base.mol, dm_total, s)
 
         energy_and_charges_end = perf_counter()
         energy_and_charges_time = energy_and_charges_end - energy_and_charges_start
