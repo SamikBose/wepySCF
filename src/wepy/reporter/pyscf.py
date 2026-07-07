@@ -97,7 +97,6 @@ class PySCFHDF5Reporter(WepyHDF5Reporter):
         "potential",
         "kinetic",
         "mo_energy",
-        #"pop",
         "charges",
     )
 
