@@ -39,7 +39,6 @@ class PySCFInput:
     #
     basis: str = "sto-3g"
     ecp: str | dict | None = None
-    auxbasis: str | None = "def2-universal-jkfit"  # None automatically selects an appropriate auxbasis
     method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF"
     xc: str | None = None
     charge: int = 0
@@ -47,6 +46,8 @@ class PySCFInput:
     dt: int = 21
     temperature_kelvin: float = 300.0
     density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
+    use_density_fitting: bool = False
+    auxbasis: str | None = "def2-universal-jkfit"
 
     #
     # PySCF integrator and any kwargs passed to it
@@ -83,7 +84,6 @@ class PySCFInput:
     #
     initialize_velocities: bool = True  # Initialize velocities from Maxwell-Boltzmann distribution (False uses zeros)
     unique_initial_velocities: bool = True  # Generate unique initial velocities for each walker
-    use_density_fitting: bool = False  # Use density fitting with the auxbasis
     use_scanner_caching: bool = True  # Cache scanners from the previous cycle to speed up first step greatly
     scanner_cache_capacity: int | None = None  # The amount of scanners the cache can hold (None uses n_walkers)
     suppress_pyscf_output: bool = True  # Suppress PySCF gradient/velocity/position output

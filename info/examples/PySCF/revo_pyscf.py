@@ -121,8 +121,9 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
                 total_energy=np.array([np.nan], dtype=float),
                 potential=np.array([np.nan], dtype=float),
                 kinetic=np.array([np.nan], dtype=float),
-                mo_energy=np.array([np.nan], dtype=float),
-                charges=np.array([np.nan], dtype=float),
+                mo_energy= mo_energy0.copy(),
+                #np.full(nmo, np.nan, dtype=float),     # (nmo,) filled each cycle
+                charges=np.full(n_atoms, np.nan, dtype=float),   # (natoms,) per-atom charge
                 **density_kwargs,
             ),
             weight,

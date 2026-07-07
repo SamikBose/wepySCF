@@ -1,8 +1,0 @@
-REMARK    Converted from XYZ (SN2 wb97x_v/aug-cc-pvdz, charge=-1 spin=0)
-HETATM    1  C1  MOL A   1       0.002  -0.003  -0.020  1.00  0.00           C
-HETATM    2 Cl1  MOL A   1      -0.004   0.008   1.837  1.00  0.00          Cl
-HETATM    3  H1  MOL A   1       1.041  -0.005  -0.345  1.00  0.00           H
-HETATM    4  H2  MOL A   1      -0.515   0.892  -0.359  1.00  0.00           H
-HETATM    5  H3  MOL A   1      -0.516  -0.904  -0.345  1.00  0.00           H
-HETATM    6  F1  MOL A   1      -0.008   0.013  -2.528  1.00  0.00           F
-END
