@@ -57,7 +57,7 @@ class RandomWalkBC(WarpBC):
 
     def __init__(
         self, threshold=None, initial_states=None, initial_weights=None, **kwargs
-    ):
+    ) -> None:
         """Constructor for RandomWalkBC.
 
         Arguments

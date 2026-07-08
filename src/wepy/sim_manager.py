@@ -115,7 +115,7 @@ class Manager:
         boundary_conditions=None,
         reporters=None,
         sim_monitor=None,
-    ):
+    ) -> None:
         """Constructor for Manager.
 
         Arguments
@@ -244,7 +244,7 @@ class Manager:
         self,
         walkers,
         n_segment_steps,
-        cycle_idx,
+        cycle_idx: int,
         runner_opts=None,
     ):
         """Run a full cycle of weighted ensemble simulation using each
@@ -510,7 +510,7 @@ class Manager:
         self,
         num_workers=None,
         continue_run=None,
-    ):
+    ) -> None:
         """Initialize wepy configuration components for use at runtime.
 
         This `init` method is different than the constructor
@@ -580,7 +580,7 @@ class Manager:
                 continue_run=continue_run,
             )
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Perform cleanup actions for wepy configuration components.
 
         Allow components to perform actions before ending the main
@@ -680,7 +680,7 @@ class Manager:
 
     def run_simulation(
         self,
-        n_cycles,
+        n_cycles: str,
         segment_lengths,
         num_workers=None,
     ):

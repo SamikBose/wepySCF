@@ -81,7 +81,7 @@ class ReceptorBC(WarpBC):
         ligand_idxs=None,
         receptor_idxs=None,
         **kwargs
-    ):
+    ) -> None:
         """Base constructor for ReceptorBC.
 
         This should be called immediately in the subclass `__init__`
@@ -200,13 +200,13 @@ class RebindingBC(ReceptorBC):
     def __init__(
         self,
         native_state=None,
-        cutoff_rmsd=0.2,
+        cutoff_rmsd: float=0.2,
         initial_states=None,
         initial_weights=None,
         ligand_idxs=None,
         binding_site_idxs=None,
         **kwargs
-    ):
+    ) -> None:
         """Constructor for RebindingBC.
 
         Arguments
@@ -268,12 +268,12 @@ class RebindingBC(ReceptorBC):
         self._cutoff_rmsd = cutoff_rmsd
 
     @property
-    def native_state(self):
+    def native_state(self) -> WalkerState:
         """The reference bound state to which walkers are compared."""
         return self._native_state
 
     @property
-    def cutoff_rmsd(self):
+    def cutoff_rmsd(self) -> float:
         """The cutoff RMSD for considering a walker bound."""
         return self._cutoff_rmsd
 
@@ -386,13 +386,13 @@ class UnbindingBC(ReceptorBC):
     def __init__(
         self,
         initial_state=None,
-        cutoff_distance=1.0,
+        cutoff_distance: float=1.0,
         topology=None,
         ligand_idxs=None,
         receptor_idxs=None,
-        periodic=True,
+        periodic: bool=True,
         **kwargs
-    ):
+    ) -> None:
         """Constructor for UnbindingBC class.
 
         All the key-word arguments are necessary.
@@ -456,7 +456,7 @@ class UnbindingBC(ReceptorBC):
         self._periodic = periodic
 
     @property
-    def cutoff_distance(self):
+    def cutoff_distance(self) -> float:
         """The distance a ligand must be to be unbound."""
         return self._cutoff_distance
 

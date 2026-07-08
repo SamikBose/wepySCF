@@ -68,7 +68,7 @@ class NaClPair(TestSystem):
     SCALE_STEP_SIZE_Z = 1.0
 
 
-    def __init__(self, nx=3, ny=3, nz=3, **kwargs):
+    def __init__(self, nx: int=3, ny: int=3, nz: int=3, **kwargs) -> None:
         super().__init__(**kwargs)
         
         self.nx = nx
@@ -78,7 +78,7 @@ class NaClPair(TestSystem):
 
         self.construct_system()
 
-    def construct_system(self):
+    def construct_system(self) -> None:
         system = openmm.System()
 
         nb = openmm.NonbondedForce()

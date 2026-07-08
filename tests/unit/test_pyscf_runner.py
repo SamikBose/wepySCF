@@ -1,6 +1,7 @@
 """Unit tests for the PySCF runner stack using mocked pyscf modules."""
 
 # Standard Library
+from typing import Self
 from types import SimpleNamespace
 
 # Third Party Library
@@ -33,7 +34,7 @@ class _FakeNumInt(object):
 
 
 class _FakeGradients(object):
-    def __init__(self, gradients, energy, mf):
+    def __init__(self, gradients, energy, mf) -> None:
         self._gradients = gradients
         self._energy = energy
         self._mf = mf
@@ -54,7 +55,7 @@ class _FakeGradients(object):
 
 
 class _FakeMF(object):
-    def __init__(self, gradients, energy, supports_gpu=True, missing_cupy=False, gpu_runtime_fail=False):
+    def __init__(self, gradients, energy, supports_gpu: bool=True, missing_cupy: bool=False, gpu_runtime_fail: bool=False) -> None:
         self._gradients = gradients
         self._energy = energy
         self._supports_gpu = supports_gpu
@@ -68,13 +69,13 @@ class _FakeMF(object):
     def kernel(self):
         return self._energy
 
-    def nuc_grad_method(self):
+    def nuc_grad_method(self) -> _FakeGradients:
         return _FakeGradients(self._gradients, self._energy, self)
 
     def make_rdm1(self):
         return np.eye(1, dtype=float)
 
-    def to_gpu(self):
+    def to_gpu(self) -> Self:
         if self._missing_cupy:
             raise ModuleNotFoundError("No module named cupy", name="cupy")
         if not self._supports_gpu:
@@ -86,14 +87,14 @@ class _FakeMF(object):
 
 
 class _FakePostHF(object):
-    def __init__(self, mf):
+    def __init__(self, mf) -> None:
         self._mf = mf
         self.e_tot = mf._energy - 0.01
 
     def kernel(self):
         return self.e_tot
 
-    def nuc_grad_method(self):
+    def nuc_grad_method(self) -> _FakeGradients:
         return _FakeGradients(self._mf._gradients, self.e_tot, self)
 
     def make_rdm1(self):
@@ -101,7 +102,7 @@ class _FakePostHF(object):
 
 
 class _FakeMP2(_FakePostHF):
-    def density_fit(self):
+    def density_fit(self) -> Self:
         return self
 
 
@@ -110,39 +111,39 @@ class _FakeCCSD(_FakePostHF):
 
 
 class _FakeModuleFactory(object):
-    def __init__(self, gradients, energy, supports_gpu=True, missing_cupy=False, gpu_runtime_fail=False):
+    def __init__(self, gradients, energy, supports_gpu: bool=True, missing_cupy: bool=False, gpu_runtime_fail: bool=False) -> None:
         self._gradients = gradients
         self._energy = energy
         self._supports_gpu = supports_gpu
         self._missing_cupy = missing_cupy
         self._gpu_runtime_fail = gpu_runtime_fail
 
-    def gto(self):
+    def gto(self) -> SimpleNamespace:
         return SimpleNamespace(M=lambda **kwargs: kwargs)
 
-    def scf(self):
+    def scf(self) -> SimpleNamespace:
         return SimpleNamespace(
             RHF=lambda mol: _FakeMF(self._gradients, self._energy, self._supports_gpu, self._missing_cupy, self._gpu_runtime_fail),
             UHF=lambda mol: _FakeMF(self._gradients, self._energy, self._supports_gpu, self._missing_cupy, self._gpu_runtime_fail),
         )
 
-    def dft(self):
+    def dft(self) -> SimpleNamespace:
         return SimpleNamespace(
             RKS=lambda mol: _FakeMF(self._gradients, self._energy, self._supports_gpu, self._missing_cupy, self._gpu_runtime_fail),
             UKS=lambda mol: _FakeMF(self._gradients, self._energy, self._supports_gpu, self._missing_cupy, self._gpu_runtime_fail),
         )
 
-    def mp(self):
+    def mp(self) -> SimpleNamespace:
         return SimpleNamespace(MP2=lambda mf: _FakeMP2(mf))
 
-    def cc(self):
+    def cc(self) -> SimpleNamespace:
         return SimpleNamespace(CCSD=lambda mf: _FakeCCSD(mf))
 
-    def numint(self):
+    def numint(self) -> _FakeNumInt:
         return _FakeNumInt()
 
 
-def _patch_imports(monkeypatch, factory):
+def _patch_imports(monkeypatch, factory: _FakeModuleFactory) -> None:
     def _fake_import(name):
         if name == "pyscf.gto":
             return factory.gto()
@@ -161,7 +162,7 @@ def _patch_imports(monkeypatch, factory):
     monkeypatch.setattr("wepy.runners.pyscf.importlib.import_module", _fake_import)
 
 
-def test_run_segment_updates_positions_and_quantum_fields(monkeypatch):
+def test_run_segment_updates_positions_and_quantum_fields(monkeypatch) -> None:
     gradients = np.array([[1.0, -2.0, 0.5]])
     energy = -1.23
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=gradients, energy=energy))
@@ -183,7 +184,7 @@ def test_run_segment_updates_positions_and_quantum_fields(monkeypatch):
     assert new_walker.weight == walker.weight
 
 
-def test_runner_pre_cycle_backend_override(monkeypatch):
+def test_runner_pre_cycle_backend_override(monkeypatch) -> None:
     gradients = np.array([[0.0, 0.0, 0.0]])
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=gradients, energy=-0.5))
 
@@ -202,7 +203,7 @@ def test_runner_pre_cycle_backend_override(monkeypatch):
     assert runner._cycle_platform_kwargs is None
 
 
-def test_rks_requires_xc(monkeypatch):
+def test_rks_requires_xc(monkeypatch) -> None:
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=np.zeros((1, 3)), energy=0.0))
 
     runner = PySCFRunner(method="RKS")
@@ -215,7 +216,7 @@ def test_rks_requires_xc(monkeypatch):
         runner.run_segment(walker, 1)
 
 
-def test_zero_segment_length_has_zero_step_index(monkeypatch):
+def test_zero_segment_length_has_zero_step_index(monkeypatch) -> None:
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=np.zeros((1, 3)), energy=0.0))
 
     runner = PySCFRunner()
@@ -229,7 +230,7 @@ def test_zero_segment_length_has_zero_step_index(monkeypatch):
     assert int(new_walker.state["segment_step_idx"][0]) == 0
 
 
-def test_pyscf_state_and_walker():
+def test_pyscf_state_and_walker() -> None:
     state = PySCFState(symbols=["He"], positions=np.array([[0.0, 0.0, 0.0]]))
     walker = PySCFWalker(state, 1.0)
 
@@ -239,7 +240,7 @@ def test_pyscf_state_and_walker():
         PySCFWalker(WalkerState(symbols=["He"], positions=np.array([[0.0, 0.0, 0.0]])), 1.0)
 
 
-def test_gpu_backend_requires_to_gpu(monkeypatch):
+def test_gpu_backend_requires_to_gpu(monkeypatch) -> None:
     _patch_imports(
         monkeypatch,
         _FakeModuleFactory(gradients=np.zeros((1, 3)), energy=0.0, supports_gpu=False),
@@ -257,7 +258,7 @@ def test_gpu_backend_requires_to_gpu(monkeypatch):
 
 
 
-def test_gpu_backend_missing_cupy_gives_actionable_error(monkeypatch):
+def test_gpu_backend_missing_cupy_gives_actionable_error(monkeypatch) -> None:
     _patch_imports(
         monkeypatch,
         _FakeModuleFactory(
@@ -280,7 +281,7 @@ def test_gpu_backend_missing_cupy_gives_actionable_error(monkeypatch):
 
 
 
-def test_gpu_runtime_error_can_fallback_to_cpu(monkeypatch):
+def test_gpu_runtime_error_can_fallback_to_cpu(monkeypatch) -> None:
     _patch_imports(
         monkeypatch,
         _FakeModuleFactory(
@@ -301,7 +302,7 @@ def test_gpu_runtime_error_can_fallback_to_cpu(monkeypatch):
     assert float(new_walker.state["energy"][0]) == -0.1
 
 
-def test_gpu_runtime_error_without_fallback_raises(monkeypatch):
+def test_gpu_runtime_error_without_fallback_raises(monkeypatch) -> None:
     _patch_imports(
         monkeypatch,
         _FakeModuleFactory(
@@ -322,7 +323,7 @@ def test_gpu_runtime_error_without_fallback_raises(monkeypatch):
         runner.run_segment(walker, 1)
 
 
-def test_worker_and_task_process_inject_hardware_kwargs():
+def test_worker_and_task_process_inject_hardware_kwargs() -> None:
     cpu_worker = object.__new__(PySCFCPUWorker)
     cpu_worker._attributes = {"num_threads": 4}
     cpu_worker._mapper_attributes = {}
@@ -362,7 +363,7 @@ def test_worker_and_task_process_inject_hardware_kwargs():
     }
 
 
-def test_run_segment_without_scanner(monkeypatch):
+def test_run_segment_without_scanner(monkeypatch) -> None:
     gradients = np.array([[0.5, 0.0, -0.5]])
     energy = -2.5
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=gradients, energy=energy))
@@ -379,7 +380,7 @@ def test_run_segment_without_scanner(monkeypatch):
     assert float(new_walker.state["energy"][0]) == energy
 
 
-def test_task_mapper_convenience_classes():
+def test_task_mapper_convenience_classes() -> None:
     cpu_mapper = PySCFCPUTaskMapper(num_workers=2, num_threads=3)
     assert cpu_mapper.walker_task_type.__name__ == "PySCFCPUWalkerTaskProcess"
     assert cpu_mapper.num_workers == 2
@@ -401,7 +402,7 @@ def test_task_mapper_convenience_classes():
 
 
 
-def test_steepest_descent_remains_deterministic(monkeypatch):
+def test_steepest_descent_remains_deterministic(monkeypatch) -> None:
     gradients = np.array([[1.0, -2.0, 0.5]])
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=gradients, energy=-1.0))
 
@@ -414,7 +415,7 @@ def test_steepest_descent_remains_deterministic(monkeypatch):
     new_walker = runner.run_segment(walker, 1)
     np.testing.assert_allclose(new_walker.state["positions"], np.array([[-0.1, 0.2, -0.05]]))
 
-def test_langevin_mode_is_stochastic_and_seeded(monkeypatch):
+def test_langevin_mode_is_stochastic_and_seeded(monkeypatch) -> None:
     gradients = np.array([[0.0, 0.0, 0.0]])
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=gradients, energy=-1.0))
 
@@ -443,12 +444,12 @@ def test_langevin_mode_is_stochastic_and_seeded(monkeypatch):
     assert not np.allclose(new_walker_a.state["positions"], np.zeros((1, 3)))
 
 
-def test_invalid_dynamics_mode_raises():
+def test_invalid_dynamics_mode_raises() -> None:
     with pytest.raises(ValueError, match="Unsupported PySCF dynamics mode"):
         PySCFRunner(dynamics_mode="not-a-mode")
 
 
-def test_mp2_method_runs_with_reference_hf(monkeypatch):
+def test_mp2_method_runs_with_reference_hf(monkeypatch) -> None:
     gradients = np.array([[0.1, 0.0, 0.0]])
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=gradients, energy=-1.0))
 
@@ -459,7 +460,7 @@ def test_mp2_method_runs_with_reference_hf(monkeypatch):
     assert float(new_walker.state["energy"][0]) < -1.0
 
 
-def test_ccsd_method_runs_with_reference_hf(monkeypatch):
+def test_ccsd_method_runs_with_reference_hf(monkeypatch) -> None:
     gradients = np.array([[0.1, 0.0, 0.0]])
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=gradients, energy=-1.0))
 
@@ -470,7 +471,7 @@ def test_ccsd_method_runs_with_reference_hf(monkeypatch):
     assert float(new_walker.state["energy"][0]) < -1.0
 
 
-def test_dfmp2_method_runs(monkeypatch):
+def test_dfmp2_method_runs(monkeypatch) -> None:
     gradients = np.array([[0.1, 0.0, 0.0]])
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=gradients, energy=-1.0))
 

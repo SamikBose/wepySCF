@@ -74,9 +74,9 @@ class WepyHDF5Reporter(FileReporter):
         bc_records=None,
         progress_records=None,
         # other settings
-        swmr_mode=False,
+        swmr_mode: bool=False,
         **kwargs
-    ):
+    ) -> None:
         """Constructor for the WepyHDF5Reporter.
 
         Parameters
@@ -344,7 +344,7 @@ class WepyHDF5Reporter(FileReporter):
         else:
             self.units = units
 
-    def init(self, continue_run=None, init_walkers=None, **kwargs):
+    def init(self, continue_run=None, init_walkers=None, **kwargs) -> None:
         # do the inherited stuff
         super().init(**kwargs)
 
@@ -482,7 +482,7 @@ class WepyHDF5Reporter(FileReporter):
         if self.mode == "w":
             self.set_mode(0, "r+")
 
-    def cleanup(self, **kwargs):
+    def cleanup(self, **kwargs) -> None:
         # it should be already closed at this point but just in case
         if not self.wepy_h5.closed:
             self.wepy_h5.close()
@@ -502,7 +502,7 @@ class WepyHDF5Reporter(FileReporter):
         resampling_data=None,
         resampler_data=None,
         **kwargs
-    ):
+    ) -> None:
         n_walkers = len(new_walkers)
 
         # determine which fields to save. If there were none specified
@@ -617,7 +617,7 @@ class WepyHDF5Reporter(FileReporter):
         super().report(**kwargs)
 
     # sporadic
-    def _report_warping(self, cycle_idx, warping_data):
+    def _report_warping(self, cycle_idx, warping_data) -> None:
         """Method to write warping specific information.
 
         Parameters
@@ -635,7 +635,7 @@ class WepyHDF5Reporter(FileReporter):
                 self.wepy_run_idx, cycle_idx, warping_data
             )
 
-    def _report_bc(self, cycle_idx, bc_data):
+    def _report_bc(self, cycle_idx, bc_data) -> None:
         """Method to write boundary condition update specific information.
 
         Parameters
@@ -651,7 +651,7 @@ class WepyHDF5Reporter(FileReporter):
         if len(bc_data) > 0:
             self.wepy_h5.extend_cycle_bc_records(self.wepy_run_idx, cycle_idx, bc_data)
 
-    def _report_resampler(self, cycle_idx, resampler_data):
+    def _report_resampler(self, cycle_idx, resampler_data) -> None:
         """Method to write resampler update specific information.
 
         Parameters
@@ -671,7 +671,7 @@ class WepyHDF5Reporter(FileReporter):
 
     # the resampling records are provided every cycle but they need to
     # be saved as sporadic because of the variable number of walkers
-    def _report_resampling(self, cycle_idx, resampling_data):
+    def _report_resampling(self, cycle_idx, resampling_data) -> None:
         """Method to write resampling specific information.
 
         Parameters
@@ -689,7 +689,7 @@ class WepyHDF5Reporter(FileReporter):
         )
 
     # continual
-    def _report_progress(self, cycle_idx, progress_data):
+    def _report_progress(self, cycle_idx, progress_data) -> None:
         """Method to write progress specific information.
 
         Parameters

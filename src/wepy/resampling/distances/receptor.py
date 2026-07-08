@@ -49,7 +49,7 @@ class ReceptorDistance(Distance):
 
     """
 
-    def __init__(self, ligand_idxs, binding_site_idxs, ref_state):
+    def __init__(self, ligand_idxs, binding_site_idxs, ref_state) -> None:
         """Construct a distance metric.
 
         Parameters

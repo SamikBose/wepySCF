@@ -14,7 +14,7 @@ from wepy_tools.sim_makers.openmm import OpenMMToolsTestSysSimMaker
 # we define a simple distance metric for this system, assuming the
 # positions are in a 'positions' field
 class PairDistance(Distance):
-    def __init__(self, metric=euclidean):
+    def __init__(self, metric=euclidean) -> None:
         self.metric = metric
 
     def image(self, state):
@@ -68,7 +68,7 @@ class LennardJonesPairOpenMMSimMaker(OpenMMToolsTestSysSimMaker):
 
         return bc
 
-    def __init__(self):
+    def __init__(self) -> None:
         # must set this here since we need it to generate the state,
         # will get called again in the superclass method
         self.getState_kwargs = dict(GET_STATE_KWARG_DEFAULTS)

@@ -73,7 +73,7 @@ to set this value.
 """
 
 
-def resampling_panel(resampling_records, is_sorted=False):
+def resampling_panel(resampling_records, is_sorted: bool=False):
     """Converts an unordered collection of resampling records into a
     structured array (lists) corresponding to cycles and resampling
     steps within cycles.
@@ -345,7 +345,7 @@ def parent_table_discontinuities(
     return new_parent_table
 
 
-def parent_cycle_discontinuities(parent_idxs, discontinuities):
+def parent_cycle_discontinuities(parent_idxs: int, discontinuities: list[bool]):
     parent_row = copy(parent_idxs)
     for walker_idx, disc in enumerate(discontinuities):
         # if there was a discontinuity in this walker, we need to
@@ -361,7 +361,7 @@ def parent_cycle_discontinuities(parent_idxs, discontinuities):
     return parent_row
 
 
-def ancestors(parent_table, cycle_idx, walker_idx, ancestor_cycle=0):
+def ancestors(parent_table, cycle_idx: int, walker_idx: int, ancestor_cycle=0):
     """Returns the lineage of ancestors as walker indices leading up to
     the given walker.
 
@@ -483,7 +483,7 @@ class ParentForest:
         self,
         contig=None,
         parent_table=None,
-    ):
+    ) -> None:
         """Constructs a parent forest from either a Contig object or parent table.
 
         Either a contig or parent_table must be given but not both.
@@ -551,7 +551,7 @@ class ParentForest:
                 if edge is not None:
                     self.graph.add_edge(*edge, **edges_attrs[i])
 
-    def _make_child_parent_edges(self, step_idx, parent_idxs):
+    def _make_child_parent_edges(self, step_idx: int, parent_idxs):
         """Generate edge_ids and edge attributes for an array of parent indices.
 
         Parameters
@@ -616,7 +616,7 @@ class ParentForest:
         return self._graph
 
     @property
-    def roots(self):
+    def roots(self) -> list[tuple[int, int]]:
         """Returns the roots of all the trees in this forest."""
         return self._roots
 
@@ -633,12 +633,12 @@ class ParentForest:
         return trees
 
     @property
-    def n_steps(self):
+    def n_steps(self) -> int:
         """Number of steps of resampling in the parent forest."""
 
         return len(self.parent_table)
 
-    def step(self, step_idx):
+    def step(self, step_idx: int):
         """Get the nodes at the step (level of the tree).
 
         Parameters
@@ -701,7 +701,7 @@ class ParentForest:
 
     #     return node_walkers
 
-    def set_node_attributes(self, attribute_key, node_attribute_dict):
+    def set_node_attributes(self, attribute_key, node_attribute_dict) -> None:
         """Set attributes for all nodes for a single key.
 
         Parameters
@@ -717,7 +717,7 @@ class ParentForest:
         for node_id, value in node_attribute_dict.items():
             self.graph.nodes[node_id][attribute_key] = value
 
-    def set_attrs_by_array(self, attribute_key, values):
+    def set_attrs_by_array(self, attribute_key, values) -> None:
         """Set node attributes on a stepwise basis using structural indices.
 
         Expects a array/list that is n_steps long and has the

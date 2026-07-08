@@ -44,7 +44,7 @@ SYSTEMS_TEST = [
 PLATFORMS_TEST = ["OpenCL"]  # ['Reference', 'CPU', 'OpenCL']
 
 
-def get_sim_maker(spec):
+def get_sim_maker(spec) -> LennardJonesPairOpenMMSimMaker | LysozymeImplicitOpenMMSimMaker:
     if spec == "LennardJonesPair":
         sim_maker = LennardJonesPairOpenMMSimMaker()
     elif spec == "LysozymeImplicit":
@@ -73,7 +73,7 @@ class TestBenchmark:
         system,
         mapper,
         benchmark,
-    ):
+    ) -> None:
         # certain combinations don't make sense so we skip them
         if mapper == "Mapper" and n_workers != 1:
             pytest.skip("The Mapper work mapper only works with a single worker.")
@@ -98,14 +98,14 @@ class TestBenchmark:
 # - [ ] SimpleSimMaker
 
 
-def gen_walkers(n_args):
+def gen_walkers(n_args) -> list[Walker]:
     args = range(n_args)
 
     return [Walker(WalkerState(**{"num": arg}), 1 / len(args)) for arg in args]
 
 
 # test basic functionality
-def task_pass(walker):
+def task_pass(walker) -> Walker:
     # simulate it actually taking some time
     time.sleep(3)
     n = walker.state["num"]
@@ -114,7 +114,7 @@ def task_pass(walker):
 
 class TestSimpleBenchmark:
     @pytest.mark.parametrize("n_walkers", N_WALKER_TESTS)
-    def test_Mapper(self, n_walkers, benchmark):
+    def test_Mapper(self, n_walkers, benchmark) -> None:
         mapper = Mapper(segment_func=task_pass)
 
         mapper.init()
@@ -128,7 +128,7 @@ class TestSimpleBenchmark:
 
     @pytest.mark.parametrize("n_walkers", N_WALKER_TESTS)
     @pytest.mark.parametrize("n_workers", N_WORKER_TESTS)
-    def test_WorkerMapper(self, n_walkers, n_workers, benchmark):
+    def test_WorkerMapper(self, n_walkers, n_workers, benchmark) -> None:
         mapper = WorkerMapper(
             segment_func=task_pass, num_workers=n_workers, worker_type=Worker
         )
@@ -144,7 +144,7 @@ class TestSimpleBenchmark:
 
     @pytest.mark.parametrize("n_walkers", N_WALKER_TESTS)
     @pytest.mark.parametrize("n_workers", N_WORKER_TESTS)
-    def test_TaskMapper(self, n_walkers, n_workers, benchmark):
+    def test_TaskMapper(self, n_walkers, n_workers, benchmark) -> None:
         mapper = TaskMapper(
             segment_func=task_pass,
             num_workers=n_workers,
@@ -153,7 +153,7 @@ class TestSimpleBenchmark:
 
         mapper.init()
 
-        def thunk():
+        def thunk() -> list[None]:
             return mapper.map(gen_walkers(n_walkers))
 
         result = benchmark(thunk)

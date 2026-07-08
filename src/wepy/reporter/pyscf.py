@@ -21,7 +21,7 @@ Average Potential (Hartree): {{ avg_potential }}
 Average Kinetic (Hartree): {{ avg_kinetic }}
 """
 
-    def __init__(self, runner=None, backend="cpu", integrator=None, dt=None, temperature_kelvin=None, **kwargs):
+    def __init__(self, runner=None, backend: str="cpu", integrator=None, dt=None, temperature_kelvin=None, **kwargs) -> None:
         if "name" not in kwargs:
             kwargs["name"] = "PySCFRunner"
 
@@ -42,7 +42,7 @@ Average Kinetic (Hartree): {{ avg_kinetic }}
         self._potentials = []
         self._kinetics = []
 
-    def update_values(self, **kwargs):
+    def update_values(self, **kwargs) -> None:
         potentials = []
         kinetics = []
 
@@ -66,7 +66,7 @@ Average Kinetic (Hartree): {{ avg_kinetic }}
         if kinetics:
             self._kinetics.extend(kinetics)
 
-    def gen_fields(self, **kwargs):
+    def gen_fields(self, **kwargs) -> dict[str, str]:
         fields = super().gen_fields(**kwargs)
 
         avg_potential = float(np.mean(self._potentials)) if self._potentials else np.nan
@@ -107,7 +107,7 @@ class PySCFHDF5Reporter(WepyHDF5Reporter):
         wepy_hdf5_path=None,
         file_paths=None,
         **kwargs,
-    ):
+    ) -> None:
         if save_fields is None:
             save_fields = self.DEFAULT_SAVE_FIELDS
 

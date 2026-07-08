@@ -62,7 +62,7 @@ def project_slug():
         return PROJECT_SLUG
 
 @task
-def init(cx):
+def init(cx) -> None:
 
     # install the versioneer files
 
@@ -71,25 +71,25 @@ def init(cx):
            warn=True)
 
 @task
-def clean_dist(cx):
+def clean_dist(cx) -> None:
     """Remove all build products."""
 
     cx.run("python setup.py clean")
     cx.run("rm -rf dist build */*.egg-info *.egg-info")
 
 @task
-def clean_cache(cx):
+def clean_cache(cx) -> None:
     """Remove all of the __pycache__ files in the packages."""
     cx.run('find . -name "__pycache__" -exec rm -r {} +')
 
 @task
-def clean_docs(cx):
+def clean_docs(cx) -> None:
     """Remove all documentation build products"""
 
     docs_clean(cx)
 
 @task
-def clean_website(cx):
+def clean_website(cx) -> None:
     """Remove all local website build products"""
     cx.run("rm -rf docs/*")
 
@@ -115,14 +115,14 @@ def clean_website(cx):
         cx.run(f"rm -rf {thing}")
 
 @task(pre=[clean_cache, clean_dist, clean_docs, clean_website])
-def clean(cx):
+def clean(cx) -> None:
     pass
 
 
 ### Docs
 
 @task
-def docs_clean(cx):
+def docs_clean(cx) -> None:
 
     cx.run("cd sphinx && make clean")
     cx.run("rm -rf sphinx/_build")
@@ -134,18 +134,18 @@ def docs_clean(cx):
     cx.run("rm -rf reports/benchmarks/asv/_html")
 
 @task
-def docs_regressions(cx):
+def docs_regressions(cx) -> None:
 
     with cx.cd("benchmarks"):
         cx.run("asv publish", warn=True)
 
 @task
-def docs_coverage(cx):
+def docs_coverage(cx) -> None:
     cx.run("coverage html -d reports/coverage/_html/index.html",
            warn=True)
 
 @task
-def docs_complexity(cx):
+def docs_complexity(cx) -> None:
 
     os.makedirs(f"{REPORTS_DIR}/code_quality/_html",
                 exist_ok=True)
@@ -157,12 +157,12 @@ def docs_complexity(cx):
     docs_coverage,
     docs_complexity,
 ])
-def docs_reports(cx):
+def docs_reports(cx) -> None:
     """Build all of the reports from source."""
     pass
 
 @task(pre=[docs_clean, docs_reports])
-def docs_build(cx):
+def docs_build(cx) -> None:
     """Buld the documentation"""
 
     # make sure the 'source' folder exists
@@ -482,14 +482,14 @@ def docs_build(cx):
         )
 
 @task(pre=[docs_build])
-def docs_serve(cx):
+def docs_serve(cx) -> None:
     """Local server for documenation"""
     cx.run("python -m http.server -d sphinx/_build/html 8022")
 
 ### Website
 
 @task(pre=[clean_docs, clean_website, docs_build])
-def website_serve(cx):
+def website_serve(cx) -> None:
     """Serve the main web page locally for development."""
 
     # TODO: implement using Nikola
@@ -500,7 +500,7 @@ def website_serve(cx):
 
 # STUB: @task(pre=[clean_docs, docs_build])
 @task
-def website_deploy(cx):
+def website_deploy(cx) -> None:
     """Deploy the documentation onto the internet."""
 
     # use the ghp-import tool which handles the branch switching to
@@ -516,7 +516,7 @@ def website_deploy(cx):
 # the same schema as examples to give some order to it.
 
 @task
-def new_jig(cx, name=None, template="org", env='venv_blank'):
+def new_jig(cx, name=None, template: str="org", env: str='venv_blank') -> None:
     """Create a new jig.
 
     Can choose between the following templates:
@@ -567,7 +567,7 @@ def new_jig(cx, name=None, template="org", env='venv_blank'):
     print(f"New example created at: {target_path}")
 
 @task
-def pin_jig(cx, name=None):
+def pin_jig(cx, name=None) -> None:
     """Pin the deps for an example or all of them if 'name' is None."""
 
     path = Path('jigs') / name / 'env'
@@ -578,7 +578,7 @@ def pin_jig(cx, name=None):
     cx.run(f"inv env.deps-pin-path -p {path}")
 
 @task
-def env_jig(cx, name=None):
+def env_jig(cx, name=None) -> None:
     """Make a the example env in its local dir."""
 
     if name is None:
@@ -597,12 +597,12 @@ def env_jig(cx, name=None):
 
 
 @task
-def tests_benchmarks(cx):
+def tests_benchmarks(cx) -> None:
     cx.run("pytest -m 'not interactive' tests/test_benchmarks",
            warn=True)
 
 @task
-def tests_integration(cx, tag=None):
+def tests_integration(cx, tag=None) -> None:
 
     if tag is None:
         cx.run(f"coverage run -m pytest -m 'not interactive' tests/test_integration",
@@ -613,7 +613,7 @@ def tests_integration(cx, tag=None):
 
 
 @task
-def tests_unit(cx, tag=None):
+def tests_unit(cx, tag=None) -> None:
 
     if tag is None:
         cx.run(f"coverage run -m pytest -m 'not interactive' tests/test_unit",
@@ -624,13 +624,13 @@ def tests_unit(cx, tag=None):
 
 
 @task
-def tests_interactive(cx):
+def tests_interactive(cx) -> None:
     """Run the interactive tests so we can play with things."""
     cx.run("pytest -m 'interactive'",
            warn=True)
 
 @task()
-def tests_all(cx, tag=None):
+def tests_all(cx, tag=None) -> None:
     """Run all the automated tests. No benchmarks.
 
     There are different kinds of nodes that we can run on that
@@ -649,7 +649,7 @@ def tests_all(cx, tag=None):
     tests_integration(cx, tag=tag)
 
 @task
-def tests_nox(cx):
+def tests_nox(cx) -> None:
 
     if ENV_METHOD == 'pyenv':
 
@@ -671,7 +671,7 @@ def tests_nox(cx):
 ### Code & Test Quality
 
 @task
-def docstrings_report(cx):
+def docstrings_report(cx) -> None:
 
     cx.run("mkdir -p reports/docstring_coverage")
     cx.run("interrogate -o reports/docstring_coverage/src.interrogate.txt -vv src")
@@ -679,7 +679,7 @@ def docstrings_report(cx):
     # TODO add it for tests and docs etc.
 
 @task
-def coverage_report(cx):
+def coverage_report(cx) -> None:
     # cx.run("coverage report")
     cx.run("coverage xml -o reports/coverage/coverage.xml",
            warn=True)
@@ -688,13 +688,13 @@ def coverage_report(cx):
     )
 
 @task
-def coverage_serve(cx):
+def coverage_serve(cx) -> None:
     cx.run("python -m http.server -d reports/coverage/html 8020",
            asynchronous=True)
 
 
 @task
-def lint(cx):
+def lint(cx) -> None:
 
     cx.run(f"mkdir -p {REPORTS_DIR}/lint")
 
@@ -703,7 +703,7 @@ def lint(cx):
            warn=True)
 
 @task
-def complexity(cx):
+def complexity(cx) -> None:
     """Analyze the complexity of the project."""
 
     cx.run(f"mkdir -p {REPORTS_DIR}/code_quality")
@@ -717,23 +717,23 @@ def complexity(cx):
     # cx.run(f"(cd {REPORTS_DIR}/code_quality; lizard -EWordCount src/project_slug() > /dev/null)")
 
 @task
-def complexity_serve(cx):
+def complexity_serve(cx) -> None:
     cx.run("python -m http.server -d reports/conde_quality/lizard.html 8021",
            asynchronous=True)
 
 @task(pre=[coverage_report, complexity, lint])
-def quality(cx):
+def quality(cx) -> None:
     pass
 
 @task(pre=[coverage_serve, complexity_serve])
-def quality_serve(cx):
+def quality_serve(cx) -> None:
     pass
 
 
 ### Profiling
 
 @task
-def profile(cx):
+def profile(cx) -> None:
     NotImplemented
 
 ### Performance Benchmarks
@@ -741,7 +741,7 @@ def profile(cx):
 ## regressions
 
 @task
-def regressions_all(cx):
+def regressions_all(cx) -> None:
     """Run regression benchmarks for all of the hashes/tags in the
     benchmarks/benchmark_selection.list file"""
 
@@ -749,7 +749,7 @@ def regressions_all(cx):
         cx.run("asv run HASHFILE:benchmark_selection.list")
 
 @task
-def regression_current(cx):
+def regression_current(cx) -> None:
 
     with cx.cd("benchmarks"):
         cx.run("asv run")
@@ -758,13 +758,13 @@ def regression_current(cx):
 # def asv_update
 
 @task
-def benchmark_adhoc(cx):
+def benchmark_adhoc(cx) -> None:
     """An ad hoc benchmark that will not be saved."""
 
     cx.run("pytest benchmarks/pytest_benchmark/test_benchmarks")
 
 @task
-def benchmark_save(cx):
+def benchmark_save(cx) -> None:
     """Run a proper benchmark that will be saved into the metrics for regression testing etc."""
 
     run_command = \
@@ -776,7 +776,7 @@ f"""pytest --benchmark-autosave --benchmark-save-data \
     cx.run(run_command)
 
 @task
-def benchmark_compare(cx):
+def benchmark_compare(cx) -> None:
 
     # TODO logic for comparing across the last two
 
@@ -794,7 +794,7 @@ def benchmark_compare(cx):
     cx.run(run_command)
 
 @task
-def version_which(cx):
+def version_which(cx) -> None:
     """Tell me what version the project is at."""
 
     # get the current version
@@ -815,7 +815,7 @@ def version_which(cx):
 # Debian Package (with `dh_virtualenv`)
 
 @task
-def update_tools(cx):
+def update_tools(cx) -> None:
 
     # WKRD, FIXME: because new versions of pip are incompatible with
     # pip-tools we can't blindly update in envs. Want to make a
@@ -827,24 +827,24 @@ def update_tools(cx):
     # cx.run("pip install --upgrade pip setuptools wheel twine")
 
 @task(pre=[update_tools])
-def build_sdist(cx):
+def build_sdist(cx) -> None:
     """Make a source distribution"""
     cx.run("python setup.py sdist")
 
 @task(pre=[update_tools])
-def build_bdist(cx):
+def build_bdist(cx) -> None:
     """Make a binary wheel distribution."""
 
     cx.run("python setup.py bdist_wheel")
 
 # STUB
 @task
-def conda_build(cx):
+def conda_build(cx) -> None:
 
     cx.run("conda-build conda-recipe")
 
 @task(pre=[build_sdist, build_bdist,])
-def build(cx):
+def build(cx) -> None:
     """Build all the python distributions supported."""
     pass
 
@@ -862,7 +862,7 @@ def build(cx):
 @task(pre=[clean_dist, build_sdist])
 def publish_test_pypi(cx,
                       version=None,
-):
+) -> None:
 
     assert version is not None
 
@@ -873,7 +873,7 @@ def publish_test_pypi(cx,
            "dist/*")
 
 @task(pre=[clean_dist, update_tools, build_sdist])
-def publish_test(cx):
+def publish_test(cx) -> None:
 
     publish_test_pypi(cx,
                       version=VERSION)
@@ -882,7 +882,7 @@ def publish_test(cx):
 
 
 @task(pre=[clean_dist, build])
-def publish_pypi(cx, version=None):
+def publish_pypi(cx, version=None) -> None:
 
     assert version is not None
 
@@ -900,6 +900,6 @@ def publish_pypi(cx, version=None):
 #     pass
 
 @task(pre=[clean_dist, update_tools, build])
-def publish(cx):
+def publish(cx) -> None:
 
     publish_pypi(cx, version=VERSION)

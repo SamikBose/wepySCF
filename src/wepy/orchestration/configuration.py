@@ -1,6 +1,7 @@
 # Standard Library
 import itertools as it
 import logging
+from typing import Self
 
 logger = logging.getLogger(__name__)
 # Standard Library
@@ -42,7 +43,7 @@ class Configuration:
         monitor_partial_kwargs=None,
         # apparatus configuration options
         apparatus_opts=None,
-    ):
+    ) -> None:
         ## reporter stuff
 
         # reporters and partial kwargs
@@ -177,7 +178,7 @@ class Configuration:
         return self._work_dir
 
     @property
-    def narration(self):
+    def narration(self) -> str:
         """ """
         return self._narration
 
@@ -192,7 +193,7 @@ class Configuration:
         return self._reporters
 
     @property
-    def work_mapper_class(self):
+    def work_mapper_class(self) -> type[WorkerMapper]:
         """ """
         return self._work_mapper_class
 
@@ -202,7 +203,7 @@ class Configuration:
         return self._work_mapper_partial_kwargs
 
     @property
-    def work_mapper(self):
+    def work_mapper(self) -> WorkerMapper:
         """ """
         return self._work_mapper
 
@@ -301,7 +302,7 @@ class Configuration:
         return reporters
 
     # TODO: remove, not used
-    def _gen_work_mapper(self):
+    def _gen_work_mapper(self) -> WorkerMapper:
         """ """
 
         work_mapper = self._work_mapper_class(n_workers=self._default_n_workers)
@@ -314,11 +315,11 @@ class Configuration:
         return deepcopy(self._reporters)
 
     @property
-    def work_mapper(self):
+    def work_mapper(self) -> WorkerMapper:
         """ """
         return deepcopy(self._work_mapper)
 
-    def reparametrize(self, **kwargs):
+    def reparametrize(self, **kwargs) -> Self:
         """
 
         Parameters

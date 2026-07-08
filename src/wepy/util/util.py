@@ -12,7 +12,7 @@ import warnings
 import numpy as np
 
 
-def set_loglevel(loglevel):
+def set_loglevel(loglevel) -> None:
     """
 
     \b

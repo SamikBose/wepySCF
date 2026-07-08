@@ -20,13 +20,13 @@ lj_fixtures = [
 
 
 @pytest.mark.interactive
-def test_orch_workdir(lj_orchestrator_defaults_file):
+def test_orch_workdir(lj_orchestrator_defaults_file) -> None:
     pdb.set_trace()
 
 
 @pytest.mark.usefixtures(*lj_fixtures)
 class TestCLI:
-    def test_ls_runs(self, lj_orch_file_orchestrated_run):
+    def test_ls_runs(self, lj_orch_file_orchestrated_run) -> None:
         orch_path = lj_orch_file_orchestrated_run.orch_path
 
         runner = CliRunner()
@@ -35,7 +35,7 @@ class TestCLI:
 
         assert result.exit_code == 0
 
-    def test_ls_snapshots(self, lj_orch_file_orchestrated_run):
+    def test_ls_snapshots(self, lj_orch_file_orchestrated_run) -> None:
         orch_path = lj_orch_file_orchestrated_run.orch_path
 
         runner = CliRunner()
@@ -44,7 +44,7 @@ class TestCLI:
 
         assert result.exit_code == 0
 
-    def test_ls_configs(self, lj_orch_file_orchestrated_run):
+    def test_ls_configs(self, lj_orch_file_orchestrated_run) -> None:
         orch_path = lj_orch_file_orchestrated_run.orch_path
 
         runner = CliRunner()
@@ -53,7 +53,7 @@ class TestCLI:
 
         assert result.exit_code == 0
 
-    def test_run_orch(self, function_tmp_path_factory, lj_orchestrator_defaults_file):
+    def test_run_orch(self, function_tmp_path_factory, lj_orchestrator_defaults_file) -> None:
         workdir = str(function_tmp_path_factory.mktemp("test_run"))
 
         n_steps = str(100)
@@ -83,7 +83,7 @@ class TestCLI:
 
     def test_run_snapshot(
         self, function_tmp_path_factory, lj_snapshot, lj_configuration
-    ):
+    ) -> None:
         workdir = str(function_tmp_path_factory.mktemp("test_run"))
 
         # write the snapshot to the file system
@@ -122,7 +122,7 @@ class TestCLI:
 
     def test_get_snapshot(
         self, function_tmp_path_factory, lj_orchestrator_defaults_file
-    ):
+    ) -> None:
         workdir = str(function_tmp_path_factory.mktemp("test_run"))
 
         orch_path = lj_orchestrator_defaults_file.orch_path
@@ -141,7 +141,7 @@ class TestCLI:
         assert result.exit_code == 0
         assert osp.exists("{}.snap.dill.pkl".format(start_hash))
 
-    def test_get_config(self, function_tmp_path_factory, lj_orchestrator_defaults_file):
+    def test_get_config(self, function_tmp_path_factory, lj_orchestrator_defaults_file) -> None:
         workdir = str(function_tmp_path_factory.mktemp("test_run"))
 
         orch_path = lj_orchestrator_defaults_file.orch_path
@@ -160,7 +160,7 @@ class TestCLI:
         assert result.exit_code == 0
         assert osp.exists("{}.config.dill.pkl".format(config_hash))
 
-    def test_get_run(self, function_tmp_path_factory, lj_orch_file_orchestrated_run):
+    def test_get_run(self, function_tmp_path_factory, lj_orch_file_orchestrated_run) -> None:
         workdir = str(function_tmp_path_factory.mktemp("test_run"))
 
         orch_path = lj_orch_file_orchestrated_run.orch_path
@@ -184,7 +184,7 @@ class TestCLI:
         function_tmp_path_factory,
         lj_orch_file_orchestrated_run,
         lj_orch_file_other_orchestrated_run,
-    ):
+    ) -> None:
         savedir = function_tmp_path_factory.mktemp("reconciliation")
         h5_target = str(savedir / "reconciled.wepy.h5")
         orch_target = str(savedir / "reconciled.orch.sqlite")

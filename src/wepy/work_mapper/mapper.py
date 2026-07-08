@@ -25,7 +25,7 @@ PY_MAP = map
 class ABCMapper(object):
     """Abstract base class for a Mapper."""
 
-    def __init__(self, segment_func=None, **kwargs):
+    def __init__(self, segment_func: float | str | None=None, **kwargs) -> None:
         """Constructor for the Mapper class. No arguments are required.
 
         Parameters
@@ -47,7 +47,7 @@ class ABCMapper(object):
     def attributes(self, key):
         return self._attributes[key]
 
-    def init(self, segment_func=None, **kwargs):
+    def init(self, segment_func: str | None=None, **kwargs) -> None:
         """Runtime initialization and setting of function to map over walkers.
 
         Parameters
@@ -75,7 +75,7 @@ class ABCMapper(object):
         """The function that will be called for new data in the `map` method."""
         return self._func
 
-    def cleanup(self, **kwargs):
+    def cleanup(self, **kwargs) -> None:
         """Runtime post-simulation tasks.
 
         This is run either at the end of a successful simulation or
@@ -97,7 +97,7 @@ class ABCMapper(object):
 class Mapper(ABCMapper):
     """Basic non-parallel reference implementation of a mapper."""
 
-    def __init__(self, segment_func=None, **kwargs):
+    def __init__(self, segment_func=None, **kwargs) -> None:
         """Constructor for the Mapper class. No arguments are required.
 
         Parameters
@@ -207,7 +207,7 @@ class Mapper(ABCMapper):
 class Task(object):
     """Class that composes a function and arguments."""
 
-    def __init__(self, func, *args, **kwargs):
+    def __init__(self, func, *args, **kwargs) -> None:
         """Constructor for Task.
 
         Parameters
@@ -245,7 +245,7 @@ class WrapperException(Exception):
         # must be kwargs so we can pickle it (I know weird...)
         wrapped_exception=None,
         tb=None,
-    ):
+    ) -> None:
         super().__init__(message)
 
         # save the exception with the traceback
@@ -259,8 +259,8 @@ class TaskException(WrapperException):
 
 class ABCWorkerMapper(ABCMapper):
     def __init__(
-        self, num_workers=None, segment_func=None, proc_start_method="fork", **kwargs
-    ):
+        self, num_workers: float | str | None=None, segment_func: Exception | None=None, proc_start_method="fork", **kwargs
+    ) -> None:
         """Constructor for WorkerMapper.
 
 
@@ -291,7 +291,7 @@ class ABCWorkerMapper(ABCMapper):
         if num_workers is not None:
             self._worker_segment_times = {i: [] for i in range(self.num_workers)}
 
-    def init(self, num_workers=None, segment_func=None, **kwargs):
+    def init(self, num_workers: str | None=None, segment_func=None, **kwargs) -> None:
         """Runtime initialization and setting of function to map over walkers.
 
         Parameters
@@ -324,7 +324,7 @@ class ABCWorkerMapper(ABCMapper):
         # update the worker segment times
         self._worker_segment_times = {i: [] for i in range(self.num_workers)}
 
-    def cleanup(self, **kwargs):
+    def cleanup(self, **kwargs) -> None:
         # ALERT: is this all we need to do? I have a hunch there is
         # more caveats, but these context objects are not really
         # documented
@@ -350,7 +350,7 @@ class ABCWorkerMapper(ABCMapper):
         """
         return self._worker_segment_times
 
-    def _make_task(self, *args, **kwargs):
+    def _make_task(self, *args, **kwargs) -> Task:
         """Generate a task from 'segment_func' attribute.
 
         Similar to partial evaluation (or currying).
@@ -394,12 +394,12 @@ class WorkerMapper(ABCWorkerMapper):
 
     def __init__(
         self,
-        num_workers=None,
+        num_workers: float | str | None=None,
         worker_type=None,
         worker_attributes=None,
         segment_func=None,
         **kwargs
-    ):
+    ) -> None:
         """Constructor for WorkerMapper.
 
 
@@ -441,7 +441,7 @@ class WorkerMapper(ABCWorkerMapper):
             self._worker_type = worker_type
 
     @property
-    def worker_type(self):
+    def worker_type(self) -> type[Worker]:
         """The callable that generates a worker object.
 
         Typically this is just the type from the class definition of
@@ -450,7 +450,7 @@ class WorkerMapper(ABCWorkerMapper):
         """
         return self._worker_type
 
-    def init(self, num_workers=None, segment_func=None, **kwargs):
+    def init(self, num_workers=None, segment_func=None, **kwargs) -> None:
         """Runtime initialization and setting of function to map over walkers.
 
         Parameters
@@ -520,12 +520,12 @@ class WorkerMapper(ABCWorkerMapper):
         # for SIGTERM signals that will clean up our children cleanly
         signal.signal(signal.SIGTERM, self._sigterm_shutdown)
 
-    def _sigterm_shutdown(self, signum, frame):
+    def _sigterm_shutdown(self, signum, frame) -> None:
         logger.critical("Received external SIGTERM, forcing shutdown.")
 
         self.force_shutdown()
 
-    def force_shutdown(self, **kwargs):
+    def force_shutdown(self, **kwargs) -> None:
         logger.critical("Forcing shutdown")
 
         # our primary job is to shut down all of the running processes
@@ -616,7 +616,7 @@ class WorkerMapper(ABCWorkerMapper):
                 )
             )
 
-    def cleanup(self, **kwargs):
+    def cleanup(self, **kwargs) -> None:
         """Runtime post-simulation tasks.
 
         This is run either at the end of a successful simulation or
@@ -747,9 +747,9 @@ class Worker(mp.Process):
         exception_queue,
         interrupt_connection,
         mapper_attributes=None,
-        log_level="INFO",
+        log_level: str="INFO",
         **kwargs
-    ):
+    ) -> None:
         """Constructor for the Worker class.
 
         Parameters
@@ -816,7 +816,7 @@ class Worker(mp.Process):
         """Dictionary of attributes of the worker."""
         return self._mapper_attributes
 
-    def run(self):
+    def run(self) -> None:
         logger.debug("{}: starting to run".format(self.name))
 
         # try to run the worker and it's task, except either class of
@@ -890,7 +890,7 @@ class Worker(mp.Process):
             # then reraise the exception so it can be caught
             # raise run_exception
 
-    def _sigterm_shutdown(self, signum, frame):
+    def _sigterm_shutdown(self, signum, frame) -> None:
         logger.debug("Received external SIGTERM kill command.")
 
         logger.debug("Alerting mapper that this will be honored.")
@@ -908,7 +908,7 @@ class Worker(mp.Process):
 
         logger.debug("Shutting down process")
 
-    def _shutdown(self):
+    def _shutdown(self) -> None:
         logger.debug("Received SIGTERM kill command from mapper")
 
         logger.debug("Acknowledging kill request will be honored")
@@ -920,7 +920,7 @@ class Worker(mp.Process):
 
         logger.debug("Shutting down process")
 
-    def _run_worker(self):
+    def _run_worker(self) -> None:
         # run the logic associated with communication and liveness of
         # the worker process itself, this is not necessarily a fatal
         # (critical) error and restarting a worker might resolve the

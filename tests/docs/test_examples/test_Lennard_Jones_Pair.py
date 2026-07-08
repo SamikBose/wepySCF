@@ -11,7 +11,7 @@ from pytest_shutil.run import run, run_as_main
 ### Tests
 
 
-def test_dir(datadir_factory, printer):
+def test_dir(datadir_factory, printer) -> None:
     example = "Lennard_Jones_Pair"
 
     datadir = datadir_factory.mkdatadir(f"../_examples/{example}")
@@ -20,7 +20,7 @@ def test_dir(datadir_factory, printer):
     assert (datadir / "source").is_dir()
 
 
-def test_trivial_run(datadir_factory, printer):
+def test_trivial_run(datadir_factory, printer) -> None:
     example = "Lennard_Jones_Pair"
 
     datadir = datadir_factory.mkdatadir(f"../_examples/{example}")
@@ -34,7 +34,7 @@ def test_trivial_run(datadir_factory, printer):
         )
 
 
-def test_sim_maker_run(datadir_factory, printer):
+def test_sim_maker_run(datadir_factory, printer) -> None:
     example = "Lennard_Jones_Pair"
 
     datadir = datadir_factory.mkdatadir(f"../_examples/{example}")
@@ -115,7 +115,7 @@ def test_sim_maker_run(datadir_factory, printer):
         )
 
 
-def test_we_analysis(datadir_factory, printer):
+def test_we_analysis(datadir_factory, printer) -> None:
     example = "Lennard_Jones_Pair"
 
     datadir = datadir_factory.mkdatadir(f"../_examples/{example}")

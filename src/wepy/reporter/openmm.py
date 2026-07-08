@@ -20,7 +20,7 @@ Single Walker Sampling Time: {{ walker_total_sampling_time }}
 Total Sampling Time: {{ total_sampling_time }}
 """
 
-    def __init__(self, runner=None, step_time=None, **kwargs):
+    def __init__(self, runner=None, step_time=None, **kwargs) -> None:
         if "name" not in kwargs:
             kwargs["name"] = "OpenMMRunner"
 
@@ -53,7 +53,7 @@ Total Sampling Time: {{ total_sampling_time }}
         self.walker_total_sampling_time = 0.0 * units("microsecond")
         self.total_sampling_time = 0.0 * units("microsecond")
 
-    def update_values(self, **kwargs):
+    def update_values(self, **kwargs) -> None:
         super().update_values(**kwargs)
 
         # amount of new sampling time for each walker
@@ -68,7 +68,7 @@ Total Sampling Time: {{ total_sampling_time }}
         # accumulated sampling time for the ensemble
         self.total_sampling_time += new_sampling_time
 
-    def gen_fields(self, **kwargs):
+    def gen_fields(self, **kwargs) -> dict[str, str]:
         fields = super().gen_fields(**kwargs)
 
         ## formatting

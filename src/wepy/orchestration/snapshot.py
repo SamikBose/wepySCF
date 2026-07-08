@@ -17,7 +17,7 @@ class SimApparatus:
 
     """
 
-    def __init__(self, filters):
+    def __init__(self, filters) -> None:
         self._filters = deepcopy(filters)
 
     @property
@@ -33,7 +33,7 @@ class WepySimApparatus(SimApparatus):
     BC_IDX = 1
     RESAMPLER_IDX = 2
 
-    def __init__(self, runner, resampler=None, boundary_conditions=None):
+    def __init__(self, runner, resampler=None, boundary_conditions=None) -> None:
         if resampler is None:
             raise ValueError("must provide a resampler")
 
@@ -58,7 +58,7 @@ class WepySimApparatus(SimApparatus):
 class SimSnapshot:
     """ """
 
-    def __init__(self, walkers, apparatus):
+    def __init__(self, walkers, apparatus) -> None:
         self._walkers = deepcopy(walkers)
         self._apparatus = deepcopy(apparatus)
 

@@ -117,7 +117,7 @@ GITIGNORE_LINES = [
 # TODO: add a docs init task that generates all the files and adds to
 # the gitignore.
 
-def visit_docs():
+def visit_docs() -> list[str | tuple[str, str]]:
     """Returns a list of all the doc pages with their relative paths to
     the root of the project. Not including examples and tutorials
     which are tested differently.
@@ -165,7 +165,7 @@ def visit_examples():
 
     return example_dirs
 
-def visit_example_contents(example):
+def visit_example_contents(example) -> None:
 
         example_pages = []
         if osp.exists(DOCS_SPEC['EXAMPLE_INDEX']):
@@ -193,13 +193,13 @@ def visit_tutorials():
 
     return tutorial_dirs
 
-def tangle_orgfile(cx, file_path):
+def tangle_orgfile(cx, file_path: Path) -> None:
     """Tangle the target file using emacs in batch mode. Implicitly dumps
     things relative to the file."""
 
     cx.run(f"emacs -Q --batch -l org {file_path} -f org-babel-tangle")
 
-def tangle_jupyter(cx, file_path):
+def tangle_jupyter(cx, file_path) -> None:
     """Tangle the target file using jupyter-nbconvert to a python
     script. Implicitly dumps things relative to the file. Only can
     make a single script from the notebook with the same name.
@@ -210,25 +210,25 @@ def tangle_jupyter(cx, file_path):
 
 
 @task
-def list_docs(cx):
+def list_docs(cx) -> None:
     """List paths relative to this context"""
 
     print('\n'.join([str(Path(cx.cwd) / p) for p in visit_docs()]))
 
 @task
-def list_examples(cx):
+def list_examples(cx) -> None:
     """List paths relative to this context"""
 
     print('\n'.join([str(Path(cx.cwd) / ex) for ex in visit_examples()]))
 
 @task
-def list_tutorials(cx):
+def list_tutorials(cx) -> None:
     """List paths relative to this context"""
 
     print('\n'.join([str(Path(cx.cwd) / tut) for tut in visit_tutorials()]))
 
 @task()
-def clean_tangle(cx):
+def clean_tangle(cx) -> None:
     """remove the tangle dirs"""
 
     sh.rmtree(Path(cx.cwd) / DOCS_TEST_DIR,
@@ -242,7 +242,7 @@ def clean_tangle(cx):
 
 
 @task(pre=[clean_tangle])
-def tangle_pages(cx):
+def tangle_pages(cx) -> None:
     """Tangle the docs into the docs testing directory."""
 
     docs_test_dir = Path(cx.cwd) / DOCS_TEST_DIR
@@ -275,7 +275,7 @@ def tangle_pages(cx):
         tangle_orgfile(cx, target_orgfile)
 
 @task(pre=[clean_tangle])
-def tangle_examples(cx):
+def tangle_examples(cx) -> None:
 
     examples_test_dir = Path(cx.cwd) / DOCS_EXAMPLES_DIR
 
@@ -302,7 +302,7 @@ def tangle_examples(cx):
 
 
 @task(pre=[clean_tangle])
-def tangle_tutorials(cx):
+def tangle_tutorials(cx) -> None:
 
     tutorials_test_dir = Path(cx.cwd) / DOCS_TUTORIALS_DIR
 
@@ -330,7 +330,7 @@ def tangle_tutorials(cx):
 
 
 @task(pre=[clean_tangle, tangle_pages, tangle_examples, tangle_tutorials])
-def tangle(cx):
+def tangle(cx) -> None:
     """Tangle the doc pages, examples, and tutorials into the docs testing
     directories."""
 
@@ -338,7 +338,7 @@ def tangle(cx):
 
 
 @task
-def new_example(cx, name=None, template="org", env='venv_blank'):
+def new_example(cx, name=None, template: str="org", env: str='venv_blank') -> None:
     """Create a new example in the info/examples directory.
 
     Can choose between the following templates:
@@ -389,7 +389,7 @@ def new_example(cx, name=None, template="org", env='venv_blank'):
     print(f"New example created at: {target_path}")
 
 @task
-def new_tutorial(cx, name=None, template="org", env='venv_blank'):
+def new_tutorial(cx, name=None, template: str="org", env: str='venv_blank') -> None:
     """Create a new tutorial in the info/tutorials directory.
 
     Can choose between the following templates:
@@ -445,7 +445,7 @@ def new_tutorial(cx, name=None, template="org", env='venv_blank'):
 def test_example(cx,
                  name=None,
                  tag=None,
-):
+) -> None:
     """Test a specific doc example in the current virtual environment."""
 
     if name is None:
@@ -468,7 +468,7 @@ def test_example(cx,
 
 @task
 def test_examples_nox(cx,
-                  name=None):
+                  name=None) -> None:
     """Test either a specific example when 'name' is given or all of them,
     using the nox test matrix specified in the noxfile.py file for
     'test_example' session.
@@ -488,7 +488,7 @@ def test_examples_nox(cx,
 def test_tutorial(cx,
                  name=None,
                  tag=None,
-):
+) -> None:
     """Test a specific doc tutorial in the current virtual environment."""
 
 
@@ -512,7 +512,7 @@ def test_tutorial(cx,
 
 @task
 def test_tutorials_nox(cx,
-                  name=None):
+                  name=None) -> None:
     """Test either a specific tutorial when 'name' is given or all of them,
     using the nox test matrix specified in the noxfile.py file for
     'test_tutorial' session.
@@ -529,7 +529,7 @@ def test_tutorials_nox(cx,
 
 
 @task
-def test_pages(cx, tag=None):
+def test_pages(cx, tag=None) -> None:
     """Test the doc pages in the current virtual environment."""
 
     if tag is None:
@@ -542,13 +542,13 @@ def test_pages(cx, tag=None):
 
 
 @task
-def test_pages_nox(cx, tag=None):
+def test_pages_nox(cx, tag=None) -> None:
     """Test the doc pages in the nox test matrix session."""
 
     cx.run(f"nox -s test_doc_pages")
 
 @task
-def pin_example(cx, name=None):
+def pin_example(cx, name=None) -> None:
     """Pin the deps for an example or all of them if 'name' is None."""
 
     if name is None:
@@ -567,7 +567,7 @@ def pin_example(cx, name=None):
         cx.run(f"inv env.deps-pin-path -p {path}")
 
 @task
-def pin_tutorial(cx, name=None):
+def pin_tutorial(cx, name=None) -> None:
 
     if name is None:
         tutorials = visit_tutorials()
@@ -584,7 +584,7 @@ def pin_tutorial(cx, name=None):
         cx.run(f"inv env.deps-pin-path -p {path}")
 
 @task
-def env_example(cx, name=None):
+def env_example(cx, name=None) -> None:
     """Make a the example env in its local dir."""
 
     if name is None:
@@ -604,7 +604,7 @@ def env_example(cx, name=None):
         cx.run(f"inv env.make-env -s {spec_path} -p {env_path}")
 
 @task
-def env_tutorial(cx, name=None):
+def env_tutorial(cx, name=None) -> None:
     """Make a the tutorial env in its local dir."""
 
     if name is None:

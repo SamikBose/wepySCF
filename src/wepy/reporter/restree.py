@@ -55,9 +55,9 @@ class ResTreeReporter(ProgressiveFileReporter):
         default_node_radius=None,
         progress_key=None,
         max_progress_value=None,
-        colormap_name="plasma",
+        colormap_name: str="plasma",
         **kwargs
-    ):
+    ) -> None:
         """Constructor for the ResTreeReporter.
 
         Parameters
@@ -240,7 +240,7 @@ class ResTreeReporter(ProgressiveFileReporter):
         record_field_names,
         field_names,
         field_shapes,
-        rec_namedtuple,
+        rec_namedtuple: type[ResTreeReporter._make_resampling_record.ResamplingRecord] | type[ResTreeReporter._make_warping_record.WarpingRecord],
     ):
         """Generic record making function.
 
@@ -322,7 +322,7 @@ class ResTreeReporter(ProgressiveFileReporter):
         progress_data=None,
         resampling_data=None,
         **kwargs
-    ):
+    ) -> None:
         """Generate the resampling tree GEXF file.
 
         Parameters

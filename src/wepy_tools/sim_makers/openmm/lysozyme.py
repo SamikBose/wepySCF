@@ -9,6 +9,8 @@ from openmm_systems.test_systems import LysozymeImplicit
 
 # First Party Library
 from wepy.boundary_conditions.receptor import UnbindingBC
+from wepy.orchestration.snapshot import WepySimApparatus
+from wepy.reporter.dashboard import BCDashboardSection, ResamplerDashboardSection, RunnerDashboardSection
 from wepy.reporter.receptor.dashboard import UnbindingBCDashboardSection
 from wepy.resampling.distances.receptor import UnbindingDistance
 from wepy.runners.openmm import GET_STATE_KWARG_DEFAULTS
@@ -70,7 +72,7 @@ class LysozymeImplicitOpenMMSimMaker(OpenMMToolsTestSysSimMaker):
         }
     )
 
-    def __init__(self, bs_cutoff=0.8 * unit.nanometer):
+    def __init__(self, bs_cutoff=0.8 * unit.nanometer) -> None:
         # must set this here since we need it to generate the state,
         # will get called again in the superclass method
         self.getState_kwargs = dict(GET_STATE_KWARG_DEFAULTS)
@@ -126,7 +128,7 @@ class LysozymeImplicitOpenMMSimMaker(OpenMMToolsTestSysSimMaker):
 
         return bvs
 
-    def make_apparatus(self, **kwargs):
+    def make_apparatus(self, **kwargs) -> WepySimApparatus:
         # just customize an option to the runner to not enforce
         # periodic box
         runner_params = {"enforce_box": False}
@@ -190,7 +192,7 @@ class LysozymeImplicitOpenMMSimMaker(OpenMMToolsTestSysSimMaker):
 
         return atom_idxs
 
-    def choose_dashboard_sections(self, apparatus):
+    def choose_dashboard_sections(self, apparatus) -> dict[str, BCDashboardSection | ResamplerDashboardSection | RunnerDashboardSection] | dict[str, ResamplerDashboardSection | RunnerDashboardSection | None]:
         dashboard_sections = super().choose_dashboard_sections(apparatus)
 
         if type(apparatus.boundary_conditions).__name__ == "UnbindingBC":

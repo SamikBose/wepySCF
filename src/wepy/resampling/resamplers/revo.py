@@ -9,6 +9,7 @@ import random as rand
 
 # Third Party Library
 import numpy as np
+from numpy import dtype, float64, generic, ndarray
 
 # First Party Library
 from wepy.resampling.decisions.clone_merge import MultiCloneMergeDecision
@@ -131,15 +132,15 @@ class REVOResampler(CloneMergeResampler):
         char_dist=None,
         distance=None,
         init_state=None,
-        weights=True,
-        merge_alg="pairs",
-        pmin=1e-12,
-        pmax=0.1,
-        dist_exponent=4,
+        weights: bool=True,
+        merge_alg: str="pairs",
+        pmin: float=1e-12,
+        pmax: float=0.1,
+        dist_exponent: int=4,
         seed=None,
-        num_proc=1,
+        num_proc: int=1,
         **kwargs
-    ):
+    ) -> None:
         """Constructor for the REVO Resampler.
 
         Parameters
@@ -415,7 +416,7 @@ class REVOResampler(CloneMergeResampler):
 
         return eligible_pairs
 
-    def decide(self, walker_weights, num_walker_copies, distance_matrix):
+    def decide(self, walker_weights, num_walker_copies: ndarray[tuple[int], dtype[float64]], distance_matrix):
         """Optimize the trajectory variation by making decisions for resampling.
 
         Parameters

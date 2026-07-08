@@ -10,6 +10,7 @@ import os
 import os.path as osp
 import pickle
 import uuid
+from argparse import Namespace
 from copy import deepcopy
 from glob import glob
 from time import perf_counter
@@ -20,6 +21,7 @@ import numpy as np
 import pyscf.gto as pyscf_gto
 import pyscf.md as pyscf_md
 from pyscf.data.nist import BOHR
+from pyscf.gto.mole import Mole
 
 # First Party Library
 from wepy.boundary_conditions.bond_distance import BondDistanceBC
@@ -51,7 +53,7 @@ def parse_with_mdtraj_topology(topology_file_path: str):
     return topology, symbols, positions
 
 
-def build_mol(symbols, positions, basis, charge, spin, ecp=None):
+def build_mol(symbols, positions, basis, charge, spin, ecp=None) -> Mole:
     atom = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
     return pyscf_gto.M(
         atom=atom,
@@ -63,7 +65,7 @@ def build_mol(symbols, positions, basis, charge, spin, ecp=None):
     )
 
 
-def _generate_MB_velocities(config, mol, positions):
+def _generate_MB_velocities(config, mol: Mole, positions):
     return (
         pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, config.temperature_kelvin)
         if config.initialize_velocities
@@ -71,7 +73,7 @@ def _generate_MB_velocities(config, mol, positions):
     )
 
 
-def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid_shape):
+def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid_shape) -> list[PySCFWalker]:
     weight = 1.0 / n_walkers
 
     density_kwargs = {}
@@ -138,7 +140,7 @@ class PySCFREVOResampler(REVOResampler):
         return fixed, resampling_data, resampler_data
 
 
-def build_revo_resampler(config, init_state):
+def build_revo_resampler(config, init_state) -> NoResampler | PySCFREVOResampler:
     if config.resampler_parameters is None:
         return NoResampler()
 
@@ -152,7 +154,7 @@ def build_revo_resampler(config, init_state):
     )
 
 
-def parse_args():
+def parse_args() -> Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--sub-step",
@@ -170,7 +172,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def run(config):
+def run(config) -> None:
     # TODO: build_mapper
     if config.backend == "cpu":
         mapper = PySCFCPUWorkerMapper(num_workers=config.n_walkers)

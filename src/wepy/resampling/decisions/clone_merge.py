@@ -88,7 +88,7 @@ class MultiCloneMergeDecision(Decision):
         return record
 
     @classmethod
-    def action(cls, walkers, decisions):
+    def action(cls, walkers, decisions) -> list[None]:
         # list for the modified walkers
         mod_walkers = [None for i in range(len(walkers))]
 

@@ -15,16 +15,16 @@ class SimMonitor:
 
     def __init__(
         self,
-        tag="",
+        tag: str="",
         port=None,
-        reporter_order=(),
-    ):
+        reporter_order: tuple[()]=(),
+    ) -> None:
         self.port = port
         self.tag = tag
 
         self.reporter_order = reporter_order
 
-    def _init_metrics(self):
+    def _init_metrics(self) -> None:
         logger.info(f"SimMonitor ({self}): Initializing monitoring metrics")
 
         ## progress tracking
@@ -120,7 +120,7 @@ class SimMonitor:
             "wepy_mapper_segment_times_seconds", "", ["tag", "worker_idx", "seg_idx"]
         )
 
-    def _cleanup_metrics(self):
+    def _cleanup_metrics(self) -> None:
         logger.info(f"SimMonitor ({self}): cleaning up metrics")
 
         ## progress tracking
@@ -167,7 +167,7 @@ class SimMonitor:
     def init(
         self,
         port=None,
-    ):
+    ) -> None:
         if port is not None:
             port = port
 
@@ -186,12 +186,12 @@ class SimMonitor:
         # time since they can't be pickled
         self._init_metrics()
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         # remove all the metrics
         logger.info(f"SimMonitor ({self}): cleaning up")
         self._cleanup_metrics()
 
-    def cycle_monitor(self, sim_manager, walkers):
+    def cycle_monitor(self, sim_manager, walkers) -> None:
         logger.info(f"SimMonitor ({self}): running the cycle monitoring")
 
         last_report = sim_manager._last_report

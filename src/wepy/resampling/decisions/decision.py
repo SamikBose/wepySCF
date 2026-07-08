@@ -95,17 +95,17 @@ class Decision(object):
         return cls.DEFAULT_DECISION
 
     @classmethod
-    def field_names(cls):
+    def field_names(cls) -> tuple[str]:
         """Names of the decision record fields."""
         return cls.FIELDS
 
     @classmethod
-    def field_shapes(cls):
+    def field_shapes(cls) -> tuple[tuple[int]]:
         """Field data shapes."""
         return cls.SHAPES
 
     @classmethod
-    def field_dtypes(cls):
+    def field_dtypes(cls) -> tuple[type[int]]:
         """Field data types."""
         return cls.DTYPES
 
@@ -123,7 +123,7 @@ class Decision(object):
         return list(zip(cls.field_names(), cls.field_shapes(), cls.field_dtypes()))
 
     @classmethod
-    def record_field_names(cls):
+    def record_field_names(cls) -> tuple[str]:
         """The fields that could be used in a reduced table-like representation."""
         return cls.RECORD_FIELDS
 
@@ -251,7 +251,7 @@ class Decision(object):
         raise NotImplementedError
 
     @classmethod
-    def parents(cls, step):
+    def parents(cls, step) -> list[None]:
         """Given a step of resampling records (for a single resampling step)
         returns the parents of the children of this step.
 
@@ -308,7 +308,7 @@ class NoDecision(Decision):
     ANCESTOR_DECISION_IDS = (ENUM.NOTHING.value,)
 
     @classmethod
-    def action(cls, walkers, decisions):
+    def action(cls, walkers, decisions) -> list[None]:
         # list for the modified walkers
         mod_walkers = [None for i in range(len(walkers))]
         # go through each decision and perform the decision

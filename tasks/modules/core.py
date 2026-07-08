@@ -5,14 +5,14 @@ import os
 from pathlib import Path
 
 @task
-def sanity(cx):
+def sanity(cx) -> None:
     """Perform sanity check for jubeo"""
 
     print("All systems go!")
 
 
 @task
-def pin_tool_deps(cx):
+def pin_tool_deps(cx) -> None:
     """Pins or upgrades the requirements.txt for the jubeo tooling from
     the requirements.in (from the upstream repo) and the
     local.requirements.in (for project specific tooling dependencies)

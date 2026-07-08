@@ -1,4 +1,5 @@
 # Standard Library
+from wepy.orchestration.orchestrator import Orchestrator
 import logging
 
 logger = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ def run_snapshot(
     run_time,
     configuration,
     snapshot,
-):
+) -> None:
     """
 
     \b
@@ -261,7 +262,7 @@ def run_orch(
     run_time,
     start_hash,
     orchestrator,
-):
+) -> None:
     """
 
     \b
@@ -343,7 +344,7 @@ def run_orch(
     orch.close()
 
 
-def combine_orch_wepy_hdf5s(new_orch, new_hdf5_path, run_ids=None):
+def combine_orch_wepy_hdf5s(new_orch: Orchestrator, new_hdf5_path, run_ids=None) -> None:
     """
 
     \b
@@ -551,7 +552,7 @@ def combine_orch_wepy_hdf5s(new_orch, new_hdf5_path, run_ids=None):
 @click.argument("orchestrator", nargs=1, type=click.Path(exists=True))
 @click.argument("hdf5", nargs=1, type=click.Path(exists=False))
 @click.argument("run_ids", nargs=-1)
-def reconcile_hdf5(orchestrator, hdf5, run_ids):
+def reconcile_hdf5(orchestrator, hdf5, run_ids) -> None:
     """For an orchestrator with multiple runs combine the HDF5 results
     into a single one.
 
@@ -596,7 +597,7 @@ def reconcile_hdf5(orchestrator, hdf5, run_ids):
 @click.option("--hdf5", type=click.Path(exists=False))
 @click.argument("output", nargs=1, type=click.Path(exists=False))
 @click.argument("orchestrators", nargs=-1, type=click.Path(exists=True))
-def reconcile_orch(hdf5, output, orchestrators):
+def reconcile_orch(hdf5, output, orchestrators) -> None:
     """
 
     \b
@@ -628,7 +629,7 @@ def reconcile_orch(hdf5, output, orchestrators):
         combine_orch_wepy_hdf5s(new_orch, hdf5_path)
 
 
-def hash_listing_formatter(hashes):
+def hash_listing_formatter(hashes) -> str:
     """
 
     \b
@@ -648,7 +649,7 @@ def hash_listing_formatter(hashes):
 
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def ls_snapshots(orchestrator):
+def ls_snapshots(orchestrator) -> None:
     """
 
     \b
@@ -674,7 +675,7 @@ def ls_snapshots(orchestrator):
 
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def ls_runs(orchestrator):
+def ls_runs(orchestrator) -> None:
     """
 
     \b
@@ -702,7 +703,7 @@ def ls_runs(orchestrator):
 
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def ls_configs(orchestrator):
+def ls_configs(orchestrator) -> None:
     """
 
     \b
@@ -730,7 +731,7 @@ def ls_configs(orchestrator):
 @click.option("--no-expand-external", is_flag=True)
 @click.argument("source", type=click.Path(exists=True))
 @click.argument("target", type=click.Path(exists=False))
-def hdf5_copy(no_expand_external, source, target):
+def hdf5_copy(no_expand_external, source, target) -> None:
     """Copy a WepyHDF5 file, except links to other runs will optionally be
     expanded and truly duplicated if symbolic inter-file links are present."""
 
@@ -765,7 +766,7 @@ def hdf5_copy(no_expand_external, source, target):
 @click.argument("snapshot_hash")
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def get_snapshot(output, snapshot_hash, orchestrator):
+def get_snapshot(output, snapshot_hash, orchestrator) -> None:
     # first check if the output is None, if it is we automatically
     # generate a file in the cwd that is the hash of the snapshot
     if output is None:
@@ -792,7 +793,7 @@ def get_snapshot(output, snapshot_hash, orchestrator):
 @click.argument("config_hash")
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def get_config(output, config_hash, orchestrator):
+def get_config(output, config_hash, orchestrator) -> None:
     # first check if the output is None, if it is we automatically
     # generate a file in the cwd that is the hash of the snapshot
     if output is None:
@@ -820,7 +821,7 @@ def get_config(output, config_hash, orchestrator):
 @click.argument("start_hash")
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def get_run(output, end_hash, start_hash, orchestrator):
+def get_run(output, end_hash, start_hash, orchestrator) -> None:
     # first check if the output is None, if it is we automatically
     # generate a file in the cwd that is the hash of the snapshot
     if output is None:
@@ -865,7 +866,7 @@ def get_run(output, end_hash, start_hash, orchestrator):
 @click.argument("start_hash")
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def get_run_cycles(end_hash, start_hash, orchestrator):
+def get_run_cycles(end_hash, start_hash, orchestrator) -> None:
     orch = Orchestrator(orchestrator, mode="r")
 
     start_serial_snapshot = orch.snapshot_kv[start_hash]
@@ -884,7 +885,7 @@ def get_run_cycles(end_hash, start_hash, orchestrator):
 
 @click.argument("orchestrator", type=click.Path(exists=False))
 @click.command()
-def create_orch(orchestrator):
+def create_orch(orchestrator) -> None:
     orch = Orchestrator(orchestrator, mode="x")
 
     orch.close()
@@ -893,7 +894,7 @@ def create_orch(orchestrator):
 @click.argument("snapshot", type=click.File("rb"))
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def add_snapshot(snapshot, orchestrator):
+def add_snapshot(snapshot, orchestrator) -> None:
     orch = Orchestrator(orchestrator, mode="r+")
 
     serial_snapshot = snapshot.read()
@@ -908,7 +909,7 @@ def add_snapshot(snapshot, orchestrator):
 @click.argument("configuration", type=click.File("rb"))
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def add_config(configuration, orchestrator):
+def add_config(configuration, orchestrator) -> None:
     orch = Orchestrator(orchestrator, mode="r+")
 
     serial_config = configuration.read()
@@ -921,49 +922,49 @@ def add_config(configuration, orchestrator):
 
 
 @click.group()
-def cli():
+def cli() -> None:
     """ """
     pass
 
 
 @click.group()
-def run():
+def run() -> None:
     """ """
     pass
 
 
 @click.group()
-def get():
+def get() -> None:
     """ """
     pass
 
 
 @click.group()
-def add():
+def add() -> None:
     """ """
     pass
 
 
 @click.group()
-def create():
+def create() -> None:
     """ """
     pass
 
 
 @click.group()
-def ls():
+def ls() -> None:
     """ """
     pass
 
 
 @click.group()
-def reconcile():
+def reconcile() -> None:
     """ """
     pass
 
 
 @click.group()
-def hdf5():
+def hdf5() -> None:
     """ """
     pass
 

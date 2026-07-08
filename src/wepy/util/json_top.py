@@ -3,6 +3,7 @@ import json
 
 # Third Party Library
 import pandas as pd
+from pandas.core.frame import DataFrame
 
 CHAIN_KEY = "index"
 RESIDUE_KEY = "index"
@@ -39,7 +40,7 @@ def json_top_chain_fields(json_topology):
     return chain_cols
 
 
-def json_top_chain_df(json_topology):
+def json_top_chain_df(json_topology) -> DataFrame:
     """Make a pandas dataframe for the chains in the JSON topology.
 
     Parameters
@@ -88,7 +89,7 @@ def json_top_residue_fields(json_topology):
     return residue_cols
 
 
-def json_top_residue_df(json_topology):
+def json_top_residue_df(json_topology) -> DataFrame:
     """Make a pandas dataframe for the residues in the JSON topology.
 
     Parameters
@@ -140,7 +141,7 @@ def json_top_atom_fields(json_topology):
     return atom_cols
 
 
-def json_top_atom_df(json_topology):
+def json_top_atom_df(json_topology) -> DataFrame:
     """Make a pandas dataframe for the atoms in the JSON topology.
 
     Parameters
@@ -159,7 +160,7 @@ def json_top_atom_df(json_topology):
     return pd.DataFrame(json_top_atom_fields(json_topology))
 
 
-def json_top_atom_count(json_str):
+def json_top_atom_count(json_str) -> int:
     """Count the number of atoms in the JSON topology used by wepy HDF5.
 
     Parameters
@@ -185,7 +186,7 @@ def json_top_atom_count(json_str):
     return atom_count
 
 
-def json_top_subset(json_str, atom_idxs):
+def json_top_subset(json_str, atom_idxs) -> str:
     """Given a JSON topology and atom indices from that topology returns
     another JSON topology which is a subset of the first, preserving
     the topology between remaining atoms. The atoms will be ordered in

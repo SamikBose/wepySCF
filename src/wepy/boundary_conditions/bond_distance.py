@@ -4,6 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 # Third Party Library
 import numpy as np
+from numpy import floating
 
 # First Party Library
 from wepy.boundary_conditions.boundary import WarpBC
@@ -46,7 +47,7 @@ class BondDistanceBC(WarpBC):
         make_pairs=None,
         make_cutoffs=None,
         **kwargs,
-    ):
+    ) -> None:
         # FIXME: Remove periodic from all?
         """Constructor for BondDistanceBC class.
 
@@ -122,7 +123,7 @@ class BondDistanceBC(WarpBC):
         """The make cutoffs for the bond distance boundary condition."""
         return self._make_cutoffs
 
-    def _calc_pair_distance(self, positions, pair):
+    def _calc_pair_distance(self, positions, pair) -> floating:
         """Calculate distance between an atom pair.
 
         Parameters

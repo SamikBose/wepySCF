@@ -1,14 +1,18 @@
+# Standard Library
 import os
 import os.path
+
+# Third Party Library
 import numpy as np
-
-import scipy
-import scipy.special
-import scipy.integrate
-
 import openmm
 import openmm.unit as unit
-import openmm.app as omma
+import scipy
+import scipy.integrate
+import scipy.special
+from openmm.app.topology import Topology
+from openmm.openmm import CustomExternalForce, System
+from openmm.unit.quantity import Quantity
+
 
 class TestSystem(object):
 
@@ -56,7 +60,7 @@ class TestSystem(object):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         """Abstract base class for test system.
 
         Parameters
@@ -76,43 +80,43 @@ class TestSystem(object):
         self._mdtraj_topology = None
 
     @property
-    def system(self):
+    def system(self) -> System:
         """The openmm.System object corresponding to the test system."""
         return self._system
 
     @system.setter
-    def system(self, value):
+    def system(self, value) -> None:
         self._system = value
 
     @system.deleter
-    def system(self):
+    def system(self) -> None:
         del self._system
 
     @property
-    def positions(self):
+    def positions(self) -> Quantity:
         """The openmm.unit.Quantity object containing the particle positions, with units compatible with openmm.unit.nanometers."""
         return self._positions
 
     @positions.setter
-    def positions(self, value):
+    def positions(self, value) -> None:
         self._positions = value
 
     @positions.deleter
-    def positions(self):
+    def positions(self) -> None:
         del self._positions
 
     @property
-    def topology(self):
+    def topology(self) -> Topology:
         """The openmm.app.Topology object corresponding to the test system."""
         return self._topology
 
     @topology.setter
-    def topology(self, value):
+    def topology(self, value) -> None:
         self._topology = value
         self._mdtraj_topology = None
 
     @topology.deleter
-    def topology(self):
+    def topology(self) -> None:
         del self._topology
 
     @property
@@ -124,7 +128,7 @@ class TestSystem(object):
         return self._mdtraj_topology
     
  
-    def construct_restraining_potential(self, particle_indices, K):
+    def construct_restraining_potential(self, particle_indices, K) -> CustomExternalForce:
         """Make a CustomExternalForce that puts an origin-centered spring on the chosen particles"""
 
         # Add a restraining potential centered at the origin.
@@ -134,4 +138,4 @@ class TestSystem(object):
         for particle_index in particle_indices:
             force.addParticle(particle_index, [])
         
-        return force 
+        return force

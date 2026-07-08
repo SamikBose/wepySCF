@@ -53,6 +53,7 @@ from collections import defaultdict
 
 # Third Party Library
 import numpy as np
+from numpy import dtype, float64, ndarray
 
 
 def transition_counts(assignments, transitions, weights=None):
@@ -110,7 +111,7 @@ def transition_counts(assignments, transitions, weights=None):
 
 def counts_d_to_matrix(
     counts_d,
-):
+) -> ndarray[tuple[int, ...], dtype[float64]]:
     """Convert a dictionary of counts for macrostate transitions to an
     assymetric transitions counts matrix.
 
@@ -147,7 +148,7 @@ def counts_d_to_matrix(
     return countsmat
 
 
-def normalize_counts(transition_counts_matrix):
+def normalize_counts(transition_counts_matrix: ndarray[tuple[int, ...], dtype[float64]]):
     """Normalize the macrostate outgoing transition counts to 1.0 for each macrostate.
 
     Parameters
@@ -177,7 +178,7 @@ def normalize_counts(transition_counts_matrix):
     return np.divide(transition_counts_matrix, transition_counts_matrix.sum(axis=0))
 
 
-def transition_counts_matrix(assignments, transitions):
+def transition_counts_matrix(assignments, transitions) -> ndarray[tuple[int, ...], dtype[float64]]:
     """Make an asymmetric array of the count of microstate transitions between macrostates.
 
     Parameters
@@ -233,7 +234,7 @@ def transition_probability_matrix(assignments, transitions):
     return trans_prob_mat
 
 
-def run_transition_counts_matrix(wepy_hdf5, run_idx, assignment_key, transitions):
+def run_transition_counts_matrix(wepy_hdf5, run_idx, assignment_key, transitions) -> ndarray[tuple[int, ...], dtype[float64]]:
     """Generates an asymmetric transition counts matrix directly from a single WepyHDF5 run.
 
     Parameters

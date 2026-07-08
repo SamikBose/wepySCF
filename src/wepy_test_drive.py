@@ -46,7 +46,7 @@ def cli(
     n_cycles,
     n_walkers,
     system,
-):
+) -> None:
     """Run a pre-parametrized wepy simulation.
 
     \b

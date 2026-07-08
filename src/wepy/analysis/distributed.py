@@ -117,6 +117,7 @@ frame).
 import time
 from collections import defaultdict
 from copy import deepcopy
+from types import EllipsisType
 
 # Third Party Library
 import dask.bag as dbag
@@ -313,7 +314,7 @@ def chunk_concat_funcgen(*concat_funcs):
     return chunk_concat
 
 
-def chunk_array_concat_funcgen(field):
+def chunk_array_concat_funcgen(field: str):
     def func(cum_chunk_spec, new_chunk_spec):
         # only add it if it has been initialized in the cum_chunk
         if field in cum_chunk_spec:
@@ -411,10 +412,10 @@ def compute_observable(
     wepy_h5_path,
     dask_client,
     fields,
-    chunk_size=Ellipsis,
-    num_partitions=100,
+    chunk_size: EllipsisType=Ellipsis,
+    num_partitions: int=100,
     # TODO replace with traj_sels
-    run_idxs=Ellipsis,
+    run_idxs: EllipsisType=Ellipsis,
 ):
     with dask_client:
         chunks = traj_fields_chunk_items(

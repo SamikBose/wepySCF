@@ -26,7 +26,7 @@ class WExploreAtomImageReporter(ProgressiveFileReporter):
                  init_image=None,
                  image_atom_idxs=None,
                  json_topology=None,
-                 **kwargs):
+                 **kwargs) -> None:
         """Constructor for the WExploreAtomImageReporter.
 
         Parameters
@@ -73,7 +73,7 @@ class WExploreAtomImageReporter(ProgressiveFileReporter):
         self.times = [0]
 
 
-    def init(self, **kwargs):
+    def init(self, **kwargs) -> None:
 
         super().init(**kwargs)
 
@@ -96,7 +96,7 @@ class WExploreAtomImageReporter(ProgressiveFileReporter):
             self._top_pdb_written = True
 
     def report(self, cycle_idx=None, resampler_data=None,
-               **kwargs):
+               **kwargs) -> None:
 
         # load the json topology as an mdtraj one
         image_mdj_topology = json_to_mdtraj_topology(self.json_main_rep_top)

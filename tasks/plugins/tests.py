@@ -14,7 +14,7 @@ import pytest
 
 # TODO: this should be done better
 @task
-def integration(cx, tag=None, node='node_minor'):
+def integration(cx, tag=None, node: str='node_minor') -> None:
     """Run the integration tests.
 
     This is a large test suite and needs specific hardware resources

@@ -23,7 +23,7 @@ class RandomWalkDistance(Distance):
 
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Construct a RandomWalkDistance metric."""
         pass
 

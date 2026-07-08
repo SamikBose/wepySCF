@@ -27,7 +27,7 @@ class Reporter(object):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         """Construct a reporter.
 
         Void constructor for the Reporter base class.
@@ -41,7 +41,7 @@ class Reporter(object):
         """
         pass
 
-    def init(self, **kwargs):
+    def init(self, **kwargs) -> None:
         """Initialization routines for the reporter at simulation runtime.
 
         Initialize I/O connections including file descriptors,
@@ -85,7 +85,7 @@ class Reporter(object):
             super(), method_name
         ), "Superclass with method {} is masked".format(method_name)
 
-    def report(self, **kwargs):
+    def report(self, **kwargs) -> None:
         """Given data concerning the main simulation components state, perform
         I/O operations to persist that data.
 
@@ -150,7 +150,7 @@ class Reporter(object):
             super(), method_name
         ), "Superclass with method {} is masked".format(method_name)
 
-    def cleanup(self, **kwargs):
+    def cleanup(self, **kwargs) -> None:
         """Teardown routines for the reporter at the end of the simulation.
 
         Use to cleanly and safely close I/O connections or other
@@ -264,7 +264,7 @@ class FileReporter(Reporter):
 
     def __init__(
         self, file_paths=None, modes=None, file_path=None, mode=None, **kwargs
-    ):
+    ) -> None:
         """Constructor for FileReporter.
 
         This constructor allows the specification of either a list of
@@ -385,7 +385,7 @@ class FileReporter(Reporter):
 
         super().__init__(**kwargs)
 
-    def _validate_mode(self, mode):
+    def _validate_mode(self, mode) -> bool:
         """Check if the mode spec is a valid one.
 
         Parameters
@@ -424,7 +424,7 @@ class FileReporter(Reporter):
         return self._file_paths
 
     @file_paths.setter
-    def file_paths(self, file_paths):
+    def file_paths(self, file_paths) -> None:
         """Setter for the file paths.
 
         Parameters
@@ -435,7 +435,7 @@ class FileReporter(Reporter):
         for i, file_path in enumerate(file_paths):
             self.set_path(i, file_path)
 
-    def set_path(self, file_idx, path):
+    def set_path(self, file_idx: int, path) -> None:
         """Set the path for a single indexed file.
 
         Parameters
@@ -454,7 +454,7 @@ class FileReporter(Reporter):
         return self._modes
 
     @modes.setter
-    def modes(self, modes):
+    def modes(self, modes) -> None:
         """Setter for the modes.
 
         Parameters
@@ -465,7 +465,7 @@ class FileReporter(Reporter):
         for i, mode in enumerate(modes):
             self.set_mode(i, mode)
 
-    def set_mode(self, file_idx, mode):
+    def set_mode(self, file_idx: int, mode: str) -> None:
         """Set the mode for a single indexed file.
 
         Parameters
@@ -482,7 +482,7 @@ class FileReporter(Reporter):
         else:
             raise ValueError("Incorrect mode {}".format(mode))
 
-    def reparametrize(self, file_paths, modes):
+    def reparametrize(self, file_paths, modes) -> None:
         """Set the file paths and modes for all files in the reporter.
 
         Parameters
@@ -505,7 +505,7 @@ class ProgressiveFileReporter(FileReporter):
 
     """
 
-    def init(self, **kwargs):
+    def init(self, **kwargs) -> None:
         """Construct a ProgressiveFileReporter.
 
         This is exactly the same as the FileReporter.

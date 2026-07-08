@@ -7,17 +7,17 @@ from wepy.resampling.distances.pyscf import (
 
 
 @staticmethod
-def qm_grid_density():
+def qm_grid_density() -> QMGridDensityDistance:
     return QMGridDensityDistance(grid_key="density_grid", normalize=True)
 
 
 @staticmethod
-def proton_transfer(break_pair: tuple[int, int], make_pair: tuple[int, int]):
+def proton_transfer(break_pair: tuple[int, int], make_pair: tuple[int, int]) -> ProtonTransferDistance:
     return ProtonTransferDistance(break_pair=break_pair, make_pair=make_pair)
 
 
 @staticmethod
-def dihedral(dihedrals):
+def dihedral(dihedrals) -> DihedralDistance:
     """Return a DihedralDistance for the given dihedral(s).
 
     Parameters

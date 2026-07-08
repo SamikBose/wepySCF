@@ -47,7 +47,7 @@ Variation value = {{ variation }}
         seed=None,
         decision=None,
         **kwargs
-    ):
+    ) -> None:
         if "name" not in kwargs:
             kwargs["name"] = "REVOResampler"
 
@@ -103,7 +103,7 @@ Variation value = {{ variation }}
         self.max_distance = None
         self.variation_values = None
 
-    def update_values(self, **kwargs):
+    def update_values(self, **kwargs) -> None:
         num_clones = 0
         num_merges = 0
         num_walkers = len(kwargs["resampling_data"])
@@ -130,7 +130,7 @@ Variation value = {{ variation }}
 
         self.cycle_idx = kwargs["cycle_idx"]
 
-    def gen_fields(self, **kwargs):
+    def gen_fields(self, **kwargs) -> dict[str, str]:
         fields = super().gen_fields(**kwargs)
 
         new_fields = {

@@ -15,7 +15,7 @@ def binding_site_idxs(
     coords,
     box_vectors,
     cutoff,
-    periodic=True,
+    periodic: bool=True,
 ):
     """Parameters
     ----------

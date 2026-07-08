@@ -55,7 +55,7 @@ hdf5_path= outputs_dir / hdf5_filename
 reporter_path = outputs_dir / reporter_filename
 
 
-def get_char_distance(dimension, num_walkers):
+def get_char_distance(dimension: int, num_walkers: int):
     """Calculate the characteristic value.
     Runs one cycle simulation and calculates the characteristic
     distance value.

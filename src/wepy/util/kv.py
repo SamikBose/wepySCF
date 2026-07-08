@@ -39,6 +39,7 @@ import os.path as osp
 import sqlite3
 from collections.abc import MutableMapping
 from contextlib import contextmanager
+from sqlite3 import Connection, Cursor
 
 # mapping of the modes we support and the modes that SQLite provides
 # KV mode -> sqlite3 mode
@@ -68,7 +69,7 @@ SQLITE3_INMEMORY_URI = "file::memory:?cache=shared"
 DEFAULT_VALUE_TYPES = (bytes, bytearray)
 
 
-def gen_uri(db_url, mode_spec):
+def gen_uri(db_url, mode_spec) -> str:
     # if the db url is the in memory special string or None or the
     # :memory: identifier, use the full in-memory URI
     if db_url == SQLITE3_INMEMORY_URI or db_url is None or db_url == ":memory:":
@@ -181,14 +182,14 @@ class KV(MutableMapping):
     def __init__(
         self,
         db_url=None,
-        table="data",
-        primary_key="key",
-        value_name="value",
-        timeout=5,
-        mode="x",
-        append_only=False,
-        value_types=DEFAULT_VALUE_TYPES,
-    ):
+        table: str="data",
+        primary_key: str="key",
+        value_name: str="value",
+        timeout: int=5,
+        mode: str="x",
+        append_only: bool=False,
+        value_types: tuple[type[bytes], type[bytearray]]=DEFAULT_VALUE_TYPES,
+    ) -> None:
         # generate a good URI from the url and the mode
         db_uri = gen_uri(db_url, mode)
 
@@ -236,7 +237,7 @@ class KV(MutableMapping):
     def append_only(self):
         return self._append_only
 
-    def close(self):
+    def close(self) -> None:
         if self._closed == True:
             raise IOError("The database connection is already closed")
 
@@ -245,11 +246,11 @@ class KV(MutableMapping):
             self._closed = True
 
     @property
-    def db_uri(self):
+    def db_uri(self) -> str:
         return self._db_uri
 
     @property
-    def db(self):
+    def db(self) -> Connection:
         return self._db
 
     @property
@@ -268,7 +269,7 @@ class KV(MutableMapping):
     def value_types(self):
         return self._kv_types
 
-    def _execute(self, *args):
+    def _execute(self, *args) -> Cursor:
         return self._db.cursor().execute(*args)
 
     def __len__(self):
@@ -310,7 +311,7 @@ class KV(MutableMapping):
             )
         )
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value) -> None:
         """Set a value, must be in bytes format."""
 
         # check the type of the value to make sure it is what this KV
@@ -324,7 +325,7 @@ class KV(MutableMapping):
 
         self.lockless_set(key, value)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key) -> None:
         logger.debug("Deleting the snapshot {}".format(key))
 
         # no deletions in append only mode
@@ -344,13 +345,13 @@ class KV(MutableMapping):
             raise KeyError
 
     @property
-    def insert_query(self):
+    def insert_query(self) -> str:
         query = "INSERT INTO {table} VALUES (?, ?)".format(table=self.table)
 
         return query
 
     @property
-    def update_query(self):
+    def update_query(self) -> str:
         query = "UPDATE {table} SET {value}=? WHERE {key}=?".format(
             key=self.primary_key, value=self.value_name, table=self.table
         )
@@ -358,14 +359,14 @@ class KV(MutableMapping):
         return query
 
     @property
-    def del_query(self):
+    def del_query(self) -> str:
         query = "DELETE FROM {table} WHERE {key}=?".format(
             key=self.primary_key, table=self.table
         )
 
         return query
 
-    def lockless_set(self, key, value):
+    def lockless_set(self, key, value) -> None:
         """an implementation of the __setitem__ without the lock context
         manager which turns on the DEFERRED isolation level. The
         isolation level of the KV is set to autocommit so now lock is

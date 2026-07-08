@@ -28,13 +28,16 @@ logger = logging.getLogger(__name__)
 
 # Third Party Library
 import numpy as np
+from numpy import dtype, float64, ndarray
+
+# First Party Library
 from wepy.util.util import box_vectors_to_lengths_angles
 
 
 class Distance(object):
     """Abstract Base class for Distance classes."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Constructor for Distance class."""
         pass
 
@@ -123,7 +126,7 @@ class AtomPairDistance(Distance):
     Distance is the root mean squared distance between the vectors.
     """
 
-    def __init__(self, pair_list, periodic=True):
+    def __init__(self, pair_list, periodic: bool=True) -> None:
         """Construct a distance metric.
 
         Parameters
@@ -150,7 +153,7 @@ class AtomPairDistance(Distance):
                     edited = True
         return disp
         
-    def image(self, state):
+    def image(self, state) -> ndarray[tuple[int], dtype[float64]]:
 
         if self.periodic:
             # get the box lengths from the vectors

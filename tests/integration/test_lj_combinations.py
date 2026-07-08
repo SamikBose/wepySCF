@@ -34,7 +34,7 @@ from wepy_tools.sim_makers.openmm.lennard_jones import LennardJonesPairOpenMMSim
 from wepy_tools.sim_makers.openmm.lysozyme import LysozymeImplicitOpenMMSimMaker
 
 
-def get_sim_maker(spec):
+def get_sim_maker(spec) -> LennardJonesPairOpenMMSimMaker | LysozymeImplicitOpenMMSimMaker:
     if spec == "LennardJonesPair":
         sim_maker = LennardJonesPairOpenMMSimMaker()
     elif spec == "LysozymeImplicit":
@@ -96,7 +96,7 @@ class TestCombinationsMinorNode:
     @pytest.mark.parametrize("work_mapper", WORK_MAPPERS_TEST)
     def test_combinations(
         self, n_walkers, n_cycles, n_steps, platform, system, resampler, work_mapper
-    ):
+    ) -> None:
         sim_maker = get_sim_maker(system)
 
         apparatus = sim_maker.make_apparatus(platform=platform, resampler=resampler)
@@ -142,7 +142,7 @@ class TestCombinationsDevNode:
     @pytest.mark.parametrize("work_mapper", WORK_MAPPERS_TEST)
     def test_combinations(
         self, n_walkers, n_cycles, n_steps, platform, system, resampler, work_mapper
-    ):
+    ) -> None:
         sim_maker = get_sim_maker(system)
 
         apparatus = sim_maker.make_apparatus(platform=platform, resampler=resampler)
@@ -167,7 +167,7 @@ class TestCombinationsBigNode:
     @pytest.mark.parametrize("resampler", RESAMPLERS_TEST)
     def test_combinations(
         self, n_walkers, n_cycles, n_steps, platform, system, resampler
-    ):
+    ) -> None:
         sim_maker = get_sim_maker(system)
 
         apparatus = sim_maker.make_apparatus(platform=platform, resampler=resampler)

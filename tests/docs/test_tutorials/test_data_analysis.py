@@ -10,7 +10,7 @@ from pytest_shutil.run import run, run_as_main
 ### Tests
 
 
-def test_tutorial(datadir_factory, printer):
+def test_tutorial(datadir_factory, printer) -> None:
     tutorial = "data_analysis"
 
     datadir = datadir_factory.mkdatadir(f"../_tutorials/{tutorial}")

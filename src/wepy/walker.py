@@ -33,9 +33,10 @@ logger = logging.getLogger(__name__)
 # Standard Library
 import random as rand
 from copy import deepcopy
+from typing import Self
 
 
-def split(walker, number=2):
+def split(walker, number: int=2):
     """Split (AKA make multiple clones) of a single walker.
 
     Creates multiple new walkers that have the same state as the given
@@ -129,7 +130,7 @@ class Walker:
 
     """
 
-    def __init__(self, state, weight):
+    def __init__(self, state, weight) -> None:
         """Constructor for Walker.
 
         Parameters
@@ -143,7 +144,7 @@ class Walker:
         self.state = state
         self.weight = weight
 
-    def clone(self, number=1):
+    def clone(self, number: int=1) -> list[Self]:
         """Clone this walker by making a copy with the same state and split
         the probability uniformly between clones.
 
@@ -169,7 +170,7 @@ class Walker:
         # make the clones
         return [type(self)(self.state, split_prob) for _ in range(number + 1)]
 
-    def squash(self, merge_target):
+    def squash(self, merge_target) -> Self:
         """Add the weight of this walker to another.
 
         Parameters
@@ -214,7 +215,7 @@ class WalkerState(object):
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         """Constructor for WalkerState.
 
         All key-word arguments passed in will be set as the key-value

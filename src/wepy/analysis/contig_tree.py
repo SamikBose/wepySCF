@@ -15,10 +15,12 @@ import warnings
 from collections import deque
 from copy import copy
 from operator import attrgetter
+from typing import Self
 
 # Third Party Library
 import networkx as nx
 import numpy as np
+from pandas.core.frame import DataFrame
 
 try:
     # Third Party Library
@@ -84,7 +86,7 @@ class BaseContigTree:
         runs=Ellipsis,
         boundary_condition_class=None,
         decision_class=None,
-    ):
+    ) -> None:
         """The only required argument is an WepyHDF5 object from which to draw
         data.
 
@@ -243,14 +245,14 @@ class BaseContigTree:
         """Dictionary mapping the spand indices to their run traces."""
         return self._spans
 
-    def span_contig(self, span_idx):
+    def span_contig(self, span_idx: int):
         """Generates a contig object for the specified spanning contig."""
 
         contig = self.make_contig(self.span_traces[span_idx])
 
         return contig
 
-    def _create_tree(self, wepy_h5):
+    def _create_tree(self, wepy_h5) -> None:
         """Generate the tree of cycles from the WepyHDF5 object/file."""
 
         # first go through each run without continuations
@@ -287,7 +289,7 @@ class BaseContigTree:
             # add this connector edge to the network
             self.graph.add_edge(*edge)
 
-    def _set_resampling_panels(self, wepy_h5):
+    def _set_resampling_panels(self, wepy_h5) -> None:
         """Generates resampling panels for each cycle and sets them as node attributes."""
 
         # then get the resampling tables for each cycle and put them
@@ -301,7 +303,7 @@ class BaseContigTree:
                 node = (run_idx, step_idx)
                 self.graph.nodes[node][self.RESAMPLING_PANEL_KEY] = step
 
-    def _initialize_discontinuities(self, wepy_h5):
+    def _initialize_discontinuities(self, wepy_h5) -> None:
         """Initialize the nodes with discontinuities attributes but set to 0s
         indicating no discontinuities.
         """
@@ -314,7 +316,7 @@ class BaseContigTree:
                 0 for i in range(n_walkers)
             ]
 
-    def _set_discontinuities(self, wepy_h5, boundary_conditions_class):
+    def _set_discontinuities(self, wepy_h5, boundary_conditions_class) -> None:
         """Given the boundary condition class sets node attributes for where
         there are discontinuities in the parental lineages.
 
@@ -363,7 +365,7 @@ class BaseContigTree:
                                 rec_traj_idx
                             ] = -1
 
-    def _set_parents(self, decision_class):
+    def _set_parents(self, decision_class) -> None:
         """Determines the net parents for each cycle and sets them in-place to
         the cycle tree given.
 
@@ -486,7 +488,7 @@ class BaseContigTree:
 
         return contig_walker_trace
 
-    def contig_cycle_idx(self, run_idx, cycle_idx):
+    def contig_cycle_idx(self, run_idx, cycle_idx) -> int:
         """Convert an in-run cycle index to an in-contig cyle_idx.
 
         Parameters
@@ -1324,7 +1326,7 @@ class ContigTree(BaseContigTree):
         runs=Ellipsis,
         boundary_condition_class=None,
         decision_class=None,
-    ):
+    ) -> None:
         self.closed = True
 
         # if we pass a base contigtree use that one instead of building one manually
@@ -1346,7 +1348,7 @@ class ContigTree(BaseContigTree):
 
         self._wepy_h5 = wepy_h5
 
-    def _set_base_contigtree_to_self(self, base_contigtree):
+    def _set_base_contigtree_to_self(self, base_contigtree: BaseContigTree) -> None:
         self._base_contigtree = base_contigtree
 
         # then make references to this for the attributes we need
@@ -1357,23 +1359,23 @@ class ContigTree(BaseContigTree):
         self._run_idxs = self._base_contigtree._run_idxs
         self._spans = self._base_contigtree._spans
 
-    def open(self, mode=None):
+    def open(self, mode=None) -> None:
         if self.closed:
             self.wepy_h5.open(mode=mode)
             self.closed = False
         else:
             raise IOError("This file is already open")
 
-    def close(self):
+    def close(self) -> None:
         self.wepy_h5.close()
         self.closed = True
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         self.wepy_h5.__enter__()
         self.closed = False
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_tb):
+    def __exit__(self, exc_type, exc_value, exc_tb) -> None:
         self.wepy_h5.__exit__(exc_type, exc_value, exc_tb)
         self.close()
 
@@ -1434,7 +1436,7 @@ class ContigTree(BaseContigTree):
 
     # TODO: optimize this, we don't need to recalculate everything
     # each time to implement this
-    def make_contig(self, contig_trace):
+    def make_contig(self, contig_trace) -> Contig:
         """Create a Contig object given a contig trace.
 
         Parameters
@@ -1512,7 +1514,7 @@ class ContigTree(BaseContigTree):
         # then cast to a set to get the unique ones
         return list(set(big_trace))
 
-    def lineages(self, trace, discontinuities=True):
+    def lineages(self, trace, discontinuities: bool=True):
         """Get the ancestry lineage for each element of the trace as a run
         trace."""
 
@@ -1553,7 +1555,7 @@ class Contig(ContigTree):
 
     """
 
-    def __init__(self, wepy_h5, **kwargs):
+    def __init__(self, wepy_h5, **kwargs) -> None:
         # uses superclass docstring exactly, this constructor just
         # generates some extra attributes
 
@@ -1621,7 +1623,7 @@ class Contig(ContigTree):
         return self._contig_trace
 
     @property
-    def num_cycles(self):
+    def num_cycles(self) -> int:
         """The number of cycles in this contig.
 
         Returns
@@ -1632,7 +1634,7 @@ class Contig(ContigTree):
         return len(self.contig_trace)
 
     # TODO: may need to be implemented without using the wepy_h5 in the BaseContigTree
-    def num_walkers(self, cycle_idx):
+    def num_walkers(self, cycle_idx: int):
         """Get the number of walkers at a given cycle in the contig.
 
         Parameters
@@ -1653,7 +1655,7 @@ class Contig(ContigTree):
 
         return n_walkers
 
-    def records(self, record_key):
+    def records(self, record_key: str):
         """Returns the records for the given key.
 
         Parameters
@@ -1695,7 +1697,7 @@ class Contig(ContigTree):
 
         return self.records(RESAMPLING)
 
-    def resampling_records_dataframe(self):
+    def resampling_records_dataframe(self) -> DataFrame:
         """Returns the resampling records as a pandas.DataFrame.
 
         Returns
@@ -1718,7 +1720,7 @@ class Contig(ContigTree):
 
         return self.records(RESAMPLER)
 
-    def resampler_records_dataframe(self):
+    def resampler_records_dataframe(self) -> DataFrame:
         """Returns the resampler records as a pandas.DataFrame.
 
         Returns
@@ -1741,7 +1743,7 @@ class Contig(ContigTree):
 
         return self.records(WARPING)
 
-    def warping_records_dataframe(self):
+    def warping_records_dataframe(self) -> DataFrame:
         """Returns the warping records as a pandas.DataFrame.
 
         Returns
@@ -1764,7 +1766,7 @@ class Contig(ContigTree):
 
         return self.records(BC)
 
-    def bc_records_dataframe(self):
+    def bc_records_dataframe(self) -> DataFrame:
         """Returns the boundary conditions records as a pandas.DataFrame.
 
         Returns
@@ -1787,7 +1789,7 @@ class Contig(ContigTree):
 
         return self.records(PROGRESS)
 
-    def progress_records_dataframe(self):
+    def progress_records_dataframe(self) -> DataFrame:
         """Returns the progress records as a pandas.DataFrame.
 
         Returns
@@ -1810,7 +1812,7 @@ class Contig(ContigTree):
 
         return self.wepy_h5.run_contig_resampling_panel(self._contig_run_idxs)
 
-    def parent_table(self, discontinuities=True):
+    def parent_table(self, discontinuities: bool=True):
         """Returns the full parent table for this contig.
 
         Notes
@@ -1850,7 +1852,7 @@ class Contig(ContigTree):
 
         return lineages
 
-    def lineages(self, contig_trace, discontinuities=True):
+    def lineages(self, contig_trace, discontinuities: bool=True):
         """Get the ancestry lineage for each element of the trace as a run
         trace."""
 
@@ -1899,7 +1901,7 @@ class Contig(ContigTree):
 
         return trace
 
-    def final_contig_trace(self):
+    def final_contig_trace(self) -> list[tuple[int, int]]:
         # this is just the last cycle index
         last_cycle_idx = self.num_cycles - 1
 
@@ -1952,14 +1954,14 @@ class Contig(ContigTree):
         self,
         bc_class=None,
         progress_key=None,
-        node_shape="disc",
-        discontinuous_node_shape="square",
-        colormap_name="plasma",
+        node_shape: str="disc",
+        discontinuous_node_shape: str="square",
+        colormap_name: str="plasma",
         node_radius=None,
         row_spacing=None,
         step_spacing=None,
         central_axis=None,
-    ):
+    ) -> LayoutGraph:
         ### The data we need for making the resampling tree
 
         ## parent table, don't include discontinuities, we will handle

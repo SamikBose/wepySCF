@@ -35,16 +35,18 @@ from warnings import warn
 
 # Third Party Library
 import numpy as np
+from mdtraj.core.trajectory import Trajectory
 
 try:
     # Third Party Library
     import openmm as omm
     import openmm.app as omma
     import simtk.unit as unit
+    from openmm.app.simulation import Simulation
 except ModuleNotFoundError:
     raise ModuleNotFoundError(
         "OpenMM has not been installed, which this runner requires."
-    )
+    ) from None
 
 # First Party Library
 from wepy.reporter.reporter import Reporter
@@ -209,9 +211,9 @@ class OpenMMRunner(Runner):
         integrator,
         platform=None,
         platform_kwargs=None,
-        enforce_box=False,
+        enforce_box: bool=False,
         get_state_kwargs=None
-    ):
+    ) -> None:
         """Constructor for OpenMMRunner.
 
         Parameters
@@ -307,7 +309,7 @@ class OpenMMRunner(Runner):
         # performance
         self._last_cycle_segments_split_times = []
 
-    def pre_cycle(self, platform=None, platform_kwargs=None, **kwargs):
+    def pre_cycle(self, platform=None, platform_kwargs=None, **kwargs) -> None:
         # choose to use the platform spec in this function call or to
         # use the default one saved in the runner
 
@@ -329,7 +331,7 @@ class OpenMMRunner(Runner):
         # each segment split times will get appended to this
         self._last_cycle_segments_split_times = []
 
-    def post_cycle(self, **kwargs):
+    def post_cycle(self, **kwargs) -> None:
         super().post_cycle(**kwargs)
 
         # remove the platform and kwargs for this cycle
@@ -382,7 +384,7 @@ class OpenMMRunner(Runner):
         platform=None,
         platform_kwargs=None,
         **kwargs,
-    ):
+    ) -> OpenMMWalker:
         """Run dynamics for the walker.
 
         Parameters
@@ -559,8 +561,8 @@ class OpenMMRunner(Runner):
         return new_walker
 
     def generate_state(
-        self, simulation, segment_length, starting_walker, getState_kwargs
-    ):
+        self, simulation: Simulation, segment_length, starting_walker, getState_kwargs: dict[str, bool]
+    ) -> OpenMMState:
         """Method for generating a wepy compliant state from an OpenMM
         simulation object and data about the last segment of dynamics run.
 
@@ -628,7 +630,7 @@ class OpenMMState(WalkerState):
     OTHER_KEY_TEMPLATE = "{}_OTHER"
     """String formatting template for attributes not set in KEYS."""
 
-    def __init__(self, sim_state, **kwargs):
+    def __init__(self, sim_state, **kwargs) -> None:
         """Constructor for OpenMMState.
 
         Parameters
@@ -1071,7 +1073,7 @@ class OpenMMState(WalkerState):
 
     # for the dict attributes we need to transform the keys for making
     # a proper state where all __getitem__ things are arrays
-    def _dict_attr_to_compound_key_dict(self, root_key, attr_dict):
+    def _dict_attr_to_compound_key_dict(self, root_key: str, attr_dict):
         """Transform a dictionary of values within the compound key 'root_key'
         to a dictionary mapping compound keys to values.
 
@@ -1207,7 +1209,7 @@ class OpenMMState(WalkerState):
             d[key] = value
         return d
 
-    def to_mdtraj(self, topology):
+    def to_mdtraj(self, topology) -> Trajectory:
         """Returns an mdtraj.Trajectory object from this walker's state.
 
         Parameters
@@ -1280,7 +1282,7 @@ def gen_sim_state(positions, system, integrator, getState_kwargs=None):
     return sim_state
 
 
-def gen_walker_state(positions, system, integrator, getState_kwargs=None):
+def gen_walker_state(positions, system, integrator, getState_kwargs=None) -> OpenMMState:
     """Convenience function for generating a wepy walker State object for
     an openmm simulation state.
 
@@ -1316,7 +1318,7 @@ class OpenMMWalker(Walker):
 
     """
 
-    def __init__(self, state, weight):
+    def __init__(self, state, weight) -> None:
         # documented in superclass
 
         assert isinstance(
@@ -1343,7 +1345,7 @@ class OpenMMCPUWorker(Worker):
 
     DEFAULT_NUM_THREADS = 1
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         if "num_threads" not in kwargs:
             num_threads = self.DEFAULT_NUM_THREADS
         else:

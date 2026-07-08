@@ -58,7 +58,7 @@ class WalkerReporter(ProgressiveFileReporter):
 
     def __init__(
         self, *, init_state=None, json_topology=None, main_rep_idxs=None, **kwargs
-    ):
+    ) -> None:
         """Constructor for the WalkerReporter.
 
         Parameters
@@ -99,7 +99,7 @@ class WalkerReporter(ProgressiveFileReporter):
             self.init_unitcell_angles,
         ) = box_vectors_to_lengths_angles(init_state["box_vectors"])
 
-    def init(self, **kwargs):
+    def init(self, **kwargs) -> None:
         """Initialize the reporter at simulation time.
 
         This will generate the initial state PDB file.
@@ -124,7 +124,7 @@ class WalkerReporter(ProgressiveFileReporter):
         logger.info("Writing initial state to {}".format(self.init_state_path))
         init_traj.save_pdb(self.init_state_path)
 
-    def report(self, cycle_idx=None, new_walkers=None, **kwargs):
+    def report(self, cycle_idx=None, new_walkers=None, **kwargs) -> None:
         """Report the current cycle's walker states as 3D molecular
         structures.
 

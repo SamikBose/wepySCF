@@ -58,7 +58,7 @@ lj_fixtures = [
 
 
 @pytest.mark.interactive
-def test_init_state(lj_init_state):
+def test_init_state(lj_init_state) -> None:
     pdb.set_trace()
     pass
 
@@ -67,17 +67,17 @@ def test_init_state(lj_init_state):
 class TestLJPairNewOrch:
     # just an empty thing to get the fixtures made and catch errors
     # there
-    def test_fixtures(self):
+    def test_fixtures(self) -> None:
         pass
 
     @pytest.mark.interactive
-    def test_orch_interactive(self, lj_orchestrator_defaults):
+    def test_orch_interactive(self, lj_orchestrator_defaults) -> None:
         pdb.set_trace()
 
         pass
 
     @pytest.mark.interactive
-    def test_reconciled_orch(self, lj_orch_reconciled_orchs):
+    def test_reconciled_orch(self, lj_orch_reconciled_orchs) -> None:
         host_orch, other_orch, reconciled_orch = lj_orch_reconciled_orchs
         pdb.set_trace()
 
@@ -152,7 +152,7 @@ class TestLJSimIntegration:
         lj_unbinding_bc,
         lj_wexplore_resampler,
         lj_revo_resampler,
-    ):
+    ) -> None:
         """Run all combinations of components in the fixtures for the smallest
         amount of time, just to make sure they all work together and don't give errors.
         """

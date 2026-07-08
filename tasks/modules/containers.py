@@ -23,7 +23,7 @@ from ..config import (
 ## Container definitions
 
 @task
-def build(cx, root=None):
+def build(cx, root=None) -> None:
     """Build all containers in dir `containers` using Dockerfiles."""
 
     assert root is not None, \
@@ -76,7 +76,7 @@ def list_built(cx, root=None):
 
 
 @task
-def load(cx):
+def load(cx) -> None:
     """Load the containers into container tool local memory."""
 
     assert root is not None, \
@@ -94,7 +94,7 @@ def load(cx):
         cx.run(f"{CONTAINER_TOOL} load < {images_dir}/{image_name}.tar {image_name}")
 
 @task
-def unload(cx):
+def unload(cx) -> None:
 
     raise NotImplementedError
 

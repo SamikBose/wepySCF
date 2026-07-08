@@ -14,7 +14,7 @@ class QMGridDensityDistance(Distance):
     :class:`wepy.runners.pyscf.PySCFRunner`.
     """
 
-    def __init__(self, grid_key="density_grid", normalize=True):
+    def __init__(self, grid_key: str="density_grid", normalize: bool=True) -> None:
         self.grid_key = grid_key
         self.normalize = normalize
 
@@ -49,7 +49,7 @@ class BondBreakMakeDistance(Distance):
     2-vector.
     """
 
-    def __init__(self, break_pair, make_pair):
+    def __init__(self, break_pair, make_pair) -> None:
         self.break_pair = tuple(break_pair)
         self.make_pair = tuple(make_pair)
 
@@ -84,7 +84,7 @@ class ProtonTransferDistance(Distance):
     generic ``Distance`` image handling.
     """
 
-    def __init__(self, break_pair, make_pair):
+    def __init__(self, break_pair, make_pair) -> None:
         self.break_pair = tuple(break_pair)
         self.make_pair = tuple(make_pair)
 
@@ -102,7 +102,7 @@ class ProtonTransferDistance(Distance):
         xi = d_break - d_make
         return np.array([xi], dtype=float)
 
-    def image_distance(self, image_a, image_b):
+    def image_distance(self, image_a, image_b) -> float:
         return abs(float(image_a[0] - image_b[0]))
 
 
@@ -127,14 +127,14 @@ class DihedralDistance(Distance):
         DihedralDistance([(4, 6, 8, 14), (6, 8, 14, 16)])
     """
 
-    def __init__(self, dihedrals):
+    def __init__(self, dihedrals) -> None:
         # accept either a single (i, j, k, l) or a list/tuple of them
         if len(dihedrals) == 4 and np.isscalar(dihedrals[0]):
             dihedrals = [dihedrals]
         self.dihedrals = [tuple(int(a) for a in quad) for quad in dihedrals]
 
     @staticmethod
-    def _dihedral(positions, quad):
+    def _dihedral(positions, quad: tuple[int, ...]):
         p0, p1, p2, p3 = (positions[i] for i in quad)
         b0 = p0 - p1
         b1 = p2 - p1
@@ -152,7 +152,7 @@ class DihedralDistance(Distance):
             feats.extend([np.cos(phi), np.sin(phi)])
         return np.array(feats, dtype=float)
 
-    def image_distance(self, image_a, image_b):
+    def image_distance(self, image_a, image_b) -> float:
         a = np.asarray(image_a, dtype=float).reshape(-1, 2)
         b = np.asarray(image_b, dtype=float).reshape(-1, 2)
         dots = np.clip(np.sum(a * b, axis=1), -1.0, 1.0)

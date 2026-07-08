@@ -23,7 +23,7 @@ See the openmm.py module for an example.
 class Runner(object):
     """Abstract base class for the Runner interface."""
 
-    def pre_cycle(self, **kwargs):
+    def pre_cycle(self, **kwargs) -> None:
         """Perform pre-cycle behavior. run_segment will be called for each
         walker so this allows you to perform changes of state on a
         per-cycle basis.
@@ -39,7 +39,7 @@ class Runner(object):
         # by default just pass since subclasses need not implement this
         pass
 
-    def post_cycle(self, **kwargs):
+    def post_cycle(self, **kwargs) -> None:
         """Perform post-cycle behavior. run_segment will be called for each
         walker so this allows you to perform changes of state on a
         per-cycle basis.
