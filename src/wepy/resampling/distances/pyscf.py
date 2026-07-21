@@ -442,3 +442,45 @@ class HOMOLUMOGapDistance(Distance):
                 - np.asarray(image_b, dtype=float)[0],
             ),
         )
+
+
+class DielsAlderBondOrderLikeDistance(Distance):
+    """Diels-Alder metric using smooth bond-formation variables."""
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r0=4.0,      # midpoint in Bohr; ~2.1 Å
+        k=2.0,       # steepness in 1/Bohr
+        async_weight=1.0,
+    ):
+        self.bond_pairs = tuple(bond_pairs)
+        self.r0 = float(r0)
+        self.k = float(k)
+        self.async_weight = float(async_weight)
+
+    def _switch(self, r):
+        return 1.0 / (1.0 + np.exp(self.k * (r - self.r0)))
+
+    def image(self, state):
+        pos = np.asarray(state["positions"], dtype=float)
+
+        r1 = np.linalg.norm(pos[0] - pos[11])   # C1-C12
+        r2 = np.linalg.norm(pos[3] - pos[10])   # C4-C11
+
+        q1 = self._switch(r1)
+        q2 = self._switch(r2)
+
+        progress = 0.5 * (q1 + q2)              # 0 reactant-like, 1 product-like
+        asynchronicity = abs(q1 - q2)
+
+        return np.array(
+            [
+                progress,
+                self.async_weight * asynchronicity,
+            ],
+            dtype=float,
+        )
+
+    def image_distance(self, image_a, image_b):
+        return float(np.linalg.norm(np.asarray(image_a) - np.asarray(image_b)))
