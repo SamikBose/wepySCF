@@ -120,17 +120,14 @@ class PySCFRunner(Runner):
     def __init__(
         self,
         backend: str = "cpu",
-        basis: str = "6-31g*",
         auxbasis: str | None = None,
         method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF",
         xc: str | None = None,
         population_method: Literal["mulliken", "meta-lowdin", "lowdin"] = "meta-lowdin",
-        charge: int = 0,
-        spin: int = 0,
         dt: int = 21,
-        integrator_temperature_kelvin: float = 300.0,
         integrator_cls: pyscf_md.integrators._Integrator = pyscf_md.integrators.VelocityVerlet,
         integrator_kwargs: dict | None = None,
+        integrator_temperature_kelvin: float = 300.0,
         density_grid_shape: tuple[int, int, int] | None = None,
         density_grid_padding: float = 2.0,
         use_density_fitting: bool = False,
@@ -138,12 +135,10 @@ class PySCFRunner(Runner):
         scanner_cache_capacity: int = 8,
     ):
         self.backend = backend.lower()
-        self.basis = basis
         self.method = method.upper()
+        self.auxbasis = auxbasis
         self.xc = xc
         self.population_method = population_method
-        self.charge = charge
-        self.spin = spin
         self.dt = dt
         self.integrator_cls = integrator_cls
         self.integrator_kwargs = {} if integrator_kwargs is None else dict(integrator_kwargs)
@@ -151,7 +146,6 @@ class PySCFRunner(Runner):
         self.density_grid_shape = density_grid_shape
         self.density_grid_padding = float(density_grid_padding)
         self._use_density_fitting = bool(use_density_fitting)
-        self.auxbasis = auxbasis
         self._use_scanner_caching = bool(use_scanner_caching)
         self.scanner_cache_capacity = scanner_cache_capacity
 
