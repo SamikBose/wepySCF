@@ -3,18 +3,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
-import os
 import os.path as osp
-import pickle
 
 
 class ReporterError(Exception):
     """ """
 
-    pass
 
 
-class Reporter(object):
+class Reporter:
     """Abstract base class for wepy reporters.
 
     All reporters must customize and override minimally the 'report'
@@ -39,7 +36,6 @@ class Reporter(object):
             compatibility.
 
         """
-        pass
 
     def init(self, **kwargs) -> None:
         """Initialization routines for the reporter at simulation runtime.
@@ -83,7 +79,7 @@ class Reporter(object):
         method_name = "init"
         assert not hasattr(
             super(), method_name
-        ), "Superclass with method {} is masked".format(method_name)
+        ), f"Superclass with method {method_name} is masked"
 
     def report(self, **kwargs) -> None:
         """Given data concerning the main simulation components state, perform
@@ -148,7 +144,7 @@ class Reporter(object):
         method_name = "report"
         assert not hasattr(
             super(), method_name
-        ), "Superclass with method {} is masked".format(method_name)
+        ), f"Superclass with method {method_name} is masked"
 
     def cleanup(self, **kwargs) -> None:
         """Teardown routines for the reporter at the end of the simulation.
@@ -183,7 +179,7 @@ class Reporter(object):
         method_name = "cleanup"
         assert not hasattr(
             super(), method_name
-        ), "Superclass with method {} is masked".format(method_name)
+        ), f"Superclass with method {method_name} is masked"
 
 
 class FileReporter(Reporter):
@@ -356,7 +352,7 @@ class FileReporter(Reporter):
 
             assert len(file_paths) == len(
                 self.FILE_ORDER
-            ), "you must give file_paths {} paths".format(len(self.FILE_ORDER))
+            ), f"you must give file_paths {len(self.FILE_ORDER)} paths"
 
         # using the file_path paths we got above we set them as
         # attributes in this object
@@ -480,7 +476,7 @@ class FileReporter(Reporter):
         if self._validate_mode(mode):
             self._modes[file_idx] = mode
         else:
-            raise ValueError("Incorrect mode {}".format(mode))
+            raise ValueError(f"Incorrect mode {mode}")
 
     def reparametrize(self, file_paths, modes) -> None:
         """Set the file paths and modes for all files in the reporter.
@@ -549,7 +545,7 @@ class ProgressiveFileReporter(FileReporter):
             if mode in ["x", "w-"]:
                 file_path = self.file_paths[file_i]
                 if osp.exists(file_path):
-                    raise FileExistsError("File exists: '{}'".format(file_path))
+                    raise FileExistsError(f"File exists: '{file_path}'")
 
             # now that we have checked if the file exists we set it into
             # overwrite mode

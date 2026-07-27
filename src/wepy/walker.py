@@ -202,7 +202,7 @@ class Walker:
         return merge([self] + other_walkers)
 
 
-class WalkerState(object):
+class WalkerState:
     """Reference implementation of the WalkerState interface.
 
     Access all key-value pairs as a dictionary with the dict() method.

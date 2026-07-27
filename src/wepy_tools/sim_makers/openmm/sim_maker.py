@@ -1,15 +1,14 @@
 """Module for generating wepy systems"""
 
 # Standard Library
-from copy import copy, deepcopy
+from copy import deepcopy
 from types import EllipsisType
 
 # Third Party Library
 import mdtraj as mdj
 import numpy as np
 import openmm as omm
-import openmm.app as omma
-import simtk.unit as unit
+from simtk import unit
 
 # integrators
 from simtk.openmm import LangevinIntegrator
@@ -56,16 +55,13 @@ from wepy.runners.openmm import (
 from wepy.sim_manager import Manager
 from wepy.util.json_top import (
     json_top_atom_df,
-    json_top_residue_df,
-    json_top_residue_fields,
-    json_top_subset,
 )
 from wepy.util.mdtraj import mdtraj_to_json_topology
 from wepy.walker import Walker
 
 # mappers
 from wepy.work_mapper.mapper import Mapper
-from wepy.work_mapper.task_mapper import TaskMapper, WalkerTaskProcess
+from wepy.work_mapper.task_mapper import TaskMapper
 from wepy.work_mapper.worker import Worker, WorkerMapper
 
 # workers
@@ -378,10 +374,7 @@ class OpenMMSimMaker:
 
         ## BC
         # NoBC
-        if type(apparatus.boundary_conditions).__name__ == "NoBC":
-            dashboard_sections["bc"] = BCDashboardSection(apparatus.boundary_conditions)
-        # Random
-        elif type(apparatus.boundary_conditions).__name__ == "RandomBC":
+        if type(apparatus.boundary_conditions).__name__ == "NoBC" or type(apparatus.boundary_conditions).__name__ == "RandomBC":
             dashboard_sections["bc"] = BCDashboardSection(apparatus.boundary_conditions)
 
         ## Runner
@@ -430,7 +423,7 @@ class OpenMMSimMaker:
                     break
 
             if not match:
-                raise ValueError("Unkown reporter for spec {}".format(reporter_spec))
+                raise ValueError(f"Unkown reporter for spec {reporter_spec}")
 
             reporter_classes.append(match)
 

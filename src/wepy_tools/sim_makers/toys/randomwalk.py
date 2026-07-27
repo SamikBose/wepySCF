@@ -26,13 +26,7 @@ Using the Weighted Ensemble Algorithm" and
 
 """
 
-# Standard Library
-import json
-import os
-import sys
-
 # Third Party Library
-import h5py
 import mdtraj as mdj
 import numpy as np
 import pandas as pd
@@ -40,7 +34,6 @@ import pandas as pd
 # First Party Library
 from wepy.hdf5 import WepyHDF5
 from wepy.reporter.hdf5 import WepyHDF5Reporter
-from wepy.resampling.resamplers.resampler import NoResampler
 from wepy.runners.randomwalk import UNIT_NAMES, RandomWalkRunner
 from wepy.sim_manager import Manager
 from wepy.util.mdtraj import mdtraj_to_json_topology
@@ -56,7 +49,7 @@ UNITS = UNIT_NAMES
 np.set_printoptions(precision=PRECISION)
 
 
-class RandomwalkProfiler(object):
+class RandomwalkProfiler:
     """A class to implement RandomWalkProfilier."""
 
     RANDOM_WALK_TEMPLATE = """* Random walk simulation:
@@ -199,10 +192,10 @@ class RandomwalkProfiler(object):
         """
 
         print("Random walk simulation with: ")
-        print("Dimension = {}".format(self.dimension))
-        print("Probability = {}".format(self.probability))
-        print("Number of Walkers = {}".format(num_walkers))
-        print("Number of Cycles ={}".format(num_cycles))
+        print(f"Dimension = {self.dimension}")
+        print(f"Probability = {self.probability}")
+        print(f"Number of Walkers = {num_walkers}")
+        print(f"Number of Cycles ={num_cycles}")
 
         # set up initial state for walkers
         positions = np.zeros((1, self.dimension))
@@ -247,9 +240,9 @@ class RandomwalkProfiler(object):
         steps = [segment_length for i in range(num_cycles)]
         ### RUN the simulation
         for run_idx in range(num_runs):
-            print("Starting run: {}".format(run_idx))
+            print(f"Starting run: {run_idx}")
             sim_manager.run_simulation(num_cycles, steps)
-            print("Finished run: {}".format(run_idx))
+            print(f"Finished run: {run_idx}")
 
         print("Finished Simulation")
 
@@ -393,7 +386,7 @@ class RandomwalkProfiler(object):
 
         """
 
-        predited_probibilty = np.zeros((max_range))
+        predited_probibilty = np.zeros(max_range)
 
         num_cycles = wepy_h5.num_run_cycles(run_idx)
         num_walkers = wepy_h5.num_run_trajs(run_idx)

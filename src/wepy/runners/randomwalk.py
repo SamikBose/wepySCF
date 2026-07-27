@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 import random as rand
 
 # Third Party Library
-import numpy as np
 from pint import UnitRegistry
 
 # First Party Library
@@ -102,8 +101,7 @@ class RandomWalkRunner(Runner):
 
             # implement the boundary condition for movement, movements
             # to -1 are rejected
-            if new_positions[0][dim_idx] < 0:
-                new_positions[0][dim_idx] = 0
+            new_positions[0][dim_idx] = max(new_positions[0][dim_idx], 0)
 
         return new_positions
 

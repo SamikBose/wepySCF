@@ -1,16 +1,5 @@
 from invoke import task
 
-from ..config import (
-    REPORTS_DIR,
-)
-
-import sys
-import os
-import os.path as osp
-from pathlib import Path
-
-import pytest
-
 
 # TODO: this should be done better
 @task
@@ -36,9 +25,9 @@ def integration(cx, tag=None, node: str='node_minor') -> None:
     """
 
     lines = [
-        f"coverage run -m pytest ",
-        f"-m 'not interactive' ",
-        f"tests/test_integration",
+        "coverage run -m pytest ",
+        "-m 'not interactive' ",
+        "tests/test_integration",
     ]
 
     if node == 'minor':
@@ -58,5 +47,5 @@ def integration(cx, tag=None, node: str='node_minor') -> None:
         cx.run('heerr',
                warn=True)
     else:
-        cx.run(f"coverage run -m pytest  -m 'not interactive' tests/test_integration",
+        cx.run("coverage run -m pytest  -m 'not interactive' tests/test_integration",
                warn=True)

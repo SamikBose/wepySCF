@@ -1,12 +1,13 @@
-from invoke import task
-
+# Standard Library
 # from ..config import ()
-
 import os
 import os.path as osp
-from pathlib import Path
 import shutil as sh
+from pathlib import Path
 from warnings import warn
+
+# Third Party Library
+from invoke import task
 
 ## Paths for the different things
 
@@ -334,7 +335,6 @@ def tangle(cx) -> None:
     """Tangle the doc pages, examples, and tutorials into the docs testing
     directories."""
 
-    pass
 
 
 @task
@@ -545,7 +545,7 @@ def test_pages(cx, tag=None) -> None:
 def test_pages_nox(cx, tag=None) -> None:
     """Test the doc pages in the nox test matrix session."""
 
-    cx.run(f"nox -s test_doc_pages")
+    cx.run("nox -s test_doc_pages")
 
 @task
 def pin_example(cx, name=None) -> None:
@@ -622,4 +622,3 @@ def env_tutorial(cx, name=None) -> None:
             f"Tutorial {tutorial} doesn't exist"
 
         cx.run(f"inv env.make-env -s {spec_path} -p {env_path}")
-

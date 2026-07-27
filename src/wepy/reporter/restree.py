@@ -293,7 +293,7 @@ class ResTreeReporter(ProgressiveFileReporter):
                 elif len(field_shape) > 2:
                     raise TypeError(
                         "cannot convert fields with feature vectors more than 1 dimension,"
-                        " was given {} for {}".format(field_value.shape[1:], field_name)
+                        f" was given {field_value.shape[1:]} for {field_name}"
                     )
 
                 # if it is only a rank 1 feature vector and it has more than
@@ -480,7 +480,7 @@ class ResTreeReporter(ProgressiveFileReporter):
         for node_id, color_arr in layout_forest.get_node_attributes("color").items():
             if color_arr is None:
                 # make a black color for these
-                node_colors[node_id] = tuple(int(255) for a in range(4))
+                node_colors[node_id] = tuple(255 for a in range(4))
             else:
                 node_colors[node_id] = color_arr
 
@@ -495,7 +495,7 @@ class ResTreeReporter(ProgressiveFileReporter):
 
         # also set the color to black
         for discontinuous_node in self._discontinuous_nodes:
-            node_colors[discontinuous_node] = tuple(int(0) for a in range(4))
+            node_colors[discontinuous_node] = tuple(0 for a in range(4))
 
         # we are going to output to the gexf format so we use the
         # pertinent methods

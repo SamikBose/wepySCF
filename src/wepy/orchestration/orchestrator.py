@@ -1,5 +1,4 @@
 # Standard Library
-import itertools as it
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,7 +8,7 @@ import os.path as osp
 import sqlite3
 import time
 from base64 import b64decode, b64encode
-from copy import copy, deepcopy
+from copy import deepcopy
 from hashlib import md5
 from zlib import compress, decompress
 
@@ -28,7 +27,6 @@ from wepy.util.kv import KV, SQLITE3_INMEMORY_URI, gen_uri
 class OrchestratorError(Exception):
     """ """
 
-    pass
 
 
 class Orchestrator:
@@ -138,7 +136,7 @@ class Orchestrator:
 
     def close(self) -> None:
         if self._closed == True:
-            raise IOError("The database connection is already closed")
+            raise OSError("The database connection is already closed")
 
         else:
             # close all the connections
@@ -618,23 +616,17 @@ class Orchestrator:
         # if one is not registered raise an error
         if not self.snapshot_hash_registered(start_hash):
             raise OrchestratorError(
-                "snapshot start_hash {} is not registered with the orchestrator".format(
-                    start_hash
-                )
+                f"snapshot start_hash {start_hash} is not registered with the orchestrator"
             )
 
         if not self.snapshot_hash_registered(end_hash):
             raise OrchestratorError(
-                "snapshot end_hash {} is not registered with the orchestrator".format(
-                    end_hash
-                )
+                f"snapshot end_hash {end_hash} is not registered with the orchestrator"
             )
 
         if not self.configuration_hash_registered(config_hash):
             raise OrchestratorError(
-                "config hash {} is not registered with the orchestrator".format(
-                    config_hash
-                )
+                f"config hash {config_hash} is not registered with the orchestrator"
             )
 
         # save the configuration and get it's id
@@ -878,7 +870,7 @@ class Orchestrator:
                 del checkpoint_orch.snapshot_kv[old_checkpoint_hash]
                 logger.debug("finished")
             else:
-                logger.warn(
+                logger.warning(
                     "Final snapshot has same hash as the previous checkpoint. Not deleting the previous one."
                 )
 
@@ -1016,7 +1008,7 @@ class Orchestrator:
         cycle_idx = 0
         start_time = time.time()
         while time.time() - start_time < run_time:
-            logger.debug("Running cycle {}".format(cycle_idx))
+            logger.debug(f"Running cycle {cycle_idx}")
             # run the cycle
             walkers, filters = sim_manager.run_cycle(
                 walkers,
@@ -1345,30 +1337,24 @@ def reconcile_orchestrators(host_path, *orchestrator_paths) -> Orchestrator:
         attached_table_name = "other"
 
         # query to attach the foreign database
-        attach_query = """
-        ATTACH '{}' AS {}
-        """.format(
-            orch_path, attached_table_name
-        )
+        attach_query = f"""
+        ATTACH '{orch_path}' AS {attached_table_name}
+        """
 
         # query to update the runs tabel with new unique runs
-        union_query = """
+        union_query = f"""
         INSERT INTO runs
         SELECT * FROM (
-        SELECT * FROM {}.runs
+        SELECT * FROM {attached_table_name}.runs
         EXCEPT
         SELECT * FROM runs
         )
-        """.format(
-            attached_table_name
-        )
+        """
 
         # query to detach the table
-        detach_query = """
-        DETACH {}
-        """.format(
-            attached_table_name
-        )
+        detach_query = f"""
+        DETACH {attached_table_name}
+        """
 
         # then run the queries
 

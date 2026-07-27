@@ -2,8 +2,7 @@
 
 # import plugins:
 
-from . import custom
-from . import tests
+from . import custom, tests
 
 # specify which plugins to install, the custom one is included by
 # default to get users going

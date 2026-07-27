@@ -3,11 +3,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from enum import Enum
-
-# Third Party Library
-import numpy as np
 
 # First Party Library
 from wepy.resampling.decisions.decision import Decision
@@ -109,9 +106,7 @@ class MultiCloneMergeDecision(Decision):
                     # where you are going to put it
                     if mod_walkers[instruction[0]] is not None:
                         raise ValueError(
-                            "Multiple walkers assigned to position {}".format(
-                                instruction[0]
-                            )
+                            f"Multiple walkers assigned to position {instruction[0]}"
                         )
 
                     # put the walker in the position specified by the
@@ -133,9 +128,7 @@ class MultiCloneMergeDecision(Decision):
                         # already assigned to this position
                         if mod_walkers[target_idx] is not None:
                             raise ValueError(
-                                "Multiple walkers assigned to position {}".format(
-                                    instruction[0]
-                                )
+                                f"Multiple walkers assigned to position {instruction[0]}"
                             )
 
                         # TODO this comment was just fixed so I
@@ -173,7 +166,7 @@ class MultiCloneMergeDecision(Decision):
                 # make sure there is not already a walker in this slot
                 if mod_walkers[target_idx] is not None:
                     raise ValueError(
-                        "Multiple walkers assigned to position {}".format(target_idx)
+                        f"Multiple walkers assigned to position {target_idx}"
                     )
 
                 # set it in the slot for the keep_idx

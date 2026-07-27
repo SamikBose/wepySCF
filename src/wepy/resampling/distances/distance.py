@@ -34,12 +34,11 @@ from numpy import dtype, float64, ndarray
 from wepy.util.util import box_vectors_to_lengths_angles
 
 
-class Distance(object):
+class Distance:
     """Abstract Base class for Distance classes."""
 
     def __init__(self) -> None:
         """Constructor for Distance class."""
-        pass
 
     def image(self, state):
         """Compute the 'image' of a walker state which should be some
@@ -159,7 +158,7 @@ class AtomPairDistance(Distance):
             # get the box lengths from the vectors
             box_lengths, box_angles = box_vectors_to_lengths_angles(state["box_vectors"])
 
-        dist_list = np.zeros((len(self.pair_list)))
+        dist_list = np.zeros(len(self.pair_list))
         for i,p in enumerate(self.pair_list):
             disp_vector = state["positions"][p[0]] - state["positions"][p[1]]
             if self.periodic:

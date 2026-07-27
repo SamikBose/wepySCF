@@ -10,7 +10,6 @@ Contig
 
 
 # Standard Library
-import itertools as it
 import warnings
 from collections import deque
 from copy import copy
@@ -35,7 +34,6 @@ from geomm.free_energy import free_energy as calc_free_energy
 from wepy.analysis.network_layouts.layout_graph import LayoutGraph
 from wepy.analysis.network_layouts.tree import ResamplingTreeLayout
 from wepy.analysis.parents import (
-    DISCONTINUITY_VALUE,
     ParentForest,
     ancestors,
     net_parent_table,
@@ -1364,7 +1362,7 @@ class ContigTree(BaseContigTree):
             self.wepy_h5.open(mode=mode)
             self.closed = False
         else:
-            raise IOError("This file is already open")
+            raise OSError("This file is already open")
 
     def close(self) -> None:
         self.wepy_h5.close()
@@ -2122,14 +2120,14 @@ class Contig(ContigTree):
         for node_id, color_arr in layout_forest.get_node_attributes("color").items():
             if color_arr is None:
                 # make a black color for these
-                node_colors[node_id] = tuple(int(255) for a in range(4))
+                node_colors[node_id] = tuple(255 for a in range(4))
             else:
                 node_colors[node_id] = color_arr
 
         # set discontinuous nodes to black
         if bc_class is not None:
             for discontinuous_node in discontinuous_nodes:
-                node_colors[discontinuous_node] = tuple(int(0) for a in range(4))
+                node_colors[discontinuous_node] = tuple(0 for a in range(4))
 
         ## Node Shapes
 

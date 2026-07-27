@@ -19,40 +19,39 @@ boundary conditions, runner.
 
 """
 
-import sys
-from copy import copy
+# Standard Library
 import os
 import os.path as osp
+import sys
+from copy import copy
 
-import numpy as np
-
-import openmm.app as omma
-import openmm as omm
-import simtk.unit as unit
-
-from openmm_systems.test_systems import LennardJonesPair
+# Third Party Library
 import mdtraj as mdj
-from wepy.util.mdtraj import mdtraj_to_json_topology
+import numpy as np
+import openmm as omm
+from openmm_systems.test_systems import LennardJonesPair
+from scipy.spatial.distance import euclidean
+from simtk import unit
 
-from wepy.sim_manager import Manager
-
-from wepy.resampling.distances.distance import Distance
-from wepy.resampling.resamplers.wexplore import WExploreResampler
-from wepy.walker import Walker
-from wepy.runners.openmm import OpenMMRunner, OpenMMState
-from wepy.runners.openmm import UNIT_NAMES, GET_STATE_KWARG_DEFAULTS
-from wepy.work_mapper.mapper import Mapper
+# First Party Library
 from wepy.boundary_conditions.receptor import UnbindingBC
-from wepy.reporter.hdf5 import WepyHDF5Reporter
-
 from wepy.reporter.dashboard import DashboardReporter
-
+from wepy.reporter.hdf5 import WepyHDF5Reporter
+from wepy.reporter.openmm import OpenMMRunnerDashboardSection
 from wepy.reporter.receptor.dashboard import ReceptorBCDashboardSection
 from wepy.reporter.wexplore.dashboard import WExploreDashboardSection
-from wepy.reporter.openmm import OpenMMRunnerDashboardSection
-
-from scipy.spatial.distance import euclidean
-
+from wepy.resampling.distances.distance import Distance
+from wepy.resampling.resamplers.wexplore import WExploreResampler
+from wepy.runners.openmm import (
+    GET_STATE_KWARG_DEFAULTS,
+    UNIT_NAMES,
+    OpenMMRunner,
+    OpenMMState,
+)
+from wepy.sim_manager import Manager
+from wepy.util.mdtraj import mdtraj_to_json_topology
+from wepy.walker import Walker
+from wepy.work_mapper.mapper import Mapper
 
 ## PARAMETERS
 
@@ -229,8 +228,8 @@ if __name__ == "__main__":
         n_steps = int(sys.argv[2])
         n_walkers = int(sys.argv[3])
 
-        print("Number of steps: {}".format(n_steps))
-        print("Number of cycles: {}".format(n_cycles))
+        print(f"Number of steps: {n_steps}")
+        print(f"Number of cycles: {n_cycles}")
 
         # create the initial walkers
         init_weight = 1.0 / n_walkers

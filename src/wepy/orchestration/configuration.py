@@ -10,7 +10,6 @@ from copy import deepcopy
 
 # First Party Library
 from wepy.work_mapper.mapper import Mapper, WorkerMapper
-from wepy.work_mapper.worker import Worker
 
 
 class Configuration:
@@ -72,7 +71,7 @@ class Configuration:
 
         # narration
         if narration is not None:
-            narration = "_{}".format(narration) if len(narration) > 0 else ""
+            narration = f"_{narration}" if len(narration) > 0 else ""
             self._narration = narration
         else:
             self._narration = self.DEFAULT_NARRATION

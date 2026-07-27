@@ -2,13 +2,11 @@
 information on the progress of a simulation.
 """
 # Standard Library
-import itertools as it
 import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
 import time
-from collections import defaultdict
 from copy import copy
 from datetime import datetime
 

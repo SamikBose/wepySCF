@@ -1,5 +1,6 @@
 import numpy as np
 
+
 # this is a typical function for mapping over the dataset. I have
 # added the extra argument scaling_factor just to demonstrate that you
 # can have other arguments.

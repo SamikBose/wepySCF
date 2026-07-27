@@ -2,12 +2,11 @@ from pathlib import Path
 
 import numpy as np
 
+from wepy.analysis.contig_tree import ContigTree
+from wepy.analysis.network import MacroStateNetwork
+from wepy.boundary_conditions.unbinding import UnbindingBC
 from wepy.hdf5 import WepyHDF5
 from wepy.resampling.decisions.clone_merge import MultiCloneMergeDecision
-from wepy.boundary_conditions.unbinding import UnbindingBC
-from wepy.analysis.transitions import run_transition_probability_matrix
-from wepy.analysis.network import MacroStateNetwork
-from wepy.analysis.contig_tree import ContigTree
 
 output_dir = Path('_output')
 sim_dir = output_dir / 'we'
@@ -55,7 +54,7 @@ contig_tree = ContigTree(
 # with
 
 random_macrostates = MacroStateNetwork(contig_tree,
-                                       assg_field_key="observables/{}".format(assg_key),
+                                       assg_field_key=f"observables/{assg_key}",
                                        transition_lag_time=3)
 
 node_id = random_macrostates.node_ids[0]
@@ -63,13 +62,13 @@ node_id = random_macrostates.node_ids[0]
 # we can do things like make a trajectory in mdtraj and output as a
 # dcd for a state
 traj = random_macrostates.state_to_mdtraj(node_id)
-traj.save_dcd(str(output_dir / "state.dcd".format(node_id)))
+traj.save_dcd(str(output_dir / "state.dcd"))
 
 # we also can automatically compute the weights of the macrostates.
 random_macrostates.set_macrostate_weights()
 
 # this sets them as macrostate (node) attributes
-print("node {} weight:".format(node_id))
+print(f"node {node_id} weight:")
 print(random_macrostates.get_node_attribute(node_id, 'Weight'))
 
 # we can also get a transition probability matrix from this

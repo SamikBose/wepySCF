@@ -1,10 +1,12 @@
+# Third Party Library
+import numpy as np
+import openmm
+import openmm.app as omma
+from openmm import unit
+
+# First Party Library
 from wepy_tools.systems.openmm.base import TestSystem
 
-import numpy as np
-
-import openmm
-import openmm.unit as unit
-import openmm.app as omma
 
 class NaClPair(TestSystem):
 

@@ -4,6 +4,7 @@ from ..config import (
     PROJECT_SLUG,
 )
 
+
 @task
 def copy_ssh(cx, name: str='dev') -> None:
     """Copy SSH keys to a container."""

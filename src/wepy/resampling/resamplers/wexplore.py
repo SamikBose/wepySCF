@@ -6,16 +6,14 @@ logger = logging.getLogger(__name__)
 # Standard Library
 import math
 import random as rand
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from copy import copy, deepcopy
-from typing import Hashable
 
 # Third Party Library
 import networkx as nx
 import numpy as np
 
 # First Party Library
-from wepy.resampling.decisions.clone_merge import MultiCloneMergeDecision
 from wepy.resampling.resamplers.clone_merge import CloneMergeResampler
 from wepy.resampling.resamplers.resampler import ResamplerError
 
@@ -23,7 +21,6 @@ from wepy.resampling.resamplers.resampler import ResamplerError
 class RegionTreeError(Exception):
     """Errors related to violations of constraints in RegionTree algorithms."""
 
-    pass
 
 
 ## Merge methods
@@ -259,9 +256,7 @@ class RegionTree(nx.DiGraph):
 
         assert (
             merge_method in self.MERGE_METHODS
-        ), "the merge method given, '{}', must be one of the methods available {}".format(
-            merge_method, self.MERGE_METHODS
-        )
+        ), f"the merge method given, '{merge_method}', must be one of the methods available {self.MERGE_METHODS}"
 
         self._merge_method = merge_method
 
@@ -796,8 +791,7 @@ class RegionTree(nx.DiGraph):
 
                     # if this is greater than the current record
                     # overwrite it
-                    if n_merges > max_n_merges:
-                        max_n_merges = n_merges
+                    max_n_merges = max(max_n_merges, n_merges)
 
                 # if it is exactly pmax then no more merges can be
                 # done so we can just end here and return this record
@@ -827,7 +821,7 @@ class RegionTree(nx.DiGraph):
                 walker_weights, self.pmax
             )
         else:
-            raise ValueError("merge method {} not recognized".format(self.merge_method))
+            raise ValueError(f"merge method {self.merge_method} not recognized")
 
         return n_squashable
 
@@ -924,9 +918,7 @@ class RegionTree(nx.DiGraph):
         children_balances = [balance for balance in net_balances.values()]
         if sum(children_balances) != parental_balance:
             raise RegionTreeError(
-                "The balances of the child nodes ({}) do not balance to the parental balance ({})".format(
-                    children_balances, parental_balance
-                )
+                f"The balances of the child nodes ({children_balances}) do not balance to the parental balance ({parental_balance})"
             )
 
         # no state changes to the object have been made up until this
@@ -1659,7 +1651,7 @@ class RegionTree(nx.DiGraph):
             )
 
         else:
-            raise ValueError("merge method {} not recognized".format(self.merge_method))
+            raise ValueError(f"merge method {self.merge_method} not recognized")
 
         # if the result came out false then a solution could not be
         # found
@@ -2010,9 +2002,7 @@ class RegionTree(nx.DiGraph):
                     overweight_producer_idxs.append(keep_merge_walker_idx)
 
             raise ResamplerError(
-                "Merge specs produce overweight walkers for merge groups {}".format(
-                    [str(i) for i in overweight_producer_idxs]
-                )
+                f"Merge specs produce overweight walkers for merge groups {[str(i) for i in overweight_producer_idxs]}"
             )
 
         # check that all of the weights are less than or equal to the pmin
@@ -2032,9 +2022,7 @@ class RegionTree(nx.DiGraph):
                     underweight_producer_idxs.append(clone_parent_walker_idx)
 
             raise ResamplerError(
-                "Clone specs produce underweight walkers for clone walkers {}".format(
-                    [str(i) for i in underweight_producer_idxs]
-                )
+                f"Clone specs produce underweight walkers for clone walkers {[str(i) for i in underweight_producer_idxs]}"
             )
 
     def balance_tree(self, delta_walkers: int=0):
@@ -2071,9 +2059,7 @@ class RegionTree(nx.DiGraph):
         leaf_balances = [self.node[leaf]["balance"] for leaf in self.leaf_nodes()]
         if sum(leaf_balances) != delta_walkers:
             raise RegionTreeError(
-                "The balances of the leaf nodes ({}) do not balance to delta_walkers ({})".format(
-                    leaf_balances, delta_walkers
-                )
+                f"The balances of the leaf nodes ({leaf_balances}) do not balance to delta_walkers ({delta_walkers})"
             )
 
         # decide on how to settle all the balances between leaves
@@ -2088,10 +2074,8 @@ class RegionTree(nx.DiGraph):
         # walkers balance to the delta_walkers amount
         if num_clones - num_squashed != delta_walkers:
             raise RegionTreeError(
-                "The number of new clones ({}) is not balanced by the number of"
-                "squashed walkers ({}) to the delta_walkers specified ({})".format(
-                    num_clones, num_squashed, delta_walkers
-                )
+                f"The number of new clones ({num_clones}) is not balanced by the number of"
+                f"squashed walkers ({num_squashed}) to the delta_walkers specified ({delta_walkers})"
             )
 
         # DEBUG
@@ -2476,15 +2460,15 @@ class WExploreResampler(CloneMergeResampler):
             delta_walkers=delta_walkers
         )
 
-        logger.info("merge_groups\n{}".format(merge_groups))
-        logger.info("Walker number of clones\n{}".format(walkers_num_clones))
+        logger.info(f"merge_groups\n{merge_groups}")
+        logger.info(f"Walker number of clones\n{walkers_num_clones}")
         logger.info(
-            "Walker assignments\n{}".format(self.region_tree.walker_assignments)
+            f"Walker assignments\n{self.region_tree.walker_assignments}"
         )
-        logger.info("Walker weights\n{}".format(self.region_tree.walker_weights))
+        logger.info(f"Walker weights\n{self.region_tree.walker_weights}")
 
         # check to make sure we have selected appropriate walkers to clone
-        logger.info("images_assignments\n{}".format(self.region_tree.regions))
+        logger.info(f"images_assignments\n{self.region_tree.regions}")
 
         # take the specs for cloning and merging and generate the
         # actual resampling actions (instructions) for each walker,

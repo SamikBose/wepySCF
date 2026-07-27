@@ -14,7 +14,7 @@ import numpy as np
 from pandas.core.frame import DataFrame
 
 # First Party Library
-from wepy.analysis.transitions import counts_d_to_matrix, transition_counts
+from wepy.analysis.transitions import transition_counts
 
 try:
     # Third Party Library
@@ -26,7 +26,6 @@ except ModuleNotFoundError:
 class MacroStateNetworkError(Exception):
     """Errors specific to MacroStateNetwork requirements."""
 
-    pass
 
 
 class BaseMacroStateNetwork:
@@ -653,7 +652,7 @@ class BaseMacroStateNetwork:
     def _set_group_nodes_attribute(self, group_name, group_node_ids) -> None:
         # the key for the attribute of the group goes in a little
         # namespace prefixed with _group
-        group_key = "_groups/{}".format(group_name)
+        group_key = f"_groups/{group_name}"
 
         # make the mapping
         values_map = {
@@ -674,7 +673,7 @@ class BaseMacroStateNetwork:
 
         node_obs = {}
         for obs_name in self.observables:
-            obs_key = "_observables/{}".format(obs_name)
+            obs_key = f"_observables/{obs_name}"
             node_obs[obs_name] = self.get_nodes_attributes(node_id, obs_key)
 
         return node_obs
@@ -682,7 +681,7 @@ class BaseMacroStateNetwork:
     def set_nodes_observable(self, observable_name, node_values) -> None:
         # the key for the attribute of the observable goes in a little
         # namespace prefixed with _observable
-        observable_key = "_observables/{}".format(observable_name)
+        observable_key = f"_observables/{observable_name}"
 
         self.set_nodes_attribute(observable_key, node_values)
 
@@ -741,7 +740,7 @@ class BaseMacroStateNetwork:
 
         node_layouts = {}
         for layout_name in self.layouts:
-            layout_key = "_layouts/{}".format(layout_name)
+            layout_key = f"_layouts/{layout_name}"
             node_layouts[obs_name] = self.get_nodes_attributes(node_id, layout_key)
 
         return node_layouts
@@ -749,7 +748,7 @@ class BaseMacroStateNetwork:
     def set_nodes_layout(self, layout_name, node_values) -> None:
         # the key for the attribute of the observable goes in a little
         # namespace prefixed with _observable
-        layout_key = "_layouts/{}".format(layout_name)
+        layout_key = f"_layouts/{layout_name}"
 
         self.set_nodes_attribute(layout_key, node_values)
 
@@ -774,7 +773,7 @@ class BaseMacroStateNetwork:
 
         layout_key = None
         if layout is not None:
-            layout_key = "_layouts/{}".format(layout)
+            layout_key = f"_layouts/{layout}"
             if layout not in self.layouts:
                 raise ValueError("Layout not found, use None for no layout")
 
@@ -796,7 +795,7 @@ class BaseMacroStateNetwork:
 
         # exclude the layouts, we will set the viz manually for the layout
         exclude_node_fields.extend(
-            ["_layouts/{}".format(layout_name) for layout_name in self.layouts]
+            [f"_layouts/{layout_name}" for layout_name in self.layouts]
         )
 
         for node in gexf_graph:
@@ -870,10 +869,10 @@ class BaseMacroStateNetwork:
         ]
 
         # add all the groups to the keys
-        keys.extend(["_groups/{}".format(key) for key in self.node_groups.keys()])
+        keys.extend([f"_groups/{key}" for key in self.node_groups.keys()])
 
         # add the observables
-        keys.extend(["_observables/{}".format(obs) for obs in self.observables])
+        keys.extend([f"_observables/{obs}" for obs in self.observables])
 
         recs = []
         for node_id in self.graph.nodes:
@@ -1285,7 +1284,7 @@ class MacroStateNetwork:
             self.wepy_h5.open(mode=mode)
             self.closed = False
         else:
-            raise IOError("This file is already open")
+            raise OSError("This file is already open")
 
     def close(self) -> None:
         self.wepy_h5.close()

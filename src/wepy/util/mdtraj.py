@@ -12,7 +12,6 @@ from warnings import warn
 # Third Party Library
 import mdtraj as mdj
 import mdtraj.core.element as elem
-import numpy as np
 from mdtraj.core.topology import Topology
 
 # First Party Library

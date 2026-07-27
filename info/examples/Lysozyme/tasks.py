@@ -1,8 +1,10 @@
+# Standard Library
+import os
+from pathlib import Path
+
+# Third Party Library
 from invoke import task
 
-import os
-import os.path as osp
-from pathlib import Path
 
 def tangle_orgfile(cx, file_path: str) -> None:
     """Tangle the target file using emacs in batch mode. Implicitly dumps
@@ -23,9 +25,9 @@ def clean(cx) -> None:
 @task(pre=[init])
 def tangle(cx) -> None:
     tangle_orgfile(cx, "README.org")
-    cx.run(f"chmod ug+x ./_tangle_source/*.bash", warn=True)
-    cx.run(f"chmod ug+x ./_tangle_source/*.sh", warn=True)
-    cx.run(f"chmod ug+x ./_tangle_source/*.py", warn=True)
+    cx.run("chmod ug+x ./_tangle_source/*.bash", warn=True)
+    cx.run("chmod ug+x ./_tangle_source/*.sh", warn=True)
+    cx.run("chmod ug+x ./_tangle_source/*.py", warn=True)
 
 
 @task

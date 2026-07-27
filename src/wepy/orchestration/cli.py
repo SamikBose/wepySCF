@@ -1,5 +1,4 @@
 # Standard Library
-from wepy.orchestration.orchestrator import Orchestrator
 import logging
 
 logger = logging.getLogger(__name__)
@@ -226,7 +225,7 @@ def run_snapshot(
     logger.info("Closed the resultant orch")
 
     # write the run tuple out to the log
-    run_line_str = "Run start and end hashes: {}, {}".format(start_hash, end_hash)
+    run_line_str = f"Run start and end hashes: {start_hash}, {end_hash}"
 
     # log it
     logger.info(run_line_str)
@@ -332,7 +331,7 @@ def run_orch(
     run_orch.close()
 
     # write the run tuple out to the log
-    run_line_str = "Run start and end hashes: {}, {}".format(start_hash, end_hash)
+    run_line_str = f"Run start and end hashes: {start_hash}, {end_hash}"
 
     # log it
     logger.info(run_line_str)
@@ -399,7 +398,7 @@ def combine_orch_wepy_hdf5s(new_orch: Orchestrator, new_hdf5_path, run_ids=None)
     with template_wepy_h5:
         master_wepy_h5 = template_wepy_h5.clone(new_hdf5_path, mode="x")
 
-    click.echo("Into a single master hdf5 file: {}".format(new_hdf5_path))
+    click.echo(f"Into a single master hdf5 file: {new_hdf5_path}")
 
     # then link all the files to it
     run_mapping = {}
@@ -480,11 +479,9 @@ def combine_orch_wepy_hdf5s(new_orch: Orchestrator, new_hdf5_path, run_ids=None)
             # the number of cycles recorded in the orchestrator
             run_slices = {singleton_run_idx: (0, orch_run_num_cycles)}
 
-            click.echo("Extracting Run: {}".format(run_id))
+            click.echo(f"Extracting Run: {run_id}")
             click.echo(
-                "Frames 0 to {} out of {}".format(
-                    orch_run_num_cycles, h5_run_num_cycles
-                )
+                f"Frames 0 to {orch_run_num_cycles} out of {h5_run_num_cycles}"
             )
 
             # then perform the extraction, which will open the other
@@ -502,7 +499,7 @@ def combine_orch_wepy_hdf5s(new_orch: Orchestrator, new_hdf5_path, run_ids=None)
 
             run_mapping[run_id] = new_run_idxs[0]
 
-            click.echo("Set as run: {}".format(new_run_idxs[0]))
+            click.echo(f"Set as run: {new_run_idxs[0]}")
 
     click.echo("Done extracting runs, setting continuations")
 
@@ -542,7 +539,7 @@ def combine_orch_wepy_hdf5s(new_orch: Orchestrator, new_hdf5_path, run_ids=None)
             # get the run_idx in the HDF5 that corresponds to this run
             continued_run_idx = run_mapping[continued_run_id]
 
-            click.echo("Run {} continued by {}".format(continued_run_id, run_idx))
+            click.echo(f"Run {continued_run_id} continued by {run_idx}")
 
             # add the continuation
             master_wepy_h5.add_continuation(run_idx, continued_run_idx)
@@ -696,7 +693,7 @@ def ls_runs(orchestrator) -> None:
 
     orch.close()
 
-    hash_listing_str = "\n".join(["{}, {}".format(start, end) for start, end in runs])
+    hash_listing_str = "\n".join([f"{start}, {end}" for start, end in runs])
 
     click.echo(hash_listing_str)
 
@@ -770,7 +767,7 @@ def get_snapshot(output, snapshot_hash, orchestrator) -> None:
     # first check if the output is None, if it is we automatically
     # generate a file in the cwd that is the hash of the snapshot
     if output is None:
-        output = "{}.snap.dill.pkl".format(snapshot_hash)
+        output = f"{snapshot_hash}.snap.dill.pkl"
 
         # check that it doesn't exist, and fail if it does, since we
         # don't want to implicitly overwrite stuff
@@ -797,7 +794,7 @@ def get_config(output, config_hash, orchestrator) -> None:
     # first check if the output is None, if it is we automatically
     # generate a file in the cwd that is the hash of the snapshot
     if output is None:
-        output = "{}.config.dill.pkl".format(config_hash)
+        output = f"{config_hash}.config.dill.pkl"
 
         # check that it doesn't exist, and fail if it does, since we
         # don't want to implicitly overwrite stuff
@@ -825,7 +822,7 @@ def get_run(output, end_hash, start_hash, orchestrator) -> None:
     # first check if the output is None, if it is we automatically
     # generate a file in the cwd that is the hash of the snapshot
     if output is None:
-        output = "{}-{}.orch.sqlite".format(start_hash, end_hash)
+        output = f"{start_hash}-{end_hash}.orch.sqlite"
 
         # check that it doesn't exist, and fail if it does, since we
         # don't want to implicitly overwrite stuff
@@ -924,49 +921,41 @@ def add_config(configuration, orchestrator) -> None:
 @click.group()
 def cli() -> None:
     """ """
-    pass
 
 
 @click.group()
 def run() -> None:
     """ """
-    pass
 
 
 @click.group()
 def get() -> None:
     """ """
-    pass
 
 
 @click.group()
 def add() -> None:
     """ """
-    pass
 
 
 @click.group()
 def create() -> None:
     """ """
-    pass
 
 
 @click.group()
 def ls() -> None:
     """ """
-    pass
 
 
 @click.group()
 def reconcile() -> None:
     """ """
-    pass
 
 
 @click.group()
 def hdf5() -> None:
     """ """
-    pass
 
 
 # command groupings

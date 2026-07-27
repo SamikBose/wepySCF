@@ -28,7 +28,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
-import random as rand
 import time
 from copy import copy
 from warnings import warn
@@ -41,15 +40,14 @@ try:
     # Third Party Library
     import openmm as omm
     import openmm.app as omma
-    import simtk.unit as unit
     from openmm.app.simulation import Simulation
+    from simtk import unit
 except ModuleNotFoundError:
     raise ModuleNotFoundError(
         "OpenMM has not been installed, which this runner requires."
     ) from None
 
 # First Party Library
-from wepy.reporter.reporter import Reporter
 from wepy.runners.runner import Runner
 from wepy.util.util import box_vectors_to_lengths_angles
 from wepy.walker import Walker, WalkerState
@@ -123,13 +121,11 @@ def resolve_state_data_type_enum_values():
 
 
 # reversed since that is the order we check them in and is a frequent operation
-STATE_DATA_TYPE_ENUM_VALUES = list(
-    sorted(
+STATE_DATA_TYPE_ENUM_VALUES = sorted(
         [(k, v) for k, v in resolve_state_data_type_enum_values().items()],
         key=lambda x: x[1],
         reverse=True,
     )
-)
 
 
 def get_state_fields_present(sim_state):
@@ -517,7 +513,7 @@ class OpenMMRunner(Runner):
         gen_sim_end = time.time()
         gen_sim_time = gen_sim_end - gen_sim_start
 
-        logger.info("Time to generate the system: {}".format(gen_sim_time))
+        logger.info(f"Time to generate the system: {gen_sim_time}")
 
         # actually run the simulation
 
@@ -529,13 +525,13 @@ class OpenMMRunner(Runner):
         steps_end = time.time()
         steps_time = steps_end - steps_start
 
-        logger.info("Time to run {} sim steps: {}".format(segment_length, steps_time))
+        logger.info(f"Time to run {segment_length} sim steps: {steps_time}")
 
         get_state_start = time.time()
 
         get_state_end = time.time()
         get_state_time = get_state_end - get_state_start
-        logger.info("Getting context state time: {}".format(get_state_time))
+        logger.info(f"Getting context state time: {get_state_time}")
 
         # generate the new state/walker
         new_state = self.generate_state(
@@ -547,7 +543,7 @@ class OpenMMRunner(Runner):
 
         run_segment_end = time.time()
         run_segment_time = run_segment_end - run_segment_start
-        logger.info("Total internal run_segment time: {}".format(run_segment_time))
+        logger.info(f"Total internal run_segment time: {run_segment_time}")
 
         segment_split_times = {
             "gen_sim_time": gen_sim_time,
@@ -1323,7 +1319,7 @@ class OpenMMWalker(Walker):
 
         assert isinstance(
             state, OpenMMState
-        ), "state must be an instance of class OpenMMState not {}".format(type(state))
+        ), f"state must be an instance of class OpenMMState not {type(state)}"
 
         super().__init__(state, weight)
 

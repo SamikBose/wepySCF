@@ -274,8 +274,7 @@ def run_transition_counts_matrix(wepy_hdf5, run_idx, assignment_key, transitions
         # If the assignment index is higher than previously seen
         # assignments, update the max_assignment
         max_assg = max(assignments)
-        if max_assg > max_assignment:
-            max_assignment = max_assg
+        max_assignment = max(max_assignment, max_assg)
 
     # make a matrix of the counts
     counts_matrix = np.zeros((max_assignment + 1, max_assignment + 1))

@@ -3,7 +3,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
-import multiprocessing as mp
 import pdb
 
 # Third Party Library
@@ -60,7 +59,6 @@ lj_fixtures = [
 @pytest.mark.interactive
 def test_init_state(lj_init_state) -> None:
     pdb.set_trace()
-    pass
 
 
 @pytest.mark.usefixtures(*lj_fixtures)
@@ -74,14 +72,12 @@ class TestLJPairNewOrch:
     def test_orch_interactive(self, lj_orchestrator_defaults) -> None:
         pdb.set_trace()
 
-        pass
 
     @pytest.mark.interactive
     def test_reconciled_orch(self, lj_orch_reconciled_orchs) -> None:
         host_orch, other_orch, reconciled_orch = lj_orch_reconciled_orchs
         pdb.set_trace()
 
-        pass
 
 
 @pytest.mark.usefixtures(
@@ -313,7 +309,7 @@ class TestLJSimIntegration:
                 )
 
         else:
-            raise ValueError("Platform {} not recognized".format(platform))
+            raise ValueError(f"Platform {platform} not recognized")
 
         # initialize the runner with the platform
         runner = OpenMMRunner(

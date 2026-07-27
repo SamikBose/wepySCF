@@ -139,7 +139,7 @@ class TestCLI:
         )
 
         assert result.exit_code == 0
-        assert osp.exists("{}.snap.dill.pkl".format(start_hash))
+        assert osp.exists(f"{start_hash}.snap.dill.pkl")
 
     def test_get_config(self, function_tmp_path_factory, lj_orchestrator_defaults_file) -> None:
         workdir = str(function_tmp_path_factory.mktemp("test_run"))
@@ -158,7 +158,7 @@ class TestCLI:
         )
 
         assert result.exit_code == 0
-        assert osp.exists("{}.config.dill.pkl".format(config_hash))
+        assert osp.exists(f"{config_hash}.config.dill.pkl")
 
     def test_get_run(self, function_tmp_path_factory, lj_orch_file_orchestrated_run) -> None:
         workdir = str(function_tmp_path_factory.mktemp("test_run"))
@@ -177,7 +177,7 @@ class TestCLI:
         )
 
         assert result.exit_code == 0
-        assert osp.exists("{}-{}.orch.sqlite".format(start_hash, end_hash))
+        assert osp.exists(f"{start_hash}-{end_hash}.orch.sqlite")
 
     def test_reconcile(
         self,

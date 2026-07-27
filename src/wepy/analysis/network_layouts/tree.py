@@ -9,17 +9,12 @@ ResamplingTreeLayout.layout
 
 # Standard Library
 import itertools as it
-from collections import defaultdict
 from copy import copy
 from warnings import warn
 
 # Third Party Library
-import networkx as nx
 import numpy as np
 from numpy import dtype, float64, ndarray
-
-# First Party Library
-from wepy.analysis.network_layouts.layout import LayoutError
 
 
 class ResamplingTreeLayout:
@@ -644,7 +639,7 @@ class ResamplingTreeLayout:
         if n_new_radii < n_nodes:
             warn(
                 "not all nodes were assigned custom radii,"
-                " default value {} was used instead".format(self.node_radius)
+                f" default value {self.node_radius} was used instead"
             )
 
         layout_array = self._layout_array(parent_table, radii_array)

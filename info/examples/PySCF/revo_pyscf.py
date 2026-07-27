@@ -31,7 +31,13 @@ from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
 from wepy.reporter.walker_pkl import WalkerPklReporter
 from wepy.resampling.resamplers.resampler import NoResampler
 from wepy.resampling.resamplers.revo import REVOResampler
-from wepy.runners.pyscf import PySCFCPUWorkerMapper, PySCFGPUWorkerMapper, PySCFRunner, PySCFState, PySCFWalker
+from wepy.runners.pyscf import (
+    PySCFCPUWorkerMapper,
+    PySCFGPUWorkerMapper,
+    PySCFRunner,
+    PySCFState,
+    PySCFWalker,
+)
 from wepy.sim_manager import Manager
 from wepy.util.mdtraj import mdtraj_to_json_topology
 
@@ -256,7 +262,7 @@ def run(config) -> None:
         if args.sub_step == 0:
             if args.from_branch is not None:
                 raise ValueError("--from-branch is not supported with sub-step 0.")
-            print(f"Starting simulation in sub-step mode.")
+            print("Starting simulation in sub-step mode.")
         else:
             # Base directory must already exist in sub-step mode
             if not osp.isdir(output_directory):

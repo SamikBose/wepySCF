@@ -1,8 +1,10 @@
+# Standard Library
+import os.path as osp
+from pathlib import Path
+
+# Third Party Library
 from invoke import task
 
-import os.path as osp
-import os
-from pathlib import Path
 
 @task
 def sanity(cx) -> None:

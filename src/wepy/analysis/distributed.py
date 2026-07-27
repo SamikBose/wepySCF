@@ -114,7 +114,6 @@ frame).
 
 """
 # Standard Library
-import time
 from collections import defaultdict
 from copy import deepcopy
 from types import EllipsisType
@@ -182,9 +181,7 @@ def traj_fields_chunk_items(
                 # if the chunk size is either larger than the
                 # trajectory, or chunk size is Ellipsis we take the
                 # whole trajectory
-                if chunk_size is Ellipsis:
-                    chunks = [range(num_frames)]
-                elif chunk_size > num_frames:
+                if chunk_size is Ellipsis or chunk_size > num_frames:
                     chunks = [range(num_frames)]
                 else:
                     # split it allowing for an unequal chunk sizes
@@ -424,7 +421,7 @@ def compute_observable(
 
         # DEBUG
         # TODO add to logging
-        print("generated {} chunks".format(len(chunks)))
+        print(f"generated {len(chunks)} chunks")
 
         frame_fields_bag = dbag.from_sequence(chunks, npartitions=num_partitions)
 

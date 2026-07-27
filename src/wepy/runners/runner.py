@@ -20,7 +20,7 @@ See the openmm.py module for an example.
 # Third Party Library
 
 
-class Runner(object):
+class Runner:
     """Abstract base class for the Runner interface."""
 
     def pre_cycle(self, **kwargs) -> None:
@@ -37,7 +37,6 @@ class Runner(object):
         """
 
         # by default just pass since subclasses need not implement this
-        pass
 
     def post_cycle(self, **kwargs) -> None:
         """Perform post-cycle behavior. run_segment will be called for each
@@ -53,7 +52,6 @@ class Runner(object):
         """
 
         # by default just pass since subclasses need not implement this
-        pass
 
     def run_segment(self, walker, segment_length, **kwargs):
         """Run dynamics for the walker.

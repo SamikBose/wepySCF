@@ -3,9 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
-import multiprocessing as mp
 import time
-from copy import deepcopy
 
 # Third Party Library
 import pytest
@@ -15,23 +13,22 @@ from wepy.walker import Walker, WalkerState
 from wepy.work_mapper.mapper import Mapper, TaskException
 from wepy.work_mapper.task_mapper import (
     TaskMapper,
-    TaskProcessException,
     WalkerTaskProcess,
 )
-from wepy.work_mapper.worker import Worker, WorkerException, WorkerMapper
+from wepy.work_mapper.worker import Worker, WorkerMapper
 
 ARGS = (0, 1, 2)
 
 
 def gen_walkers() -> list[Walker]:
-    return [Walker(WalkerState(**{"num": arg}), 1 / len(ARGS)) for arg in ARGS]
+    return [Walker(WalkerState(num=arg), 1 / len(ARGS)) for arg in ARGS]
 
 
 # test basic functionality
 def task_pass(walker) -> Walker:
     # simulate it actually taking some time
     n = walker.state["num"]
-    return Walker(WalkerState(**{"num": n + 1}), walker.weight)
+    return Walker(WalkerState(num=n + 1), walker.weight)
 
 
 TASK_PASS_ANSWER = [n + 1 for n in ARGS]
@@ -88,7 +85,7 @@ def task_fail(walker) -> Walker:
     if n == 1:
         raise ValueError("No soup for you!!")
     else:
-        return Walker(WalkerState(**{"num": n + 1}), walker.weight)
+        return Walker(WalkerState(num=n + 1), walker.weight)
 
 
 class TestTaskFail:

@@ -1,25 +1,24 @@
+# Standard Library
+import os
+import shutil as sh
+from pathlib import Path
+
+# Third Party Library
 from invoke import task
 
+# First Party Library
 from ..config import (
-    VERSION,
-    REPORTS_DIR,
-    ORG_DOCS_SOURCES,
-    RST_DOCS_SOURCES,
     BIB_DOCS_SOURCES,
-    LOGO_DIR,
-    TESTING_PYPIRC,
-    PYPIRC,
-    PYENV_CONDA_NAME,
     ENV_METHOD,
-    TESTS_DIR,
-    BENCHMARKS_DIR,
+    LOGO_DIR,
+    ORG_DOCS_SOURCES,
+    PYENV_CONDA_NAME,
+    PYPIRC,
+    REPORTS_DIR,
+    RST_DOCS_SOURCES,
+    TESTING_PYPIRC,
+    VERSION,
 )
-
-import sys
-import os
-import os.path as osp
-from pathlib import Path
-import shutil as sh
 
 ## User config examples
 
@@ -159,7 +158,6 @@ def docs_complexity(cx) -> None:
 ])
 def docs_reports(cx) -> None:
     """Build all of the reports from source."""
-    pass
 
 @task(pre=[docs_clean, docs_reports])
 def docs_build(cx) -> None:
@@ -177,7 +175,7 @@ def docs_build(cx) -> None:
     cx.run(f"cp {LOGO_DIR}/* sphinx/_static/")
 
     # and the other theming things
-    cx.run(f"cp sphinx/static/* sphinx/_static/")
+    cx.run("cp sphinx/static/* sphinx/_static/")
 
     # copy the plain RST files over to the sources
     for source in RST_DOCS_SOURCES:
@@ -605,7 +603,7 @@ def tests_benchmarks(cx) -> None:
 def tests_integration(cx, tag=None) -> None:
 
     if tag is None:
-        cx.run(f"coverage run -m pytest -m 'not interactive' tests/test_integration",
+        cx.run("coverage run -m pytest -m 'not interactive' tests/test_integration",
                warn=True)
     else:
         cx.run(f"coverage run -m pytest --html=reports/pytest/{tag}/integration/report.html -m 'not interactive' tests/test_integration",
@@ -616,7 +614,7 @@ def tests_integration(cx, tag=None) -> None:
 def tests_unit(cx, tag=None) -> None:
 
     if tag is None:
-        cx.run(f"coverage run -m pytest -m 'not interactive' tests/test_unit",
+        cx.run("coverage run -m pytest -m 'not interactive' tests/test_unit",
                warn=True)
     else:
         cx.run(f"coverage run -m pytest --html=reports/pytest/{tag}/unit/report.html -m 'not interactive' tests/test_unit",
@@ -787,8 +785,8 @@ def benchmark_compare(cx) -> None:
                     --csv=\"{csv}\" \
                     > {output}
 """.format(storage=BENCHMARK_STORAGE_URI,
-           csv="{}/Linux-CPython-3.6-64bit/comparison.csv".format(BENCHMARK_STORAGE_URL),
-           output="{}/Linux-CPython-3.6-64bit/report.pytest.txt".format(BENCHMARK_STORAGE_URL),
+           csv=f"{BENCHMARK_STORAGE_URL}/Linux-CPython-3.6-64bit/comparison.csv",
+           output=f"{BENCHMARK_STORAGE_URL}/Linux-CPython-3.6-64bit/report.pytest.txt",
 )
 
     cx.run(run_command)
@@ -823,7 +821,6 @@ def update_tools(cx) -> None:
     # requirements.txt file since we can't put these in the pip tools
     # input files. In short should be taken care of in the 'env' module
     print("Disable 'update_tools' use the envs 'tools.requirements.txt' instead")
-    pass
     # cx.run("pip install --upgrade pip setuptools wheel twine")
 
 @task(pre=[update_tools])
@@ -846,7 +843,6 @@ def conda_build(cx) -> None:
 @task(pre=[build_sdist, build_bdist,])
 def build(cx) -> None:
     """Build all the python distributions supported."""
-    pass
 
 
 # IDEA: add a 'test_builds' target, that opens a clean environment and

@@ -5,12 +5,7 @@
 # 3) compute observable
 # 4) get traces
 
-# Standard Library
-import os
-import unittest
-
 # Third Party Library
-import mdtraj as mdj
 import numpy as np
 
 # First Party Library

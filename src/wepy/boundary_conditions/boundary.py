@@ -10,18 +10,14 @@ import logging
 logger = logging.getLogger(__name__)
 # Standard Library
 import random
-import sys
 from collections import defaultdict
 from copy import deepcopy
 
 # Third Party Library
 import numpy as np
 
-# First Party Library
-from wepy.walker import Walker
 
-
-class BoundaryConditions(object):
+class BoundaryConditions:
     """Abstract base class for conveniently making compliant boundary condition classes.
 
     Includes empty record group definitions and useful getters for those.
@@ -260,7 +256,6 @@ class BoundaryConditions(object):
     def __init__(self, **kwargs) -> None:
         """Null constructor accepts and ignores any key word arguments."""
 
-        pass
 
     def bc_field_names(self):
         """Access the class level FIELDS constant for this record group."""
@@ -720,7 +715,7 @@ class WarpBC(BoundaryConditions):
                 # save the instruction record of the walker
                 warp_data.append(walker_warp_data)
 
-                logger.info("WARP EVENT observed at {}".format(cycle))
+                logger.info(f"WARP EVENT observed at {cycle}")
                 logger.info(
                     "Warped Walker Weight = {}".format(walker_warp_data["weight"])
                 )

@@ -1,8 +1,8 @@
 """Unit tests for the PySCF runner stack using mocked pyscf modules."""
 
 # Standard Library
-from typing import Self
 from types import SimpleNamespace
+from typing import Self
 
 # Third Party Library
 import numpy as np
@@ -10,12 +10,12 @@ import pytest
 
 # First Party Library
 from wepy.runners.pyscf import (
+    PySCFCPUTaskMapper,
     PySCFCPUWalkerTaskProcess,
     PySCFCPUWorker,
+    PySCFGPUTaskMapper,
     PySCFGPUWalkerTaskProcess,
     PySCFGPUWorker,
-    PySCFCPUTaskMapper,
-    PySCFGPUTaskMapper,
     PySCFRunner,
     PySCFState,
     PySCFWalker,
@@ -23,7 +23,7 @@ from wepy.runners.pyscf import (
 from wepy.walker import Walker, WalkerState
 
 
-class _FakeNumInt(object):
+class _FakeNumInt:
     @staticmethod
     def eval_ao(_mol, grid_coords):
         return np.ones((len(grid_coords), 1), dtype=float)
@@ -33,7 +33,7 @@ class _FakeNumInt(object):
         return np.ones((_ao_values.shape[0],), dtype=float)
 
 
-class _FakeGradients(object):
+class _FakeGradients:
     def __init__(self, gradients, energy, mf) -> None:
         self._gradients = gradients
         self._energy = energy
@@ -54,7 +54,7 @@ class _FakeGradients(object):
         return _scanner
 
 
-class _FakeMF(object):
+class _FakeMF:
     def __init__(self, gradients, energy, supports_gpu: bool=True, missing_cupy: bool=False, gpu_runtime_fail: bool=False) -> None:
         self._gradients = gradients
         self._energy = energy
@@ -86,7 +86,7 @@ class _FakeMF(object):
 
 
 
-class _FakePostHF(object):
+class _FakePostHF:
     def __init__(self, mf) -> None:
         self._mf = mf
         self.e_tot = mf._energy - 0.01
@@ -110,7 +110,7 @@ class _FakeCCSD(_FakePostHF):
     pass
 
 
-class _FakeModuleFactory(object):
+class _FakeModuleFactory:
     def __init__(self, gradients, energy, supports_gpu: bool=True, missing_cupy: bool=False, gpu_runtime_fail: bool=False) -> None:
         self._gradients = gradients
         self._energy = energy

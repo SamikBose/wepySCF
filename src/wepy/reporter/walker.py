@@ -18,7 +18,7 @@ import numpy as np
 # First Party Library
 from wepy.reporter.reporter import ProgressiveFileReporter
 from wepy.util.json_top import json_top_subset
-from wepy.util.mdtraj import json_to_mdtraj_topology, mdtraj_to_json_topology
+from wepy.util.mdtraj import json_to_mdtraj_topology
 from wepy.util.util import (
     box_vectors_to_lengths_angles,
     traj_box_vectors_to_lengths_angles,
@@ -121,7 +121,7 @@ class WalkerReporter(ProgressiveFileReporter):
         )
 
         # write out the init traj as a pdb
-        logger.info("Writing initial state to {}".format(self.init_state_path))
+        logger.info(f"Writing initial state to {self.init_state_path}")
         init_traj.save_pdb(self.init_state_path)
 
     def report(self, cycle_idx=None, new_walkers=None, **kwargs) -> None:

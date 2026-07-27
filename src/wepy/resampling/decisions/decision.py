@@ -50,16 +50,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
-from collections import namedtuple
 from enum import Enum
-from string import ascii_lowercase
-
-# Third Party Library
-import numpy as np
 
 
 # ABC for the Decision class
-class Decision(object):
+class Decision:
     """Represents and provides methods for a set of decision values."""
 
     ENUM = None
@@ -201,10 +196,10 @@ class Decision(object):
             enum_value in cls.enum_dict_by_value()
         ), "value is not a valid Enumerated value"
 
-        for field_key in fields.keys():
+        for field_key in fields:
             assert (
                 field_key in cls.FIELDS
-            ), "The field {} is not a field for that decision".format(field_key)
+            ), f"The field {field_key} is not a field for that decision"
             assert field_key != "decision_id", "'decision_id' cannot be an extra field"
 
         rec = {"decision_id": enum_value}
@@ -320,9 +315,7 @@ class NoDecision(Decision):
                 # where you are going to put it
                 if mod_walkers[instruction[0]] is not None:
                     raise ValueError(
-                        "Multiple walkers assigned to position {}".format(
-                            instruction[0]
-                        )
+                        f"Multiple walkers assigned to position {instruction[0]}"
                     )
 
                 # put the walker in the position specified by the

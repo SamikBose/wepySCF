@@ -9,15 +9,16 @@ Warning
 This does not cover best practices at this time.
 
 """
+# Standard Library
 import os
 from pathlib import Path
 
+# Third Party Library
 from invoke import task
 
-
 from ..config import (
-    PROJECT_SLUG,
     CONTAINER_TOOL,
+    PROJECT_SLUG,
 )
 
 ## Container definitions
@@ -111,5 +112,3 @@ def unload(cx) -> None:
 
     for image_name in image_names:
         cx.run(f"{CONTAINER_TOOL} rm {image_name}", warn=True)
-
-

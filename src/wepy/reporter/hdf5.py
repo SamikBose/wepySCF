@@ -2,8 +2,6 @@
 import logging
 
 logger = logging.getLogger(__name__)
-# Standard Library
-from copy import deepcopy
 
 # Third Party Library
 import numpy as np
@@ -300,7 +298,7 @@ class WepyHDF5Reporter(FileReporter):
             # add the frequencies for these alt_reps to the
             # sparse_fields frequency dictionary
             for key, (idxs, freq) in alt_reps.items():
-                alt_rep_key = "alt_reps/{}".format(key)
+                alt_rep_key = f"alt_reps/{key}"
 
                 # if the frequency is Ellipsis or 1 then we save it
                 # every frame and don't make it sparse because that is
@@ -331,7 +329,7 @@ class WepyHDF5Reporter(FileReporter):
             # add the frequency for this sparse fields to the
             # sparse fields dictionary
             self._sparse_fields[
-                "alt_reps/{}".format(self.ALL_ATOMS_REP_KEY)
+                f"alt_reps/{self.ALL_ATOMS_REP_KEY}"
             ] = all_atoms_rep_freq
 
         # if there are no sparse fields set it as an empty dictionary
@@ -349,7 +347,7 @@ class WepyHDF5Reporter(FileReporter):
         super().init(**kwargs)
 
         # open and initialize the HDF5 file
-        logger.info("Initializing HDF5 file at {}".format(self.file_path))
+        logger.info(f"Initializing HDF5 file at {self.file_path}")
 
         self.wepy_h5 = WepyHDF5(
             self.file_path,
@@ -390,7 +388,7 @@ class WepyHDF5Reporter(FileReporter):
 
                 # if there are any alternate representations set them
                 for alt_rep_name, alt_rep_idxs in self.alt_reps_idxs.items():
-                    alt_rep_path = "alt_reps/{}".format(alt_rep_name)
+                    alt_rep_path = f"alt_reps/{alt_rep_name}"
 
                     # if the idxs are None we want all of the atoms
                     if alt_rep_idxs is None:
@@ -546,7 +544,7 @@ class WepyHDF5Reporter(FileReporter):
 
                 # Add the alt_reps fields by slicing the positions
                 for alt_rep_key, alt_rep_idxs in self.alt_reps_idxs.items():
-                    alt_rep_path = "alt_reps/{}".format(alt_rep_key)
+                    alt_rep_path = f"alt_reps/{alt_rep_key}"
 
                     # if the alt rep is also a sparse field check this
                     if alt_rep_path in self._sparse_fields:

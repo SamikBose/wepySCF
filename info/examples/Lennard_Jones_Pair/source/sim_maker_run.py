@@ -1,16 +1,21 @@
 import logging
+
 logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     import os
     import shutil
     import sys
-    import logging
-logger = logging.getLogger(__name__)
+
     from multiprocessing_logging import install_mp_handler
 
-    from wepy_tools.sim_makers.openmm.lennard_jones import LennardJonesPairOpenMMSimMaker
+    from wepy_tools.sim_makers.openmm.lennard_jones import (
+        LennardJonesPairOpenMMSimMaker,
+    )
 
     OUTPUT_DIR = "_output/sim_maker_run"
 
@@ -28,8 +33,8 @@ logger = logging.getLogger(__name__)
         platform = sys.argv[5]
         resampler = sys.argv[6]
 
-        print("Number of steps: {}".format(n_steps))
-        print("Number of cycles: {}".format(n_cycles))
+        print(f"Number of steps: {n_steps}")
+        print(f"Number of cycles: {n_cycles}")
 
     # make the results directory if not already made
     try:
@@ -42,15 +47,12 @@ logger = logging.getLogger(__name__)
     sim_maker = LennardJonesPairOpenMMSimMaker()
 
     apparatus = sim_maker.make_apparatus(
-        integrator='LangevinIntegrator',
+        integrator="LangevinIntegrator",
         resampler=resampler,
-        bc='UnbindingBC',
+        bc="UnbindingBC",
         platform=platform,
     )
-    config = sim_maker.make_configuration(apparatus,
-                                          work_mapper_spec='Mapper',
-                                          platform=platform,
-                                          work_dir=OUTPUT_DIR)
+    config = sim_maker.make_configuration(apparatus, work_mapper_spec="Mapper", platform=platform, work_dir=OUTPUT_DIR)
 
     sim_manager = sim_maker.make_sim_manager(n_walkers, apparatus, config)
 

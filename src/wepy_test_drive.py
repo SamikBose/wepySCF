@@ -5,8 +5,8 @@ logger = logging.getLogger(__name__)
 
 # Third Party Library
 import click
-import simtk.unit as unit
 from multiprocessing_logging import install_mp_handler
+from simtk import unit
 
 # First Party Library
 # import all of the sim makers we have available

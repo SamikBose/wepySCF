@@ -1,20 +1,13 @@
-# Standard Library
-import os
-import os.path
-
 # Third Party Library
 import numpy as np
 import openmm
-import openmm.unit as unit
-import scipy
-import scipy.integrate
-import scipy.special
+from openmm import unit
 from openmm.app.topology import Topology
 from openmm.openmm import CustomExternalForce, System
 from openmm.unit.quantity import Quantity
 
 
-class TestSystem(object):
+class TestSystem:
 
     """Abstract base class for test systems, demonstrating how to implement a test system.
 

@@ -9,12 +9,10 @@ import random as rand
 
 # Third Party Library
 import numpy as np
-from numpy import dtype, float64, generic, ndarray
+from numpy import dtype, float64, ndarray
 
 # First Party Library
-from wepy.resampling.decisions.clone_merge import MultiCloneMergeDecision
 from wepy.resampling.resamplers.clone_merge import CloneMergeResampler
-from wepy.resampling.resamplers.resampler import Resampler
 
 
 class REVOResampler(CloneMergeResampler):
@@ -257,8 +255,7 @@ class REVOResampler(CloneMergeResampler):
             else:
                 novelty = 1
 
-        if novelty < 0:
-            novelty = 0
+        novelty = max(novelty, 0)
 
         return novelty
 
@@ -459,7 +456,7 @@ class REVOResampler(CloneMergeResampler):
         variations.append(variation)
 
         # maximize the variance through cloning and merging
-        logger.info("Starting variance optimization: {}".format(variation))
+        logger.info(f"Starting variance optimization: {variation}")
 
         productive = True
         while productive:
@@ -572,7 +569,7 @@ class REVOResampler(CloneMergeResampler):
                 if new_variation > variation:
                     variations.append(new_variation)
 
-                    logger.info("Variance move to {} accepted".format(new_variation))
+                    logger.info(f"Variance move to {new_variation} accepted")
 
                     productive = True
                     variation = new_variation
@@ -623,7 +620,7 @@ class REVOResampler(CloneMergeResampler):
                     )
                     variations.append(new_variation)
 
-                    logger.info("variance after selection: {}".format(new_variation))
+                    logger.info(f"variance after selection: {new_variation}")
 
                 # if not productive
                 else:
@@ -715,7 +712,7 @@ class REVOResampler(CloneMergeResampler):
         distance_matrix, images = self._all_to_all_distance(walkers)
 
         logger.info("distance_matrix")
-        logger.info("\n{}".format(str(np.array(distance_matrix))))
+        logger.info(f"\n{np.array(distance_matrix)!s}")
 
         # determine cloning and merging actions to be performed, by
         # maximizing the variation, i.e. the Decider

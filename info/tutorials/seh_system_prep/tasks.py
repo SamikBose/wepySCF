@@ -1,8 +1,9 @@
-from invoke import task
-
+# Standard Library
 import os
-import os.path as osp
 from pathlib import Path
+
+# Third Party Library
+from invoke import task
 
 
 def tangle_orgfile(cx, file_path: str) -> None:

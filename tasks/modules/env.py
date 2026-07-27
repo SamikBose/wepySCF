@@ -1,15 +1,17 @@
-from invoke import task
-
-import sys
+# Standard Library
 import os
 import os.path as osp
-from pathlib import Path
-from warnings import warn
 import shutil
+import sys
+from pathlib import Path
 
+# Third Party Library
+from invoke import task
+
+# First Party Library
 from ..config import (
-    ENV_METHOD,
     DEFAULT_ENV,
+    ENV_METHOD,
     ENVS_DIR,
     PYTHON_VERSION_SOURCE,
     PYTHON_VERSIONS,
@@ -170,7 +172,7 @@ def deps_conda_pin(cx,
 
     else:
         if not osp.exists(env_spec_path / CONDA_ABSTRACT_REQUIREMENTS):
-            return None
+            return
 
     # delete the pinned file
     if osp.exists(env_spec_path / CONDA_COMPILED_REQUIREMENTS):
@@ -178,7 +180,7 @@ def deps_conda_pin(cx,
 
     # make the environment under a mangled name so we don't screw with
     # the other one
-    mangled_name = f"__mangled_tmp_env"
+    mangled_name = "__mangled_tmp_env"
 
     mangled_env_spec_path = Path(ENVS_DIR) / mangled_name
 
@@ -233,7 +235,7 @@ def deps_conda_pin(cx,
     shutil.rmtree(mangled_env_spec_path)
 
     print("--------------------------------------------------------------------------------")
-    print(f"This is an automated process do not attempt to activate the '__mangled' environment")
+    print("This is an automated process do not attempt to activate the '__mangled' environment")
 
 @task
 def deps_pin_path(cx,
@@ -343,7 +345,6 @@ def conda_env(cx,
         else:
             print("No conda dependencies specified")
             # don't do a conda env pin
-            pass
 
 
         # install the tooling, like pip version etc.
@@ -483,7 +484,7 @@ def pyenv_env(cx,
     # currently we dont' support installing it
     else:
         raise FileNotFoundError(
-            f"pyenv not installed"
+            "pyenv not installed"
             )
 
     # then install the things we need

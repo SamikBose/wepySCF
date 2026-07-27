@@ -1,11 +1,9 @@
 # Standard Library
-import itertools as it
 import logging
 from types import EllipsisType
 
 logger = logging.getLogger(__name__)
 # Standard Library
-from collections import defaultdict
 from warnings import warn
 
 # Third Party Library
@@ -19,7 +17,6 @@ class ResamplerError(Exception):
     """Error raised when some constraint on resampling properties is
     violated."""
 
-    pass
 
 
 class Resampler:
@@ -433,7 +430,7 @@ class Resampler:
         """
 
         if mode not in self.DEBUG_MODES:
-            raise ValueError("debug mode, {}, not valid".format(mode))
+            raise ValueError(f"debug mode, {mode}, not valid")
 
         self._debug_mode = mode
 
@@ -616,7 +613,7 @@ class Resampler:
 
         """
 
-        raise NotImplemented
+        raise NotImplementedError
 
         self._resample_init(walkers, debug_mode=debug_mode)
 
