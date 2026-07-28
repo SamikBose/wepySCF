@@ -2,7 +2,7 @@
 
 # Standard Library
 from types import SimpleNamespace
-from typing import Self
+from typing_extensions import Self
 
 # Third Party Library
 import numpy as np

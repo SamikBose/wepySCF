@@ -13,6 +13,7 @@ from warnings import warn
 import mdtraj as mdj
 import mdtraj.core.element as elem
 from mdtraj.core.topology import Topology
+from mdtraj.core.trajectory import Trajectory
 
 # First Party Library
 from wepy.util.util import traj_box_vectors_to_lengths_angles

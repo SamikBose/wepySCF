@@ -295,7 +295,7 @@ class BoundaryConditions:
         """Access the class level SHAPES constant for this record group."""
         return self.WARPING_SHAPES
 
-    def warping_field_dtypes(self) -> tuple[type[int], type[int], type[float]]:
+    def warping_field_dtypes(self) -> tuple[int, int, float]:
         """Access the class level DTYPES constant for this record group."""
         return self.WARPING_DTYPES
 

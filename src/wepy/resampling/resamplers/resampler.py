@@ -352,7 +352,7 @@ class Resampler:
         """Access the class level SHAPES constant for this record group."""
         return self.RESAMPLING_SHAPES
 
-    def resampling_field_dtypes(self) -> tuple[type[int], type[int], type[int]]:
+    def resampling_field_dtypes(self) -> tuple[int, int, int]:
         """Access the class level DTYPES constant for this record group."""
         return self.RESAMPLING_DTYPES
 

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 import os
 from collections import OrderedDict
 from time import perf_counter
-from typing import Literal
+from typing_extensions import Literal
 
 # Third Party Library
 import numpy as np

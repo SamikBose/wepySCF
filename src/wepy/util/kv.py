@@ -188,7 +188,7 @@ class KV(MutableMapping):
         timeout: int=5,
         mode: str="x",
         append_only: bool=False,
-        value_types: tuple[type[bytes], type[bytearray]]=DEFAULT_VALUE_TYPES,
+        value_types: tuple[bytes, bytearray]=DEFAULT_VALUE_TYPES,
     ) -> None:
         # generate a good URI from the url and the mode
         db_uri = gen_uri(db_url, mode)

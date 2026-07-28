@@ -8,7 +8,7 @@ environ.setdefault("OMP_NUM_THREADS", "1")  # Good default, but can be overridde
 # Standard Library
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing_extensions import Literal
 
 # Third Party Library
 from pyscf.md.integrators import LangevinMiddle

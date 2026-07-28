@@ -1,7 +1,7 @@
 # Standard Library
 import itertools as it
 import logging
-from typing import Self
+from typing_extensions import Self
 
 logger = logging.getLogger(__name__)
 # Standard Library

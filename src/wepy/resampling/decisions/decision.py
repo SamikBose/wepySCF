@@ -100,7 +100,7 @@ class Decision:
         return cls.SHAPES
 
     @classmethod
-    def field_dtypes(cls) -> tuple[type[int]]:
+    def field_dtypes(cls) -> tuple[int]:
         """Field data types."""
         return cls.DTYPES
 

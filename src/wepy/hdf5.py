@@ -393,7 +393,7 @@ import gc
 import itertools as it
 import json
 import logging
-from typing import Self
+from typing_extensions import Self
 
 logger = logging.getLogger(__name__)
 # Standard Library
@@ -1920,7 +1920,7 @@ class WepyHDF5:
                 # add the new data
                 field[-n_new_frames:, ...] = field_data
 
-    def _run_record_namedtuple(self, run_record_key) -> type[WepyHDF5._run_record_namedtuple.Record]:
+    def _run_record_namedtuple(self, run_record_key):
         """Generate a namedtuple record type for a record group.
 
         The class name will be formatted like '{}_Record' where the {}
@@ -3462,7 +3462,7 @@ class WepyHDF5:
 
         return True
 
-    def clone(self, path, mode: str="x") -> WepyHDF5:
+    def clone(self, path, mode: str="x") -> Self:
         """Clone the header information of this file into another file.
 
         Clones this WepyHDF5 file without any of the actual runs and run

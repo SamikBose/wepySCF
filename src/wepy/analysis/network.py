@@ -6,7 +6,7 @@ structure of weighted ensemble simulation data.
 import gc
 from collections import defaultdict
 from copy import deepcopy
-from typing import Self
+from typing_extensions import Self
 
 # Third Party Library
 import networkx as nx

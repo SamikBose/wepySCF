@@ -14,7 +14,7 @@ import warnings
 from collections import deque
 from copy import copy
 from operator import attrgetter
-from typing import Self
+from typing_extensions import Self
 
 # Third Party Library
 import networkx as nx

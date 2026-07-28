@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # Standard Library
 import random as rand
 from copy import deepcopy
-from typing import Self
+from typing_extensions import Self
 
 
 def split(walker, number: int=2):

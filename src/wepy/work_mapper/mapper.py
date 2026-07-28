@@ -433,7 +433,7 @@ class WorkerMapper(ABCWorkerMapper):
             self._worker_type = worker_type
 
     @property
-    def worker_type(self) -> type[Worker]:
+    def worker_type(self) -> "Worker":
         """The callable that generates a worker object.
 
         Typically this is just the type from the class definition of
