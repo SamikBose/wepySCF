@@ -13,7 +13,6 @@ import traceback
 from warnings import warn
 
 # First Party Library
-from wepy.walker import Walker
 from wepy.work_mapper.mapper import (
     ABCWorkerMapper,
     Task,
@@ -57,7 +56,7 @@ class TaskMapper(ABCWorkerMapper):
 
     """
 
-    def __init__(self, walker_task_type=None, num_workers=None, segment_func=None, **kwargs):
+    def __init__(self, walker_task_type=None, num_workers=None, segment_func=None, **kwargs) -> None:
         super().__init__(num_workers=num_workers, segment_func=segment_func, **kwargs)
 
         # choose the type of the worker
@@ -74,14 +73,14 @@ class TaskMapper(ABCWorkerMapper):
         # this is meant to be a transient variable, will be initialized and deinitialized
         self._walker_processes = None
 
-    def init(self, **kwargs):
+    def init(self, **kwargs) -> None:
         super().init(**kwargs)
 
         # now that we have started the processes register the handler
         # for SIGTERM signals that will clean up our children cleanly
         signal.signal(signal.SIGTERM, self._sigterm_shutdown)
 
-    def _sigterm_shutdown(self, signum, frame):
+    def _sigterm_shutdown(self, signum, frame) -> None:
         logger.critical("Received external SIGTERM, forcing shutdown.")
 
         self.force_shutdown()
@@ -89,7 +88,7 @@ class TaskMapper(ABCWorkerMapper):
         logger.critical("Shutdown complete.")
 
     @property
-    def walker_task_type(self):
+    def walker_task_type(self) -> type[WalkerTaskProcess]:
         """The callable that generates a worker object.
 
         Typically this is just the type from the class definition of
@@ -98,7 +97,7 @@ class TaskMapper(ABCWorkerMapper):
         """
         return self._walker_task_type
 
-    def force_shutdown(self):
+    def force_shutdown(self) -> None:
         # send sigterm signals to processes to kill them
         for walker_idx, _ in enumerate(self._walker_processes):
             logger.critical(
@@ -127,7 +126,7 @@ class TaskMapper(ABCWorkerMapper):
                     alive_walkers[walker_idx] = False
                     walker_exitcodes[walker_idx] = walker.exitcode
 
-    def map(self, *args, **kwargs):
+    def map(self, *args, **kwargs) -> list[None]:
         # run computations in a Manager context
         with self._mp_ctx.Manager() as manager:
             num_walkers = len(args[0])
@@ -337,7 +336,7 @@ class WalkerTaskProcess(mp.Process):
         worker_segment_times,
         interrupt_connection,
         **kwargs,
-    ):
+    ) -> None:
         # initialize the process customizing the name
         mp.Process.__init__(self, name=self.NAME_TEMPLATE.format(walker_idx), **kwargs)
 
@@ -367,7 +366,7 @@ class WalkerTaskProcess(mp.Process):
         # shutdown with reporting to mapper
         signal.signal(signal.SIGTERM, self._external_sigterm_shutdown)
 
-    def _external_sigterm_shutdown(self, signum, frame):
+    def _external_sigterm_shutdown(self, signum, frame) -> None:
         logger.debug("Received external SIGTERM kill command.")
 
         logger.debug("Alerting mapper that this will be honored.")
@@ -381,7 +380,7 @@ class WalkerTaskProcess(mp.Process):
 
         logger.debug("Shutting down process")
 
-    def _shutdown(self):
+    def _shutdown(self) -> None:
         """The normal shutdown which can be ordered by the work mapper."""
 
         logger.debug("Received SIGTERM kill command from mapper")
@@ -403,7 +402,7 @@ class WalkerTaskProcess(mp.Process):
     def attributes(self, key):
         return self._attributes[key]
 
-    def _run_task(self, task):
+    def _run_task(self, task: Task):
         # run the task thunk
         logger.info(f"{self.name}: Running task")
         try:
@@ -439,7 +438,7 @@ class WalkerTaskProcess(mp.Process):
 
         return task()
 
-    def run(self):
+    def run(self) -> None:
         logger.debug(f"{self.name}: starting to run")
 
         # try to run the worker and it's task, except either class of
@@ -503,7 +502,7 @@ class WalkerTaskProcess(mp.Process):
             except BrokenPipeError as exc:
                 logger.error(f"{self.name}: Pipe is broken indicating the root process has already exited:\n{exc}")
 
-    def _run_walker(self):
+    def _run_walker(self) -> None:
         logger.info(f"Walker process started as name: {self.name}; PID: {self.pid}")
 
         # lock a worker, then pop it off the queue so no other process

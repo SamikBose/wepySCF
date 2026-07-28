@@ -1,16 +1,11 @@
-# Standard Library
-import os
-import os.path as osp
-from pathlib import Path
-
 # Third Party Library
 from pytest_shutil.cmdline import chdir
-from pytest_shutil.run import run, run_as_main
+from pytest_shutil.run import run
 
 ### Tests
 
 
-def test_tutorial(datadir_factory, printer):
+def test_tutorial(datadir_factory, printer) -> None:
     tutorial = "data_analysis"
 
     datadir = datadir_factory.mkdatadir(f"../_tutorials/{tutorial}")

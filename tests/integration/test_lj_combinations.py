@@ -2,45 +2,22 @@
 import logging
 
 logger = logging.getLogger(__name__)
-# Standard Library
-import multiprocessing as mp
-import time
-from copy import deepcopy
 
 # Third Party Library
 import pytest
 
 # First Party Library
-from wepy.resampling.resamplers.resampler import NoResampler
-from wepy.runners.openmm import (
-    OpenMMCPUWalkerTaskProcess,
-    OpenMMCPUWorker,
-    OpenMMGPUWalkerTaskProcess,
-    OpenMMGPUWorker,
-    OpenMMRunner,
-    OpenMMState,
-    OpenMMWalker,
-)
-from wepy.sim_manager import Manager
-from wepy.walker import Walker, WalkerState
-from wepy.work_mapper.mapper import Mapper, TaskException
-from wepy.work_mapper.task_mapper import (
-    TaskMapper,
-    TaskProcessException,
-    WalkerTaskProcess,
-)
-from wepy.work_mapper.worker import Worker, WorkerException, WorkerMapper
 from wepy_tools.sim_makers.openmm.lennard_jones import LennardJonesPairOpenMMSimMaker
 from wepy_tools.sim_makers.openmm.lysozyme import LysozymeImplicitOpenMMSimMaker
 
 
-def get_sim_maker(spec):
+def get_sim_maker(spec) -> LennardJonesPairOpenMMSimMaker | LysozymeImplicitOpenMMSimMaker:
     if spec == "LennardJonesPair":
         sim_maker = LennardJonesPairOpenMMSimMaker()
     elif spec == "LysozymeImplicit":
         sim_maker = LysozymeImplicitOpenMMSimMaker()
     else:
-        raise ValueError("Unknown system spec: {}".format(spec))
+        raise ValueError(f"Unknown system spec: {spec}")
 
     return sim_maker
 
@@ -96,7 +73,7 @@ class TestCombinationsMinorNode:
     @pytest.mark.parametrize("work_mapper", WORK_MAPPERS_TEST)
     def test_combinations(
         self, n_walkers, n_cycles, n_steps, platform, system, resampler, work_mapper
-    ):
+    ) -> None:
         sim_maker = get_sim_maker(system)
 
         apparatus = sim_maker.make_apparatus(platform=platform, resampler=resampler)
@@ -142,7 +119,7 @@ class TestCombinationsDevNode:
     @pytest.mark.parametrize("work_mapper", WORK_MAPPERS_TEST)
     def test_combinations(
         self, n_walkers, n_cycles, n_steps, platform, system, resampler, work_mapper
-    ):
+    ) -> None:
         sim_maker = get_sim_maker(system)
 
         apparatus = sim_maker.make_apparatus(platform=platform, resampler=resampler)
@@ -167,7 +144,7 @@ class TestCombinationsBigNode:
     @pytest.mark.parametrize("resampler", RESAMPLERS_TEST)
     def test_combinations(
         self, n_walkers, n_cycles, n_steps, platform, system, resampler
-    ):
+    ) -> None:
         sim_maker = get_sim_maker(system)
 
         apparatus = sim_maker.make_apparatus(platform=platform, resampler=resampler)

@@ -9,16 +9,12 @@ ResamplingTreeLayout.layout
 
 # Standard Library
 import itertools as it
-from collections import defaultdict
 from copy import copy
 from warnings import warn
 
 # Third Party Library
-import networkx as nx
 import numpy as np
-
-# First Party Library
-from wepy.analysis.network_layouts.layout import LayoutError
+from numpy import dtype, float64, ndarray
 
 
 class ResamplingTreeLayout:
@@ -40,8 +36,8 @@ class ResamplingTreeLayout:
     """
 
     def __init__(
-        self, node_radius=1.0, row_spacing=5.0, step_spacing=20.0, central_axis=0.0
-    ):
+        self, node_radius: float=1.0, row_spacing: float=5.0, step_spacing: float=20.0, central_axis: float=0.0
+    ) -> None:
         """Constructing the object is just a setting of the parameters and
         collection of methods for generating layout positions.
 
@@ -69,7 +65,7 @@ class ResamplingTreeLayout:
         self.step_spacing = step_spacing
         self.central_axis = central_axis
 
-    def _overlaps(self, positions, node_radii, node_idx):
+    def _overlaps(self, positions, node_radii, node_idx: int):
         """
 
         Parameters
@@ -130,7 +126,7 @@ class ResamplingTreeLayout:
 
         return abs(max_edge - min_edge)
 
-    def _simple_gen_distribution(self, nodes_x, node_radii):
+    def _simple_gen_distribution(self, nodes_x, node_radii) -> list[None]:
         """
 
         Parameters
@@ -355,7 +351,7 @@ class ResamplingTreeLayout:
 
         return new_node_positions
 
-    def _simple_next_gen(self, parents_x, children_parent_idxs, node_radii):
+    def _simple_next_gen(self, parents_x, children_parent_idxs, node_radii) -> list[None]:
         """
 
         Parameters
@@ -466,7 +462,7 @@ class ResamplingTreeLayout:
 
         return centered_positions
 
-    def _layout_array(self, parent_table, radii_array):
+    def _layout_array(self, parent_table, radii_array) -> ndarray[tuple[int, int, int], dtype[float64]]:
         """Generates the structured array of positions for nodes in the parent
         forest tree layout given the corresponding radii.
 
@@ -643,7 +639,7 @@ class ResamplingTreeLayout:
         if n_new_radii < n_nodes:
             warn(
                 "not all nodes were assigned custom radii,"
-                " default value {} was used instead".format(self.node_radius)
+                f" default value {self.node_radius} was used instead"
             )
 
         layout_array = self._layout_array(parent_table, radii_array)

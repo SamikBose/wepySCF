@@ -1,16 +1,14 @@
 """Test the main documentation pages."""
 
 # Standard Library
-import os
-import os.path as osp
 from pathlib import Path
 
 # Third Party Library
 from pytest_shutil.cmdline import chdir
-from pytest_shutil.run import run, run_as_main
+from pytest_shutil.run import run
 
 
-def test_dir_structure(datadir_factory):
+def test_dir_structure(datadir_factory) -> None:
     datadir = Path(datadir_factory.mkdatadir("../_tangled_docs"))
 
     assert (datadir / "README").is_dir()
@@ -20,7 +18,7 @@ def test_dir_structure(datadir_factory):
     assert (datadir / "info/README/README.org").is_file()
 
 
-def test_readme(datadir_factory):
+def test_readme(datadir_factory) -> None:
     datadir = Path(datadir_factory.mkdatadir("../_tangled_docs/README"))
 
     with chdir(datadir):
@@ -32,7 +30,7 @@ def test_readme(datadir_factory):
         )
 
 
-def test_installation(datadir_factory):
+def test_installation(datadir_factory) -> None:
     datadir = Path(datadir_factory.mkdatadir("../_tangled_docs/info/installation"))
 
     with chdir(datadir):
@@ -44,7 +42,7 @@ def test_installation(datadir_factory):
         )
 
 
-def test_quick_start(datadir_factory):
+def test_quick_start(datadir_factory) -> None:
     datadir = Path(datadir_factory.mkdatadir("../_tangled_docs/info/quick_start"))
 
     with chdir(datadir):
@@ -70,7 +68,7 @@ def test_quick_start(datadir_factory):
         )
 
 
-def test_introduction(datadir_factory):
+def test_introduction(datadir_factory) -> None:
     # STUB
     # datadir = Path(datadir_factory.mkdatadir('../_tangled_docs/info/introduction'))
     # with chdir(datadir):
@@ -79,7 +77,7 @@ def test_introduction(datadir_factory):
     pass
 
 
-def test_users_guide(datadir_factory):
+def test_users_guide(datadir_factory) -> None:
     # STUB
     # datadir = Path(datadir_factory.mkdatadir('../_tangled_docs/info/users_guide'))
     # with chdir(datadir):
@@ -88,7 +86,7 @@ def test_users_guide(datadir_factory):
     pass
 
 
-def test_howtos(datadir_factory):
+def test_howtos(datadir_factory) -> None:
     # STUB
     # datadir = Path(datadir_factory.mkdatadir('../_tangled_docs/info/howtos'))
     # with chdir(datadir):
@@ -97,7 +95,7 @@ def test_howtos(datadir_factory):
     pass
 
 
-def test_reference(datadir_factory):
+def test_reference(datadir_factory) -> None:
     datadir = Path(datadir_factory.mkdatadir("../_tangled_docs/info/reference"))
     with chdir(datadir):
         out = run(
@@ -115,7 +113,7 @@ def test_reference(datadir_factory):
         )
 
 
-def test_troubleshooting(datadir_factory):
+def test_troubleshooting(datadir_factory) -> None:
     # STUB
     # datadir = Path(datadir_factory.mkdatadir('../_tangled_docs/info/troubleshooting'))
     # with chdir(datadir):

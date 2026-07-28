@@ -1,7 +1,6 @@
 """Miscellaneous functions needed by wepy."""
 
 # Standard Library
-import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,7 +11,7 @@ import warnings
 import numpy as np
 
 
-def set_loglevel(loglevel):
+def set_loglevel(loglevel) -> None:
     """
 
     \b

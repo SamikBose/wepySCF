@@ -1,14 +1,14 @@
 """Module for generating wepy systems"""
 
 # Standard Library
-from copy import copy, deepcopy
+from copy import deepcopy
+from types import EllipsisType
 
 # Third Party Library
 import mdtraj as mdj
 import numpy as np
 import openmm as omm
-import openmm.app as omma
-import simtk.unit as unit
+from simtk import unit
 
 # integrators
 from simtk.openmm import LangevinIntegrator
@@ -52,18 +52,16 @@ from wepy.runners.openmm import (
     OpenMMState,
     gen_walker_state,
 )
+from wepy.sim_manager import Manager
 from wepy.util.json_top import (
     json_top_atom_df,
-    json_top_residue_df,
-    json_top_residue_fields,
-    json_top_subset,
 )
 from wepy.util.mdtraj import mdtraj_to_json_topology
 from wepy.walker import Walker
 
 # mappers
 from wepy.work_mapper.mapper import Mapper
-from wepy.work_mapper.task_mapper import TaskMapper, WalkerTaskProcess
+from wepy.work_mapper.task_mapper import TaskMapper
 from wepy.work_mapper.worker import Worker, WorkerMapper
 
 # workers
@@ -196,7 +194,7 @@ class OpenMMSimMaker:
         init_state=None,
         system=None,
         topology=None,
-    ):
+    ) -> None:
         self.distance = distance
         self.init_state = init_state
         self.system = system
@@ -206,7 +204,7 @@ class OpenMMSimMaker:
         if self.GET_STATE_KWARGS is not None:
             self.getState_kwargs.update(self.GET_STATE_KWARGS)
 
-    def make_state(self, system, positions):
+    def make_state(self, system, positions) -> OpenMMState:
         # a temporary integrator just for this
         integrator = self.INTEGRATOR_FIXTURE(*self.INTEGRATOR_FIXTURE_PARAMS)
 
@@ -217,7 +215,7 @@ class OpenMMSimMaker:
         return init_state
 
     @classmethod
-    def make_initial_walkers(cls, state, n_walkers):
+    def make_initial_walkers(cls, state, n_walkers) -> list[Walker]:
         init_weight = 1.0 / n_walkers
         init_walkers = [Walker(deepcopy(state), init_weight) for i in range(n_walkers)]
 
@@ -225,16 +223,16 @@ class OpenMMSimMaker:
 
     def make_apparatus(
         self,
-        platform="Reference",
+        platform: str="Reference",
         platform_params=None,
         runner_params=None,
-        integrator="LangevinIntegrator",
+        integrator: str="LangevinIntegrator",
         integrator_params=None,
-        resampler="WExploreResampler",
+        resampler: str="WExploreResampler",
         resampler_params=None,
         bc=None,
         bc_params=None,
-    ):
+    ) -> WepySimApparatus:
         ## RUNNER
 
         # choose which integrator to use
@@ -303,7 +301,7 @@ class OpenMMSimMaker:
 
         return sim_apparatus
 
-    def make_bc(self, bc_class, bc_params):
+    def make_bc(self, bc_class: type[NoBC] | type[RandomBC], bc_params):
         bc = bc_class(**bc_params)
 
         return bc
@@ -344,7 +342,7 @@ class OpenMMSimMaker:
 
         return work_mapper_params
 
-    def choose_dashboard_sections(self, apparatus):
+    def choose_dashboard_sections(self, apparatus) -> dict[str, BCDashboardSection | ResamplerDashboardSection | RunnerDashboardSection] | dict[str, ResamplerDashboardSection | RunnerDashboardSection | None]:
         # defaults for the dashboard sections
         if apparatus.boundary_conditions is not None:
             dashboard_sections = {
@@ -376,10 +374,7 @@ class OpenMMSimMaker:
 
         ## BC
         # NoBC
-        if type(apparatus.boundary_conditions).__name__ == "NoBC":
-            dashboard_sections["bc"] = BCDashboardSection(apparatus.boundary_conditions)
-        # Random
-        elif type(apparatus.boundary_conditions).__name__ == "RandomBC":
+        if type(apparatus.boundary_conditions).__name__ == "NoBC" or type(apparatus.boundary_conditions).__name__ == "RandomBC":
             dashboard_sections["bc"] = BCDashboardSection(apparatus.boundary_conditions)
 
         ## Runner
@@ -428,7 +423,7 @@ class OpenMMSimMaker:
                     break
 
             if not match:
-                raise ValueError("Unkown reporter for spec {}".format(reporter_spec))
+                raise ValueError(f"Unkown reporter for spec {reporter_spec}")
 
             reporter_classes.append(match)
 
@@ -506,16 +501,16 @@ class OpenMMSimMaker:
         self,
         apparatus,
         work_mapper_class=None,
-        work_mapper_spec="TaskMapper",
+        work_mapper_spec: str="TaskMapper",
         work_mapper_params=None,
-        platform="Reference",
+        platform: str="Reference",
         # defaults to using all of the defaults
-        reporters=Ellipsis,
+        reporters: EllipsisType=Ellipsis,
         reporter_kwargs=None,
         work_dir=None,
         monitor_class=None,
         monitor_params=None,
-    ):
+    ) -> Configuration:
         # MAPPER
 
         # choose which mapper to use
@@ -567,7 +562,7 @@ class OpenMMSimMaker:
 
         return config
 
-    def make_sim_manager(self, n_walkers, apparatus, config):
+    def make_sim_manager(self, n_walkers, apparatus, config) -> Manager:
         walkers = self.make_initial_walkers(self.init_state, n_walkers)
         snapshot = SimSnapshot(walkers, apparatus)
 
@@ -580,7 +575,7 @@ class OpenMMToolsTestSysSimMaker(OpenMMSimMaker):
     TEST_SYS = None
 
     @classmethod
-    def num_atoms(cls):
+    def num_atoms(cls) -> int:
         json_top = cls.json_top()
 
         # get the atom dataframe and select them from the ligand residue
@@ -596,7 +591,7 @@ class OpenMMToolsTestSysSimMaker(OpenMMSimMaker):
         )
 
     @classmethod
-    def json_top(cls):
+    def json_top(cls) -> str:
         test_sys = cls.TEST_SYS()
 
         # convert to a JSON top

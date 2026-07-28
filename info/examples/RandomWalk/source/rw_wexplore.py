@@ -2,20 +2,21 @@
 resampler.
 
 """
-import sys
+# Standard Library
 import os
 import os.path as osp
+import sys
 from pathlib import Path
 
+# Third Party Library
 import numpy as np
 
-from wepy.resampling.resamplers.wexplore import WExploreResampler
+# First Party Library
 from wepy.resampling.distances.randomwalk import RandomWalkDistance
-from wepy.runners.randomwalk import RandomWalkRunner, UNIT_NAMES
-from wepy.walker import Walker, WalkerState
-
+from wepy.resampling.resamplers.wexplore import WExploreResampler
+from wepy.runners.randomwalk import UNIT_NAMES
+from wepy.walker import WalkerState
 from wepy_tools.sim_makers.toys.randomwalk import RandomwalkProfiler
-
 
 ON = True
 OFF = False

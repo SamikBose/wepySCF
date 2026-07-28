@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 import os
 from collections import OrderedDict
 from time import perf_counter
-from typing import Literal
+from typing_extensions import Literal
 
 # Third Party Library
 import numpy as np
@@ -18,6 +18,7 @@ import pyscf.dft as pyscf_dft
 import pyscf.dft.numint as pyscf_numint
 import pyscf.md as pyscf_md
 import pyscf.scf as pyscf_scf
+from pyscf.md.integrators import _Integrator
 
 # First Party Library
 from wepy.runners.runner import Runner
@@ -73,10 +74,10 @@ RANDOM_NOISE_INTEGRATORS: set[str] = {"RandomNoiseVelocityVerlet", "NVTBussi", "
 
 
 class LRUDict(OrderedDict):
-    def __init__(self, max_len=8):
+    def __init__(self, max_len: int=8) -> None:
         self.max_len = max_len
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value) -> None:
         if key in self:
             self.move_to_end(key)
         super().__setitem__(key, value)
@@ -102,12 +103,12 @@ def _to_cpu(obj):
 class PySCFState(WalkerState):
     # KEYS = KEYS
 
-    def get(self, key, default=None):
+    def get(self, key: str, default=None):
         return self._data.get(key, default)
 
 
 class PySCFWalker(Walker):
-    def __init__(self, state, weight):
+    def __init__(self, state, weight) -> None:
         assert isinstance(state, PySCFState), f"state must be an instance of PySCFState not {type(state)}"
         super().__init__(state, weight)
 
@@ -136,7 +137,7 @@ class PySCFRunner(Runner):
         use_density_fitting: bool = False,
         use_scanner_caching: bool = False,
         scanner_cache_capacity: int = 8,
-    ):
+    ) -> None:
         self.backend = backend.lower()
         self.basis = basis
         self.method = method.upper()
@@ -163,7 +164,7 @@ class PySCFRunner(Runner):
 
         self._last_cycle_segments_split_times: list[dict] = []
 
-    def _build_mean_field(self, mol, state):
+    def _build_mean_field(self, mol, state: PySCFState):
         if self.method == "RHF":
             mf = pyscf_scf.RHF(mol)
         elif self.method == "UHF":
@@ -221,7 +222,7 @@ class PySCFRunner(Runner):
 
         return grad_method.as_scanner()
 
-    def _generate_integrator_kwargs(self, integrator_cls, integrator_kwargs: dict):
+    def _generate_integrator_kwargs(self, integrator_cls: _Integrator, integrator_kwargs: dict):
         """Generate integrator kwargs from runner settings.
 
         Sets integrator `T` equal to `temperature_kelvin`
@@ -244,7 +245,7 @@ class PySCFRunner(Runner):
 
         return integrator_kwargs
 
-    def _validate_integrator_kwargs(self, integrator_cls, integrator_kwargs: dict):
+    def _validate_integrator_kwargs(self, integrator_cls: _Integrator, integrator_kwargs: dict) -> None:
         """Simple kwargs validation for PySCF MD integrators."""
         name = getattr(integrator_cls, "__name__", None)
         required = REQUIRED_KWARGS_BY_INTEGRATOR.get(name)
@@ -255,7 +256,7 @@ class PySCFRunner(Runner):
         if missing:
             raise ValueError(f"Missing required integrator_kwargs for pyscf.md.integrators.{name}: {missing}")
 
-    def _build_integrator(self, scanner):
+    def _build_integrator(self, scanner) -> _Integrator:
         """Construct the configured PySCF MD integrator for a given scanner."""
         integrator_kwargs = {} if self.integrator_kwargs is None else self.integrator_kwargs
         integrator_kwargs = self._generate_integrator_kwargs(self.integrator_cls, integrator_kwargs)
@@ -264,7 +265,7 @@ class PySCFRunner(Runner):
         kwargs = {"dt": self.dt, **integrator_kwargs}
         return self.integrator_cls(scanner, **kwargs)
 
-    def _restore_integrator_values(self, integrator, velocities, mid_velocities, accelerations):
+    def _restore_integrator_values(self, integrator: _Integrator, velocities, mid_velocities, accelerations) -> None:
         """Restore velocities, mid velocities (if needed), and accelerations for an integrator."""
         if velocities is not None:
             integrator.veloc = velocities
@@ -389,7 +390,7 @@ class PySCFRunner(Runner):
         charges,
         density_kwargs: dict,
         extra_data: dict | None = None,
-    ):
+    ) -> PySCFState:
 
         # Store scalar observables as 1D feature arrays (shape (1,)) so the HDF5
         # reporter can wrap them into (n_frames, 1) feature vectors
@@ -416,7 +417,7 @@ class PySCFRunner(Runner):
             },
         )
 
-    def run_segment(self, walker: PySCFWalker, segment_length: int, **kwargs: dict):
+    def run_segment(self, walker: PySCFWalker, segment_length: int, **kwargs: dict) -> PySCFWalker:
         run_segment_start = perf_counter()
 
         state: PySCFState = walker.state
@@ -572,7 +573,7 @@ class PySCFCPUWorker(Worker):
     NAME_TEMPLATE = "PySCFCPUWorker-{}"
     DEFAULT_NUM_THREADS = 1
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         num_threads = kwargs.pop("num_threads", self.DEFAULT_NUM_THREADS)
         super().__init__(*args, num_threads=num_threads, **kwargs)
         self._scanner_cache: LRUDict = LRUDict()
@@ -589,11 +590,11 @@ class PySCFCPUWorker(Worker):
 class PySCFGPUWorker(Worker):
     NAME_TEMPLATE = "PySCFGPUWorker-{}"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._scanner_cache = LRUDict()
 
-    def run(self):
+    def run(self) -> None:
         device_id = self.mapper_attributes["device_ids"][self._worker_idx]
         os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)  # Ensure GPU4PySCF only uses the assigned device
         super().run()
@@ -611,7 +612,7 @@ class PySCFGPUWorker(Worker):
 class PySCFCPUWorkerMapper(WorkerMapper):
     """Convenience WorkerMapper for CPU walker-level parallelism."""
 
-    def __init__(self, num_workers=None, **kwargs):
+    def __init__(self, num_workers=None, **kwargs) -> None:
         super().__init__(
             worker_type=PySCFCPUWorker,
             num_workers=num_workers,
@@ -622,7 +623,7 @@ class PySCFCPUWorkerMapper(WorkerMapper):
 class PySCFGPUWorkerMapper(WorkerMapper):
     """Convenience WorkerMapper for GPU walker-level parallelism."""
 
-    def __init__(self, num_workers=None, platform="CUDA", device_ids=None, **kwargs):
+    def __init__(self, num_workers=None, platform: str="CUDA", device_ids=None, **kwargs) -> None:
         if device_ids is None:
             raise ValueError("device_ids must be provided for PySCFGPUWorkerMapper")
 

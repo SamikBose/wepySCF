@@ -50,16 +50,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
-from collections import namedtuple
 from enum import Enum
-from string import ascii_lowercase
-
-# Third Party Library
-import numpy as np
 
 
 # ABC for the Decision class
-class Decision(object):
+class Decision:
     """Represents and provides methods for a set of decision values."""
 
     ENUM = None
@@ -95,17 +90,17 @@ class Decision(object):
         return cls.DEFAULT_DECISION
 
     @classmethod
-    def field_names(cls):
+    def field_names(cls) -> tuple[str]:
         """Names of the decision record fields."""
         return cls.FIELDS
 
     @classmethod
-    def field_shapes(cls):
+    def field_shapes(cls) -> tuple[tuple[int]]:
         """Field data shapes."""
         return cls.SHAPES
 
     @classmethod
-    def field_dtypes(cls):
+    def field_dtypes(cls) -> tuple[int]:
         """Field data types."""
         return cls.DTYPES
 
@@ -123,7 +118,7 @@ class Decision(object):
         return list(zip(cls.field_names(), cls.field_shapes(), cls.field_dtypes()))
 
     @classmethod
-    def record_field_names(cls):
+    def record_field_names(cls) -> tuple[str]:
         """The fields that could be used in a reduced table-like representation."""
         return cls.RECORD_FIELDS
 
@@ -201,10 +196,10 @@ class Decision(object):
             enum_value in cls.enum_dict_by_value()
         ), "value is not a valid Enumerated value"
 
-        for field_key in fields.keys():
+        for field_key in fields:
             assert (
                 field_key in cls.FIELDS
-            ), "The field {} is not a field for that decision".format(field_key)
+            ), f"The field {field_key} is not a field for that decision"
             assert field_key != "decision_id", "'decision_id' cannot be an extra field"
 
         rec = {"decision_id": enum_value}
@@ -251,7 +246,7 @@ class Decision(object):
         raise NotImplementedError
 
     @classmethod
-    def parents(cls, step):
+    def parents(cls, step) -> list[None]:
         """Given a step of resampling records (for a single resampling step)
         returns the parents of the children of this step.
 
@@ -308,7 +303,7 @@ class NoDecision(Decision):
     ANCESTOR_DECISION_IDS = (ENUM.NOTHING.value,)
 
     @classmethod
-    def action(cls, walkers, decisions):
+    def action(cls, walkers, decisions) -> list[None]:
         # list for the modified walkers
         mod_walkers = [None for i in range(len(walkers))]
         # go through each decision and perform the decision
@@ -320,9 +315,7 @@ class NoDecision(Decision):
                 # where you are going to put it
                 if mod_walkers[instruction[0]] is not None:
                     raise ValueError(
-                        "Multiple walkers assigned to position {}".format(
-                            instruction[0]
-                        )
+                        f"Multiple walkers assigned to position {instruction[0]}"
                     )
 
                 # put the walker in the position specified by the

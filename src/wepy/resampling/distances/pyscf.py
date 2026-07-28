@@ -17,7 +17,7 @@ class QMGridDensityDistance(Distance):
     :class:`wepy.runners.pyscf.PySCFRunner`.
     """
 
-    def __init__(self, grid_key: str = "density_grid", normalize: bool = True) -> None:
+    def __init__(self, grid_key: str="density_grid", normalize: bool=True) -> None:
         self.grid_key = grid_key
         self.normalize = normalize
 

@@ -1,5 +1,4 @@
 # Standard Library
-import itertools as it
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,7 +8,7 @@ import os.path as osp
 import sqlite3
 import time
 from base64 import b64decode, b64encode
-from copy import copy, deepcopy
+from copy import deepcopy
 from hashlib import md5
 from zlib import compress, decompress
 
@@ -28,7 +27,6 @@ from wepy.util.kv import KV, SQLITE3_INMEMORY_URI, gen_uri
 class OrchestratorError(Exception):
     """ """
 
-    pass
 
 
 class Orchestrator:
@@ -62,9 +60,9 @@ class Orchestrator:
     def __init__(
         self,
         orch_path=None,
-        mode="x",
-        append_only=False,
-    ):
+        mode: str="x",
+        append_only: bool=False,
+    ) -> None:
         self._mode = mode
         self._append_only = append_only
 
@@ -136,9 +134,9 @@ class Orchestrator:
     def append_only(self):
         return self._append_only
 
-    def close(self):
+    def close(self) -> None:
         if self._closed == True:
-            raise IOError("The database connection is already closed")
+            raise OSError("The database connection is already closed")
 
         else:
             # close all the connections
@@ -149,11 +147,11 @@ class Orchestrator:
             self._closed = True
 
     @property
-    def db_uri(self):
+    def db_uri(self) -> str:
         return self._db_uri
 
     @property
-    def orch_path(self):
+    def orch_path(self) -> str | None:
         # if it is not an in-memory database we parse off the path and
         # return that
         if self.db_uri == SQLITE3_INMEMORY_URI:
@@ -171,7 +169,7 @@ class Orchestrator:
             return url
 
     @classmethod
-    def serialize(cls, snapshot):
+    def serialize(cls, snapshot) -> bytes:
         """Serialize a snapshot to a compressed, encoded, pickle string
         representation.
 
@@ -237,19 +235,19 @@ class Orchestrator:
         return dill.loads(decompress(b64decode(serial_str)))
 
     # defaults getters and setters
-    def set_default_sim_apparatus(self, sim_apparatus):
+    def set_default_sim_apparatus(self, sim_apparatus) -> None:
         # serialize the apparatus and then set it
         serial_app = self.serialize(sim_apparatus)
 
         self.metadata_kv["default_sim_apparatus"] = serial_app
 
-    def set_default_init_walkers(self, init_walkers):
+    def set_default_init_walkers(self, init_walkers) -> None:
         # serialize the apparatus and then set it
         serial_walkers = self.serialize(init_walkers)
 
         self.metadata_kv["default_init_walkers"] = serial_walkers
 
-    def set_default_configuration(self, configuration):
+    def set_default_configuration(self, configuration) -> None:
         # serialize the apparatus and then set it
         serial_config = self.serialize(configuration)
 
@@ -259,7 +257,7 @@ class Orchestrator:
 
         self.configuration_kv[config_hash] = serial_config
 
-    def set_default_snapshot(self, snapshot):
+    def set_default_snapshot(self, snapshot) -> str:
         snaphash = self.add_snapshot(snapshot)
 
         # then save the hash in the metadata
@@ -267,7 +265,7 @@ class Orchestrator:
 
         return snaphash
 
-    def gen_default_snapshot(self):
+    def gen_default_snapshot(self) -> str:
         # generate the snapshot
         sim_start_hash = self.gen_start_snapshot(self.get_default_init_walkers())
 
@@ -299,7 +297,7 @@ class Orchestrator:
         return self.metadata_kv["default_snapshot_hash"]
 
     @classmethod
-    def hash_snapshot(cls, serial_str):
+    def hash_snapshot(cls, serial_str: bytes) -> str:
         """
 
         Parameters
@@ -357,7 +355,7 @@ class Orchestrator:
         # iterate over the snapshot kv
         return list(self.configuration_kv.keys())
 
-    def add_snapshot(self, snapshot):
+    def add_snapshot(self, snapshot: SimSnapshot) -> str:
         """
 
         Parameters
@@ -385,7 +383,7 @@ class Orchestrator:
 
         return snaphash
 
-    def add_serial_snapshot(self, serial_snapshot):
+    def add_serial_snapshot(self, serial_snapshot) -> str:
         # get the hash of the snapshot
         snaphash = self.hash_snapshot(serial_snapshot)
 
@@ -399,7 +397,7 @@ class Orchestrator:
 
         return snaphash
 
-    def gen_start_snapshot(self, init_walkers):
+    def gen_start_snapshot(self, init_walkers) -> str:
         """
 
         Parameters
@@ -430,7 +428,7 @@ class Orchestrator:
         """ """
         return self.get_snapshot(self.default_snapshot_hash)
 
-    def snapshot_registered(self, snapshot):
+    def snapshot_registered(self, snapshot) -> bool:
         """Check whether a snapshot is already in the database, based on the
         hash of it.
 
@@ -452,7 +450,7 @@ class Orchestrator:
         # then check it
         return self.snapshot_hash_registered(snaphash)
 
-    def snapshot_hash_registered(self, snapshot_hash):
+    def snapshot_hash_registered(self, snapshot_hash: str) -> bool:
         """Check whether a snapshot hash is already in the database.
 
         Parameters
@@ -470,7 +468,7 @@ class Orchestrator:
         else:
             return False
 
-    def configuration_hash_registered(self, config_hash):
+    def configuration_hash_registered(self, config_hash) -> bool:
         """Check whether a snapshot hash is already in the database.
 
         Parameters
@@ -492,7 +490,7 @@ class Orchestrator:
 
     ### run methods
 
-    def add_configuration(self, configuration):
+    def add_configuration(self, configuration) -> str:
         serialized_config = self.serialize(configuration)
 
         config_hash = self.hash_snapshot(serialized_config)
@@ -509,7 +507,7 @@ class Orchestrator:
 
         return config_hash
 
-    def add_serial_configuration(self, serial_configuration):
+    def add_serial_configuration(self, serial_configuration) -> str:
         # get the hash of the configuration
         snaphash = self.hash_snapshot(serial_configuration)
 
@@ -526,7 +524,7 @@ class Orchestrator:
         return snaphash
 
     @property
-    def create_run_table_query(self):
+    def create_run_table_query(self) -> str:
         create_run_table_query = """
             CREATE TABLE IF NOT EXISTS runs
              (start_hash TEXT NOT NULL,
@@ -540,7 +538,7 @@ class Orchestrator:
         return create_run_table_query
 
     @property
-    def add_run_record_query(self):
+    def add_run_record_query(self) -> str:
         add_run_row_query = """
         INSERT INTO runs (start_hash, end_hash, config_hash, last_cycle_idx)
         VALUES (?, ?, ?, ?)
@@ -549,7 +547,7 @@ class Orchestrator:
         return add_run_row_query
 
     @property
-    def update_run_record_query(self):
+    def update_run_record_query(self) -> str:
         q = """
         UPDATE runs
         SET config_hash = ?,
@@ -560,7 +558,7 @@ class Orchestrator:
         return q
 
     @property
-    def delete_run_record_query(self):
+    def delete_run_record_query(self) -> str:
         q = """
         DELETE FROM runs
         WHERE start_hash=? AND end_hash=?
@@ -568,7 +566,7 @@ class Orchestrator:
 
         return q
 
-    def _add_run_record(self, start_hash, end_hash, configuration_hash, cycle_idx):
+    def _add_run_record(self, start_hash, end_hash, configuration_hash, cycle_idx) -> None:
         params = (start_hash, end_hash, configuration_hash, cycle_idx)
 
         # do it as a transaction
@@ -577,7 +575,7 @@ class Orchestrator:
         # run the insert
         c.execute(self.add_run_record_query, params)
 
-    def _delete_run_record(self, start_hash, end_hash):
+    def _delete_run_record(self, start_hash, end_hash) -> None:
         params = (start_hash, end_hash)
 
         cursor = self._db.cursor()
@@ -586,7 +584,7 @@ class Orchestrator:
 
     def _update_run_record(
         self, start_hash, end_hash, new_config_hash, new_last_cycle_idx
-    ):
+    ) -> None:
         params = (new_config_hash, new_last_cycle_idx, start_hash, end_hash)
 
         # do it as a transaction
@@ -595,7 +593,7 @@ class Orchestrator:
         # run the update
         c.execute(self.update_run_record_query, params)
 
-    def register_run(self, start_hash, end_hash, config_hash, cycle_idx):
+    def register_run(self, start_hash, end_hash, config_hash, cycle_idx) -> None:
         """
 
         Parameters
@@ -618,23 +616,17 @@ class Orchestrator:
         # if one is not registered raise an error
         if not self.snapshot_hash_registered(start_hash):
             raise OrchestratorError(
-                "snapshot start_hash {} is not registered with the orchestrator".format(
-                    start_hash
-                )
+                f"snapshot start_hash {start_hash} is not registered with the orchestrator"
             )
 
         if not self.snapshot_hash_registered(end_hash):
             raise OrchestratorError(
-                "snapshot end_hash {} is not registered with the orchestrator".format(
-                    end_hash
-                )
+                f"snapshot end_hash {end_hash} is not registered with the orchestrator"
             )
 
         if not self.configuration_hash_registered(config_hash):
             raise OrchestratorError(
-                "config hash {} is not registered with the orchestrator".format(
-                    config_hash
-                )
+                f"config hash {config_hash} is not registered with the orchestrator"
             )
 
         # save the configuration and get it's id
@@ -733,7 +725,7 @@ class Orchestrator:
             if run_idx >= len(runs):
                 return None
 
-    def _init_checkpoint_db(self, start_hash, configuration, checkpoint_dir, mode="x"):
+    def _init_checkpoint_db(self, start_hash, configuration, checkpoint_dir, mode="x") -> tuple[str, str]:
         logger.debug("Initializing checkpoint orch database")
 
         # make the checkpoint with the default filename at the checkpoint directory
@@ -762,11 +754,11 @@ class Orchestrator:
 
     def _save_checkpoint(
         self,
-        checkpoint_snapshot,
+        checkpoint_snapshot: SimSnapshot,
         config_hash,
-        checkpoint_db_path,
-        cycle_idx,
-    ):
+        checkpoint_db_path: str | None,
+        cycle_idx: int,
+    ) -> None:
         """
 
         Parameters
@@ -878,7 +870,7 @@ class Orchestrator:
                 del checkpoint_orch.snapshot_kv[old_checkpoint_hash]
                 logger.debug("finished")
             else:
-                logger.warn(
+                logger.warning(
                     "Final snapshot has same hash as the previous checkpoint. Not deleting the previous one."
                 )
 
@@ -886,7 +878,7 @@ class Orchestrator:
         logger.debug("closed the checkpoint orch connection")
 
     @staticmethod
-    def gen_sim_manager(start_snapshot, configuration):
+    def gen_sim_manager(start_snapshot, configuration) -> Manager:
         """
 
         Parameters
@@ -1016,7 +1008,7 @@ class Orchestrator:
         cycle_idx = 0
         start_time = time.time()
         while time.time() - start_time < run_time:
-            logger.debug("Running cycle {}".format(cycle_idx))
+            logger.debug(f"Running cycle {cycle_idx}")
             # run the cycle
             walkers, filters = sim_manager.run_cycle(
                 walkers,
@@ -1084,7 +1076,7 @@ class Orchestrator:
         # extra kwargs will be passed to the
         # configuration.reparametrize method
         **kwargs
-    ):
+    ) -> Orchestrator:
         """
 
         Parameters
@@ -1250,7 +1242,7 @@ class Orchestrator:
         return checkpoint_orch
 
 
-def reconcile_orchestrators(host_path, *orchestrator_paths):
+def reconcile_orchestrators(host_path, *orchestrator_paths) -> Orchestrator:
     """
 
     Parameters
@@ -1345,30 +1337,24 @@ def reconcile_orchestrators(host_path, *orchestrator_paths):
         attached_table_name = "other"
 
         # query to attach the foreign database
-        attach_query = """
-        ATTACH '{}' AS {}
-        """.format(
-            orch_path, attached_table_name
-        )
+        attach_query = f"""
+        ATTACH '{orch_path}' AS {attached_table_name}
+        """
 
         # query to update the runs tabel with new unique runs
-        union_query = """
+        union_query = f"""
         INSERT INTO runs
         SELECT * FROM (
-        SELECT * FROM {}.runs
+        SELECT * FROM {attached_table_name}.runs
         EXCEPT
         SELECT * FROM runs
         )
-        """.format(
-            attached_table_name
-        )
+        """
 
         # query to detach the table
-        detach_query = """
-        DETACH {}
-        """.format(
-            attached_table_name
-        )
+        detach_query = f"""
+        DETACH {attached_table_name}
+        """
 
         # then run the queries
 

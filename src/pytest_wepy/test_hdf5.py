@@ -32,7 +32,7 @@ segment_length = 1
 threshold = 5
 
 
-def generate_topology(N):
+def generate_topology(N: int) -> str:
     """Creates an N-atom, dummy trajectory and topology for
     the randomwalk system using the mdtraj package.  Then creates a
     JSON format for the topology. This JSON string is used in making
@@ -55,7 +55,7 @@ def generate_topology(N):
     return json_top_str
 
 
-def test_WriteReadH5():
+def test_WriteReadH5() -> None:
     cleanup = True
 
     # 1D random walk
@@ -142,7 +142,7 @@ def test_WriteReadH5():
         os.remove(hdf5_filename)
 
 
-def makeRandomWalkH5(h5name, resampling=True, warping=True):
+def makeRandomWalkH5(h5name: str, resampling=True, warping=True) -> None:
     # 1D random walk
     positions = np.zeros((1, 1))
 

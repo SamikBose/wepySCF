@@ -39,6 +39,7 @@ import os.path as osp
 import sqlite3
 from collections.abc import MutableMapping
 from contextlib import contextmanager
+from sqlite3 import Connection, Cursor
 
 # mapping of the modes we support and the modes that SQLite provides
 # KV mode -> sqlite3 mode
@@ -68,7 +69,7 @@ SQLITE3_INMEMORY_URI = "file::memory:?cache=shared"
 DEFAULT_VALUE_TYPES = (bytes, bytearray)
 
 
-def gen_uri(db_url, mode_spec):
+def gen_uri(db_url, mode_spec) -> str:
     # if the db url is the in memory special string or None or the
     # :memory: identifier, use the full in-memory URI
     if db_url == SQLITE3_INMEMORY_URI or db_url is None or db_url == ":memory:":
@@ -126,7 +127,7 @@ def gen_uri(db_url, mode_spec):
             # if the mode is one of the modes in the mode mapping use that to
             # generate the URI, otherwise raise an error
             if mode_spec not in dict(MODE_MAPPING):
-                raise ValueError("kv mode spec '{}' not recognized".format(mode_spec))
+                raise ValueError(f"kv mode spec '{mode_spec}' not recognized")
 
             else:
                 sqlite_mode = dict(MODE_MAPPING)[mode_spec]
@@ -166,7 +167,7 @@ def gen_uri(db_url, mode_spec):
     else:
         # build the query substring
         query = SQLITE3_QUERY_JOIN_CHAR.join(
-            ["{}={}".format(key, value) for key, value in queries.items()]
+            [f"{key}={value}" for key, value in queries.items()]
         )
 
         # build the URI string
@@ -181,14 +182,14 @@ class KV(MutableMapping):
     def __init__(
         self,
         db_url=None,
-        table="data",
-        primary_key="key",
-        value_name="value",
-        timeout=5,
-        mode="x",
-        append_only=False,
-        value_types=DEFAULT_VALUE_TYPES,
-    ):
+        table: str="data",
+        primary_key: str="key",
+        value_name: str="value",
+        timeout: int=5,
+        mode: str="x",
+        append_only: bool=False,
+        value_types: tuple[bytes, bytearray]=DEFAULT_VALUE_TYPES,
+    ) -> None:
         # generate a good URI from the url and the mode
         db_uri = gen_uri(db_url, mode)
 
@@ -218,12 +219,10 @@ class KV(MutableMapping):
         self._value_name = value_name
 
         # create the table if it doesn't exist and set the key names
-        create_table_query = """
-            CREATE TABLE IF NOT EXISTS {table_name}
-            ({key_name} PRIMARY KEY, {value_name})
-        """.format(
-            table_name=self.table, key_name=self.primary_key, value_name=self.value_name
-        )
+        create_table_query = f"""
+            CREATE TABLE IF NOT EXISTS {self.table}
+            ({self.primary_key} PRIMARY KEY, {self.value_name})
+        """
         self._execute(create_table_query)
 
         self._locks = 0
@@ -236,20 +235,20 @@ class KV(MutableMapping):
     def append_only(self):
         return self._append_only
 
-    def close(self):
+    def close(self) -> None:
         if self._closed == True:
-            raise IOError("The database connection is already closed")
+            raise OSError("The database connection is already closed")
 
         else:
             self._db.close()
             self._closed = True
 
     @property
-    def db_uri(self):
+    def db_uri(self) -> str:
         return self._db_uri
 
     @property
-    def db(self):
+    def db(self) -> Connection:
         return self._db
 
     @property
@@ -268,26 +267,22 @@ class KV(MutableMapping):
     def value_types(self):
         return self._kv_types
 
-    def _execute(self, *args):
+    def _execute(self, *args) -> Cursor:
         return self._db.cursor().execute(*args)
 
     def __len__(self):
-        [[n]] = self._execute("SELECT COUNT(*) FROM {table}".format(table=self.table))
+        [[n]] = self._execute(f"SELECT COUNT(*) FROM {self.table}")
         return n
 
     def __getitem__(self, key):
         if key is None:
             query = (
-                "SELECT {value} FROM {table} WHERE {key} is NULL".format(
-                    value=self.value_name, table=self.table, key=self.primary_key
-                ),
+                f"SELECT {self.value_name} FROM {self.table} WHERE {self.primary_key} is NULL",
                 (),
             )
         else:
             query = (
-                "SELECT {value} FROM {table} WHERE {key}=?".format(
-                    value=self.value_name, table=self.table, key=self.primary_key
-                ),
+                f"SELECT {self.value_name} FROM {self.table} WHERE {self.primary_key}=?",
                 (key,),
             )
 
@@ -303,14 +298,12 @@ class KV(MutableMapping):
         return (
             key
             for [key] in self._execute(
-                "SELECT {key} FROM {table}".format(
-                    key=self.primary_key, table=self.table
-                ),
+                f"SELECT {self.primary_key} FROM {self.table}",
                 (),
             )
         )
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value) -> None:
         """Set a value, must be in bytes format."""
 
         # check the type of the value to make sure it is what this KV
@@ -324,14 +317,14 @@ class KV(MutableMapping):
 
         self.lockless_set(key, value)
 
-    def __delitem__(self, key):
-        logger.debug("Deleting the snapshot {}".format(key))
+    def __delitem__(self, key) -> None:
+        logger.debug(f"Deleting the snapshot {key}")
 
         # no deletions in append only mode
         if self.append_only:
             raise sqlite3.IntegrityError(
                 "DB is opened in append only mode, "
-                "and {} has already been set".format(key)
+                f"and {key} has already been set"
             )
 
         # delete it if it exists
@@ -344,28 +337,24 @@ class KV(MutableMapping):
             raise KeyError
 
     @property
-    def insert_query(self):
-        query = "INSERT INTO {table} VALUES (?, ?)".format(table=self.table)
+    def insert_query(self) -> str:
+        query = f"INSERT INTO {self.table} VALUES (?, ?)"
 
         return query
 
     @property
-    def update_query(self):
-        query = "UPDATE {table} SET {value}=? WHERE {key}=?".format(
-            key=self.primary_key, value=self.value_name, table=self.table
-        )
+    def update_query(self) -> str:
+        query = f"UPDATE {self.table} SET {self.value_name}=? WHERE {self.primary_key}=?"
 
         return query
 
     @property
-    def del_query(self):
-        query = "DELETE FROM {table} WHERE {key}=?".format(
-            key=self.primary_key, table=self.table
-        )
+    def del_query(self) -> str:
+        query = f"DELETE FROM {self.table} WHERE {self.primary_key}=?"
 
         return query
 
-    def lockless_set(self, key, value):
+    def lockless_set(self, key, value) -> None:
         """an implementation of the __setitem__ without the lock context
         manager which turns on the DEFERRED isolation level. The
         isolation level of the KV is set to autocommit so now lock is
@@ -383,7 +372,7 @@ class KV(MutableMapping):
             if self.append_only:
                 raise sqlite3.IntegrityError(
                     "DB is opened in append only mode, "
-                    "and {} has already been set".format(key)
+                    f"and {key} has already been set"
                 )
             else:
                 self._execute(self.update_query, (value, key))
@@ -398,7 +387,7 @@ class KV(MutableMapping):
             if self.append_only:
                 raise sqlite3.IntegrityError(
                     "DB is opened in append only mode, "
-                    "and {} has already been set".format(key)
+                    f"and {key} has already been set"
                 )
 
             else:
@@ -411,7 +400,7 @@ class KV(MutableMapping):
         if self.append_only:
             raise sqlite3.IntegrityError(
                 "DB is opened in append only mode, "
-                "and {} has already been set".format(key)
+                f"and {key} has already been set"
             )
 
         elif key in self:

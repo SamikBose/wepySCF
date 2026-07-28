@@ -284,11 +284,11 @@ def contigtrees_bin_edges(
     return bin_edges
 
 
-class ContigTreeProfiler(object):
+class ContigTreeProfiler:
     """A wrapper class around a ContigTree that provides extra methods for
     generating free energy profiles for observables."""
 
-    def __init__(self, contigtree, truncate_cycles=None):
+    def __init__(self, contigtree, truncate_cycles=None) -> None:
         """Create a wrapper around a contigtree for the profiler.
 
         Parameters
@@ -364,7 +364,7 @@ class ContigTreeProfiler(object):
         trace,
         field_key,
         bins=None,
-        ignore_truncate=False,
+        ignore_truncate: bool=False,
     ):
         """Calculate the free energy histogram over a trajectory field.
 
@@ -446,7 +446,7 @@ class ContigTreeProfiler(object):
         self,
         field_key,
         bins=None,
-        ignore_truncate=False,
+        ignore_truncate: bool=False,
     ):
         """Calculate the free energy histogram over a trajectory field.
 
@@ -601,7 +601,7 @@ class ContigTreeProfiler(object):
 
         return fe_profile
 
-    def fe_profile(self, span, field_key, bins=None, ignore_truncate=False):
+    def fe_profile(self, span, field_key, bins=None, ignore_truncate: bool=False):
         """Calculate the free energy histogram over a trajectory field.
 
         Deprecation warning: This will likely be deprecated and
@@ -704,8 +704,8 @@ class ContigTreeProfiler(object):
         field_key,
         bins=None,
         time_tranche=None,
-        num_partitions=5,
-        ignore_truncate=False,
+        num_partitions: int=5,
+        ignore_truncate: bool=False,
     ):
         """Calculate the cumulative free energy histograms for a trajectory
         field.
@@ -822,9 +822,9 @@ class ContigTreeProfiler(object):
         field_key,
         bins=None,
         time_tranche=None,
-        num_partitions=5,
+        num_partitions: int=5,
         percentages=None,
-        ignore_truncate=False,
+        ignore_truncate: bool=False,
     ):
         """Calculate the cumulative free energy histograms for a trajectory
         field for all spans in a contigtree.

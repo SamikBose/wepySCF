@@ -10,6 +10,7 @@ import mdtraj as mdj
 import numpy as np
 import openmm as omm
 import openmm.app as omma
+from openmm.openmm import LangevinIntegrator
 import pytest
 import simtk.unit as unit
 from openmm_systems.test_systems import LennardJonesPair
@@ -76,7 +77,7 @@ PLATFORM = "Reference"
 
 ### Sanity Test
 @pytest.fixture(scope="class")
-def lj_sanity_test():
+def lj_sanity_test() -> str:
     """Sanity test to make sure we even have the plugin fixtures installed."""
     return "sanity"
 
@@ -93,7 +94,7 @@ def lj_omm_sys():
 
 
 @pytest.fixture(scope="class")
-def langevin_integrator():
+def langevin_integrator() -> LangevinIntegrator:
     integrator = omm.LangevinIntegrator(
         *OpenMMSimMaker.DEFAULT_INTEGRATOR_PARAMS["LangevinIntegrator"]
     )
@@ -132,7 +133,7 @@ def lj_integrator(
         "Reference",
     ],
 )
-def lj_openmm_runner(request, lj_omm_sys, lj_integrator):
+def lj_openmm_runner(request, lj_omm_sys, lj_integrator) -> OpenMMRunner:
     # parametrize the platform
     platform = request.param
 

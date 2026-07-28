@@ -31,12 +31,12 @@ class CloneMergeResampler(Resampler):
 
     def __init__(
         self,
-        pmin=1e-12,
-        pmax=0.1,
+        pmin: float=1e-12,
+        pmax: float=0.1,
         min_num_walkers=Ellipsis,
         max_num_walkers=Ellipsis,
         **kwargs
-    ):
+    ) -> None:
         """Constructor for CloneMegerResampler class.
 
         Parameters
@@ -65,7 +65,7 @@ class CloneMergeResampler(Resampler):
     def pmax(self):
         return self._pmax
 
-    def _init_walker_actions(self, n_walkers):
+    def _init_walker_actions(self, n_walkers: int):
         """Returns a list of default resampling records for a single
         resampling step.
 
@@ -94,7 +94,7 @@ class CloneMergeResampler(Resampler):
 
         return walker_actions
 
-    def _check_resampled_walkers(self, resampled_walkers):
+    def _check_resampled_walkers(self, resampled_walkers) -> None:
         """Check constraints on resampled walkers.
 
         Raises errors when constraints are violated.

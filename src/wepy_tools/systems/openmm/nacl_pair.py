@@ -1,10 +1,12 @@
+# Third Party Library
+import numpy as np
+import openmm
+import openmm.app as omma
+from openmm import unit
+
+# First Party Library
 from wepy_tools.systems.openmm.base import TestSystem
 
-import numpy as np
-
-import openmm
-import openmm.unit as unit
-import openmm.app as omma
 
 class NaClPair(TestSystem):
 
@@ -68,7 +70,7 @@ class NaClPair(TestSystem):
     SCALE_STEP_SIZE_Z = 1.0
 
 
-    def __init__(self, nx=3, ny=3, nz=3, **kwargs):
+    def __init__(self, nx: int=3, ny: int=3, nz: int=3, **kwargs) -> None:
         super().__init__(**kwargs)
         
         self.nx = nx
@@ -78,7 +80,7 @@ class NaClPair(TestSystem):
 
         self.construct_system()
 
-    def construct_system(self):
+    def construct_system(self) -> None:
         system = openmm.System()
 
         nb = openmm.NonbondedForce()

@@ -12,7 +12,8 @@ from warnings import warn
 # Third Party Library
 import mdtraj as mdj
 import mdtraj.core.element as elem
-import numpy as np
+from mdtraj.core.topology import Topology
+from mdtraj.core.trajectory import Trajectory
 
 # First Party Library
 from wepy.util.util import traj_box_vectors_to_lengths_angles
@@ -64,7 +65,7 @@ from wepy.util.util import traj_box_vectors_to_lengths_angles
 ##############################################################################
 
 
-def mdtraj_to_json_topology(mdj_top):
+def mdtraj_to_json_topology(mdj_top) -> str:
     """Generate a JSON string topology from an mdtraj.Topology object.
 
     This is the primary way in which JSON toplogies can be
@@ -130,7 +131,7 @@ def mdtraj_to_json_topology(mdj_top):
     return top_json_str
 
 
-def json_to_mdtraj_topology(json_string):
+def json_to_mdtraj_topology(json_string) -> Topology:
     """Convert a JSON string topology to an mdtraj.Toplogy object.
 
     This can be used to write out different topology formats from
@@ -194,7 +195,7 @@ def json_to_mdtraj_topology(json_string):
     return topology
 
 
-def _new_json_to_mdtraj_topology(json_string):
+def _new_json_to_mdtraj_topology(json_string) -> Topology:
     """Another implementation of converting JSON to mdtraj.
 
     TODO what is the difference between this and the other one?
@@ -263,7 +264,7 @@ def _new_json_to_mdtraj_topology(json_string):
     return topology
 
 
-def traj_fields_to_mdtraj(traj_fields, json_topology, rep_key="positions"):
+def traj_fields_to_mdtraj(traj_fields, json_topology, rep_key: str="positions") -> Trajectory:
     """Create an mdtraj.Trajectory object directly from a dictionary of
     fields values.
 

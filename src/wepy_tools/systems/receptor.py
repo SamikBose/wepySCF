@@ -1,10 +1,10 @@
 # Third Party Library
 import mdtraj as mdj
 import numpy as np
-import simtk.unit as unit
+from simtk import unit
 
 # First Party Library
-from wepy.util.mdtraj import json_to_mdtraj_topology, mdtraj_to_json_topology
+from wepy.util.mdtraj import json_to_mdtraj_topology
 from wepy.util.util import box_vectors_to_lengths_angles
 
 
@@ -15,7 +15,7 @@ def binding_site_idxs(
     coords,
     box_vectors,
     cutoff,
-    periodic=True,
+    periodic: bool=True,
 ):
     """Parameters
     ----------

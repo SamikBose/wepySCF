@@ -2,13 +2,11 @@
 information on the progress of a simulation.
 """
 # Standard Library
-import itertools as it
 import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
 import time
-from collections import defaultdict
 from copy import copy
 from datetime import datetime
 
@@ -82,7 +80,7 @@ Average Cycle Time: {{ avg_cycle_time }}
 {{ performance }}
 """
 
-    def __init__(self, resampler_dash=None, runner_dash=None, bc_dash=None, **kwargs):
+    def __init__(self, resampler_dash=None, runner_dash=None, bc_dash=None, **kwargs) -> None:
         """
         Parameters
         ----------
@@ -121,7 +119,7 @@ Average Cycle Time: {{ avg_cycle_time }}
         self.cycle_resampling_times = []
         self.worker_records = []
 
-    def init(self, **kwargs):
+    def init(self, **kwargs) -> None:
         super().init(**kwargs)
 
         self.init_date_time = datetime.today()
@@ -140,7 +138,7 @@ Average Cycle Time: {{ avg_cycle_time }}
 
         return summary
 
-    def update_values(self, **kwargs):
+    def update_values(self, **kwargs) -> None:
         ### simulation
 
         self.n_cycles += 1
@@ -156,7 +154,7 @@ Average Cycle Time: {{ avg_cycle_time }}
         if self.bc_dash is not None:
             self.bc_dash.update_values(**kwargs)
 
-    def update_performance_values(self, **kwargs):
+    def update_performance_values(self, **kwargs) -> None:
         ## worker specific performance
 
         # only do this part if there were any workers
@@ -216,7 +214,7 @@ Average Cycle Time: {{ avg_cycle_time }}
         # average cycle time
         self.avg_cycle_time = np.mean(self.cycle_compute_times)
 
-    def write_dashboard(self, report_str):
+    def write_dashboard(self, report_str) -> None:
         """Write the dashboard to the file."""
 
         with open(self.file_path, mode=self.mode) as dashboard_file:
@@ -310,7 +308,7 @@ Average Cycle Time: {{ avg_cycle_time }}
 
         return performance_section_str
 
-    def report(self, **kwargs):
+    def report(self, **kwargs) -> None:
         # update the values that update each call to report
 
         self.update_values(**kwargs)
@@ -357,7 +355,7 @@ class ResamplerDashboardSection:
 Resampler: {{ name }}
 """
 
-    def __init__(self, resampler=None, name=None, **kwargs):
+    def __init__(self, resampler=None, name=None, **kwargs) -> None:
         if resampler is not None:
             self.resampler_name = type(resampler).__name__
 
@@ -367,10 +365,10 @@ Resampler: {{ name }}
         else:
             self.resampler_name = "Unknown"
 
-    def update_values(self, **kwargs):
+    def update_values(self, **kwargs) -> None:
         pass
 
-    def gen_fields(self, **kwargs):
+    def gen_fields(self, **kwargs) -> dict[str, str]:
         fields = {"name": self.resampler_name}
 
         return fields
@@ -388,7 +386,7 @@ class RunnerDashboardSection:
 Runner: {{ name }}
 """
 
-    def __init__(self, runner=None, name=None, **kwargs):
+    def __init__(self, runner=None, name=None, **kwargs) -> None:
         if runner is not None:
             self.runner_name = type(runner).__name__
 
@@ -398,10 +396,10 @@ Runner: {{ name }}
         else:
             self.runner_name = "Unknown"
 
-    def update_values(self, **kwargs):
+    def update_values(self, **kwargs) -> None:
         pass
 
-    def gen_fields(self, **kwargs):
+    def gen_fields(self, **kwargs) -> dict[str, str]:
         fields = {"name": self.runner_name}
 
         return fields
@@ -444,7 +442,7 @@ Cumulative Boundary Crossed Weight: {{ total_crossed_weight }}
         "discontinuous",
     )
 
-    def __init__(self, bc=None, discontinuities=None, name=None, **kwargs):
+    def __init__(self, bc=None, discontinuities=None, name=None, **kwargs) -> None:
         if bc is not None:
             self.bc_name = type(bc).__name__
 
@@ -492,7 +490,7 @@ Cumulative Boundary Crossed Weight: {{ total_crossed_weight }}
                 "mean": np.mean(prog_data),
             }
 
-    def update_values(self, **kwargs):
+    def update_values(self, **kwargs) -> None:
         # keep track of exactly how many walker segments are run, this
         # is useful for rate calculations via Hill's relation.
         self.total_n_walker_segments += len(kwargs["new_walkers"])
@@ -530,7 +528,7 @@ Cumulative Boundary Crossed Weight: {{ total_crossed_weight }}
         self.total_crossings = len(self.warp_records)
         self.total_crossed_weight = np.sum([r[2] for r in self.warp_records])
 
-    def gen_fields(self, **kwargs):
+    def gen_fields(self, **kwargs) -> dict[str, float | int | str]:
         # make the table for the collected warping records
         warp_table_df = pd.DataFrame(
             self.warp_records, columns=self.WARP_RECORD_COLNAMES

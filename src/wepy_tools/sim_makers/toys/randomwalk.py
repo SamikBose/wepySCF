@@ -26,13 +26,7 @@ Using the Weighted Ensemble Algorithm" and
 
 """
 
-# Standard Library
-import json
-import os
-import sys
-
 # Third Party Library
-import h5py
 import mdtraj as mdj
 import numpy as np
 import pandas as pd
@@ -40,7 +34,6 @@ import pandas as pd
 # First Party Library
 from wepy.hdf5 import WepyHDF5
 from wepy.reporter.hdf5 import WepyHDF5Reporter
-from wepy.resampling.resamplers.resampler import NoResampler
 from wepy.runners.randomwalk import UNIT_NAMES, RandomWalkRunner
 from wepy.sim_manager import Manager
 from wepy.util.mdtraj import mdtraj_to_json_topology
@@ -56,7 +49,7 @@ UNITS = UNIT_NAMES
 np.set_printoptions(precision=PRECISION)
 
 
-class RandomwalkProfiler(object):
+class RandomwalkProfiler:
     """A class to implement RandomWalkProfilier."""
 
     RANDOM_WALK_TEMPLATE = """* Random walk simulation:
@@ -80,10 +73,10 @@ class RandomwalkProfiler(object):
         self,
         resampler=None,
         dimension=None,
-        probility=0.25,
-        hdf5_filename="rw_results.wepy.h5",
-        reporter_filename="randomwalk.org",
-    ):
+        probility: float=0.25,
+        hdf5_filename: str="rw_results.wepy.h5",
+        reporter_filename: str="randomwalk.org",
+    ) -> None:
         """Constructor for RandomwalkProfiler.
 
         Parameters
@@ -112,7 +105,7 @@ class RandomwalkProfiler(object):
 
         self.reporter_filename = reporter_filename
 
-    def generate_topology(self):
+    def generate_topology(self) -> str:
         """Creates a one-atom, dummy trajectory and topology for
         the randomwalk system using the mdtraj package.  Then creates a
         JSON format for the topology. This JSON string is used in making
@@ -150,7 +143,7 @@ class RandomwalkProfiler(object):
 
         return json_top_str
 
-    def run(self, num_runs=1, num_cycles=200, num_walkers=100):
+    def run(self, num_runs: int=1, num_cycles: int=200, num_walkers: int=100) -> None:
         """Runs a random walk simulation and profiles the resampler
         performance.
 
@@ -181,7 +174,7 @@ class RandomwalkProfiler(object):
         # calls the profiler
         self.analyse(randomwalk_string)
 
-    def _run(self, num_runs, num_cycles, num_walkers):
+    def _run(self, num_runs, num_cycles, num_walkers) -> None:
         """Runs a random walk simulation.
 
         Parameters
@@ -199,10 +192,10 @@ class RandomwalkProfiler(object):
         """
 
         print("Random walk simulation with: ")
-        print("Dimension = {}".format(self.dimension))
-        print("Probability = {}".format(self.probability))
-        print("Number of Walkers = {}".format(num_walkers))
-        print("Number of Cycles ={}".format(num_cycles))
+        print(f"Dimension = {self.dimension}")
+        print(f"Probability = {self.probability}")
+        print(f"Number of Walkers = {num_walkers}")
+        print(f"Number of Cycles ={num_cycles}")
 
         # set up initial state for walkers
         positions = np.zeros((1, self.dimension))
@@ -247,13 +240,13 @@ class RandomwalkProfiler(object):
         steps = [segment_length for i in range(num_cycles)]
         ### RUN the simulation
         for run_idx in range(num_runs):
-            print("Starting run: {}".format(run_idx))
+            print(f"Starting run: {run_idx}")
             sim_manager.run_simulation(num_cycles, steps)
-            print("Finished run: {}".format(run_idx))
+            print(f"Finished run: {run_idx}")
 
         print("Finished Simulation")
 
-    def kronecker_delta(self, x):
+    def kronecker_delta(self, x) -> int:
         """Implements the the Kronecker delta function.
 
         Parameters
@@ -275,7 +268,7 @@ class RandomwalkProfiler(object):
             return 0
 
     # Measure accuracy
-    def accuracy(self, x, Px):
+    def accuracy(self, x: int, Px):
         """Calculate the accuracy at position x.
 
         Parameters
@@ -327,7 +320,7 @@ class RandomwalkProfiler(object):
         else:
             return (1 - ratio) * np.power(ratio, x)
 
-    def get_max_range(self, wepy_h5, run_idx=0):
+    def get_max_range(self, wepy_h5: WepyHDF5, run_idx: int=0):
         """Finds the furthest range (position) visited by the walkers in the
         simulation.
 
@@ -370,7 +363,7 @@ class RandomwalkProfiler(object):
 
         return np.max(np.array(max_ranges)), np.max(np.array(max_ranges), axis=0)
 
-    def get_predicted_probability(self, wepy_h5, run_idx, max_range):
+    def get_predicted_probability(self, wepy_h5: WepyHDF5, run_idx: int, max_range: int):
         """This projects all dimensions in the simulation on a
            1-dimensional space. It then calculates the predicted
            probability for all positions in in this 1D space in the
@@ -393,7 +386,7 @@ class RandomwalkProfiler(object):
 
         """
 
-        predited_probibilty = np.zeros((max_range))
+        predited_probibilty = np.zeros(max_range)
 
         num_cycles = wepy_h5.num_run_cycles(run_idx)
         num_walkers = wepy_h5.num_run_trajs(run_idx)
@@ -441,7 +434,7 @@ class RandomwalkProfiler(object):
 
         return accuracy_value
 
-    def analyse(self, randomwalk_string):
+    def analyse(self, randomwalk_string: str):
         """Calculates all quality metrics for the random walk simulation
         including pridicted probabilities, accuracy, and maximum
         average range.
@@ -486,7 +479,7 @@ class RandomwalkProfiler(object):
 
         return results
 
-    def run_string(self, run_idx, run_results):
+    def run_string(self, run_idx: int, run_results) -> str:
         """Creates a formated string for writing results of a randomwalk run.
 
         Parameters
@@ -513,7 +506,7 @@ class RandomwalkProfiler(object):
 
         return run_result_string
 
-    def write_report(self, randomwalk_string, results):
+    def write_report(self, randomwalk_string, results) -> None:
         """Write the dashboard to the file."""
 
         mode = "w"

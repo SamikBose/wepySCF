@@ -1,6 +1,5 @@
 # Standard Library
 import logging
-from glob import glob
 
 logger = logging.getLogger(__name__)
 # Standard Library
@@ -15,7 +14,7 @@ from wepy.reporter.reporter import Reporter
 class WalkerPklReporter(Reporter):
     def __init__(
         self,
-        save_dir="./",
+        save_dir: str="./",
         freq: int = 100,
         num_backups: int = 2,
         start_cycle: int | None = None,

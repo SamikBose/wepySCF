@@ -1,8 +1,8 @@
 from invoke import task
 
 from ..config import (
-    INITIAL_VERSION,
     GIT_LFS_TARGETS,
+    INITIAL_VERSION,
     VERSION,
 )
 
@@ -11,15 +11,15 @@ from ..config import (
 VCS_RELEASE_TAG_TEMPLATE = "v{}"
 
 @task
-def lfs_track(cx):
+def lfs_track(cx) -> None:
     """Update all the files that need tracking via git-lfs."""
 
     for lfs_target in GIT_LFS_TARGETS:
-        cx.run("git lfs track {}".format(lfs_target))
+        cx.run(f"git lfs track {lfs_target}")
 
 
 @task
-def init(cx):
+def init(cx) -> None:
 
     tag_string = VCS_RELEASE_TAG_TEMPLATE.format(INITIAL_VERSION)
 
@@ -31,7 +31,7 @@ def init(cx):
 
 
 @task
-def publish(cx):
+def publish(cx) -> None:
 
     tag_string = VCS_RELEASE_TAG_TEMPLATE.format(VERSION)
 
@@ -39,7 +39,7 @@ def publish(cx):
 
 
 @task
-def release(cx):
+def release(cx) -> None:
 
     tag_string = VCS_RELEASE_TAG_TEMPLATE.format(VERSION)
 

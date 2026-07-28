@@ -12,15 +12,15 @@ from ..config import (
 # ]
 
 @task
-def ls(cx):
+def ls(cx) -> None:
 
     for clean_expr in CLEAN_EXPRESSIONS:
-        cx.run('find . -type f -name {} -print'.format(clean_expr))
+        cx.run(f'find . -type f -name {clean_expr} -print')
 
 @task(pre=[ls], default=True)
-def clean(cx):
+def clean(cx) -> None:
 
     print("Deleting Targets")
     for clean_expr in CLEAN_EXPRESSIONS:
-        cx.run('find . -type f -name {} -delete'.format(clean_expr))
+        cx.run(f'find . -type f -name {clean_expr} -delete')
 

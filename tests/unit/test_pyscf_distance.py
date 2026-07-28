@@ -12,7 +12,7 @@ from wepy.resampling.distances.pyscf import (
 )
 
 
-def test_qm_grid_density_distance_normalize():
+def test_qm_grid_density_distance_normalize() -> None:
     metric = QMGridDensityDistance(normalize=True)
 
     image_a = metric.image({"density_grid": np.array([1.0, -1.0, 2.0])})
@@ -22,7 +22,7 @@ def test_qm_grid_density_distance_normalize():
     assert metric.image_distance(image_a, image_b) == 0.0
 
 
-def test_bond_break_make_distance_image_and_distance():
+def test_bond_break_make_distance_image_and_distance() -> None:
     metric = BondBreakMakeDistance(break_pair=(0, 1), make_pair=(0, 2))
 
     state_a = {
@@ -54,7 +54,7 @@ def test_bond_break_make_distance_image_and_distance():
     assert metric.image_distance(image_a, image_b) == expected
 
 
-def test_proton_transfer_distance_image_and_alias():
+def test_proton_transfer_distance_image_and_alias() -> None:
     metric = ProtonTransferDistance(break_pair=(0, 1), make_pair=(0, 2))
     alias_metric = ProtonTransfer(break_pair=(0, 1), make_pair=(0, 2))
 

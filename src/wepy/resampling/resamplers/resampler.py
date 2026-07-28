@@ -1,10 +1,9 @@
 # Standard Library
-import itertools as it
 import logging
+from types import EllipsisType
 
 logger = logging.getLogger(__name__)
 # Standard Library
-from collections import defaultdict
 from warnings import warn
 
 # Third Party Library
@@ -18,7 +17,6 @@ class ResamplerError(Exception):
     """Error raised when some constraint on resampling properties is
     violated."""
 
-    pass
 
 
 class Resampler:
@@ -281,11 +279,11 @@ class Resampler:
 
     def __init__(
         self,
-        min_num_walkers=Ellipsis,
-        max_num_walkers=Ellipsis,
-        debug_mode=False,
+        min_num_walkers: EllipsisType=Ellipsis,
+        max_num_walkers: EllipsisType=Ellipsis,
+        debug_mode: bool=False,
         **kwargs
-    ):
+    ) -> None:
         """Constructor for Resampler class
 
         Parameters
@@ -342,19 +340,19 @@ class Resampler:
         self.set_debug_mode(debug_mode)
 
     @property
-    def decision(self):
+    def decision(self) -> type[Decision]:
         """The decision class for this resampler."""
         return self.DECISION
 
-    def resampling_field_names(self):
+    def resampling_field_names(self) -> tuple[str, str, str]:
         """Access the class level FIELDS constant for this record group."""
         return self.RESAMPLING_FIELDS
 
-    def resampling_field_shapes(self):
+    def resampling_field_shapes(self) -> tuple[tuple[int], tuple[int], tuple[int]]:
         """Access the class level SHAPES constant for this record group."""
         return self.RESAMPLING_SHAPES
 
-    def resampling_field_dtypes(self):
+    def resampling_field_dtypes(self) -> tuple[int, int, int]:
         """Access the class level DTYPES constant for this record group."""
         return self.RESAMPLING_DTYPES
 
@@ -376,7 +374,7 @@ class Resampler:
             )
         )
 
-    def resampling_record_field_names(self):
+    def resampling_record_field_names(self) -> tuple[str, str, str]:
         """Access the class level RECORD_FIELDS constant for this record group."""
         return self.RESAMPLING_RECORD_FIELDS
 
@@ -415,11 +413,11 @@ class Resampler:
         return self.RESAMPLER_RECORD_FIELDS
 
     @property
-    def is_debug_on(self):
+    def is_debug_on(self) -> bool:
         """ """
         return self._debug_mode
 
-    def set_debug_mode(self, mode):
+    def set_debug_mode(self, mode) -> None:
         """
 
         Parameters
@@ -432,7 +430,7 @@ class Resampler:
         """
 
         if mode not in self.DEBUG_MODES:
-            raise ValueError("debug mode, {}, not valid".format(mode))
+            raise ValueError(f"debug mode, {mode}, not valid")
 
         self._debug_mode = mode
 
@@ -446,14 +444,14 @@ class Resampler:
                     "You must have ipdb installed to use the debug feature"
                 )
 
-    def debug_on(self):
+    def debug_on(self) -> None:
         """ """
         if self.is_debug_on:
             warn("Debug mode is already on")
 
         self.set_debug_mode(True)
 
-    def debug_off(self):
+    def debug_off(self) -> None:
         """ """
         if not self.is_debug_on:
             warn("Debug mode is already off")
@@ -528,7 +526,7 @@ class Resampler:
             else:
                 return self.min_num_walkers_setting
 
-    def _set_resampling_num_walkers(self, num_walkers):
+    def _set_resampling_num_walkers(self, num_walkers: int) -> None:
         """Sets the concrete number of walkers constraints given a number of
         walkers and the settings for max and min.
 
@@ -560,10 +558,10 @@ class Resampler:
                 "The number of walkers given to resample is less than the maximum"
             )
 
-    def _unset_resampling_num_walkers(self):
+    def _unset_resampling_num_walkers(self) -> None:
         self._resampling_num_walkers = None
 
-    def _resample_init(self, walkers, **kwargs):
+    def _resample_init(self, walkers, **kwargs) -> None:
         """Common initialization stuff for resamplers.
 
         Sets the number of walkers in this round of resampling.
@@ -577,7 +575,7 @@ class Resampler:
         # first set how many walkers there are in this resampling
         self._set_resampling_num_walkers(len(walkers))
 
-    def _resample_cleanup(self, **kwargs):
+    def _resample_cleanup(self, **kwargs) -> None:
         """Common cleanup stuff for resamplers.
 
         Unsets the number of walkers for this round of resampling.
@@ -587,7 +585,7 @@ class Resampler:
         # unset the number of walkers for this resampling
         self._unset_resampling_num_walkers()
 
-    def resample(self, walkers, debug_mode=False):
+    def resample(self, walkers, debug_mode: bool=False) -> None:
         """Perform resampling on the set of walkers.
 
         Parameters
@@ -615,7 +613,7 @@ class Resampler:
 
         """
 
-        raise NotImplemented
+        raise NotImplementedError
 
         self._resample_init(walkers, debug_mode=debug_mode)
 
@@ -670,7 +668,7 @@ class NoResampler(Resampler):
 
         return walkers, resampling_data, resampler_data
 
-    def _init_walker_actions(self, n_walkers):
+    def _init_walker_actions(self, n_walkers: int):
         """Returns a list of default resampling records for a single
         resampling step.
 

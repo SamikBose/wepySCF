@@ -139,7 +139,7 @@ def run_snapshot(
     run_time,
     configuration,
     snapshot,
-):
+) -> None:
     """
 
     \b
@@ -225,7 +225,7 @@ def run_snapshot(
     logger.info("Closed the resultant orch")
 
     # write the run tuple out to the log
-    run_line_str = "Run start and end hashes: {}, {}".format(start_hash, end_hash)
+    run_line_str = f"Run start and end hashes: {start_hash}, {end_hash}"
 
     # log it
     logger.info(run_line_str)
@@ -261,7 +261,7 @@ def run_orch(
     run_time,
     start_hash,
     orchestrator,
-):
+) -> None:
     """
 
     \b
@@ -331,7 +331,7 @@ def run_orch(
     run_orch.close()
 
     # write the run tuple out to the log
-    run_line_str = "Run start and end hashes: {}, {}".format(start_hash, end_hash)
+    run_line_str = f"Run start and end hashes: {start_hash}, {end_hash}"
 
     # log it
     logger.info(run_line_str)
@@ -343,7 +343,7 @@ def run_orch(
     orch.close()
 
 
-def combine_orch_wepy_hdf5s(new_orch, new_hdf5_path, run_ids=None):
+def combine_orch_wepy_hdf5s(new_orch: Orchestrator, new_hdf5_path, run_ids=None) -> None:
     """
 
     \b
@@ -398,7 +398,7 @@ def combine_orch_wepy_hdf5s(new_orch, new_hdf5_path, run_ids=None):
     with template_wepy_h5:
         master_wepy_h5 = template_wepy_h5.clone(new_hdf5_path, mode="x")
 
-    click.echo("Into a single master hdf5 file: {}".format(new_hdf5_path))
+    click.echo(f"Into a single master hdf5 file: {new_hdf5_path}")
 
     # then link all the files to it
     run_mapping = {}
@@ -479,11 +479,9 @@ def combine_orch_wepy_hdf5s(new_orch, new_hdf5_path, run_ids=None):
             # the number of cycles recorded in the orchestrator
             run_slices = {singleton_run_idx: (0, orch_run_num_cycles)}
 
-            click.echo("Extracting Run: {}".format(run_id))
+            click.echo(f"Extracting Run: {run_id}")
             click.echo(
-                "Frames 0 to {} out of {}".format(
-                    orch_run_num_cycles, h5_run_num_cycles
-                )
+                f"Frames 0 to {orch_run_num_cycles} out of {h5_run_num_cycles}"
             )
 
             # then perform the extraction, which will open the other
@@ -501,7 +499,7 @@ def combine_orch_wepy_hdf5s(new_orch, new_hdf5_path, run_ids=None):
 
             run_mapping[run_id] = new_run_idxs[0]
 
-            click.echo("Set as run: {}".format(new_run_idxs[0]))
+            click.echo(f"Set as run: {new_run_idxs[0]}")
 
     click.echo("Done extracting runs, setting continuations")
 
@@ -541,7 +539,7 @@ def combine_orch_wepy_hdf5s(new_orch, new_hdf5_path, run_ids=None):
             # get the run_idx in the HDF5 that corresponds to this run
             continued_run_idx = run_mapping[continued_run_id]
 
-            click.echo("Run {} continued by {}".format(continued_run_id, run_idx))
+            click.echo(f"Run {continued_run_id} continued by {run_idx}")
 
             # add the continuation
             master_wepy_h5.add_continuation(run_idx, continued_run_idx)
@@ -551,7 +549,7 @@ def combine_orch_wepy_hdf5s(new_orch, new_hdf5_path, run_ids=None):
 @click.argument("orchestrator", nargs=1, type=click.Path(exists=True))
 @click.argument("hdf5", nargs=1, type=click.Path(exists=False))
 @click.argument("run_ids", nargs=-1)
-def reconcile_hdf5(orchestrator, hdf5, run_ids):
+def reconcile_hdf5(orchestrator, hdf5, run_ids) -> None:
     """For an orchestrator with multiple runs combine the HDF5 results
     into a single one.
 
@@ -596,7 +594,7 @@ def reconcile_hdf5(orchestrator, hdf5, run_ids):
 @click.option("--hdf5", type=click.Path(exists=False))
 @click.argument("output", nargs=1, type=click.Path(exists=False))
 @click.argument("orchestrators", nargs=-1, type=click.Path(exists=True))
-def reconcile_orch(hdf5, output, orchestrators):
+def reconcile_orch(hdf5, output, orchestrators) -> None:
     """
 
     \b
@@ -628,7 +626,7 @@ def reconcile_orch(hdf5, output, orchestrators):
         combine_orch_wepy_hdf5s(new_orch, hdf5_path)
 
 
-def hash_listing_formatter(hashes):
+def hash_listing_formatter(hashes) -> str:
     """
 
     \b
@@ -648,7 +646,7 @@ def hash_listing_formatter(hashes):
 
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def ls_snapshots(orchestrator):
+def ls_snapshots(orchestrator) -> None:
     """
 
     \b
@@ -674,7 +672,7 @@ def ls_snapshots(orchestrator):
 
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def ls_runs(orchestrator):
+def ls_runs(orchestrator) -> None:
     """
 
     \b
@@ -695,14 +693,14 @@ def ls_runs(orchestrator):
 
     orch.close()
 
-    hash_listing_str = "\n".join(["{}, {}".format(start, end) for start, end in runs])
+    hash_listing_str = "\n".join([f"{start}, {end}" for start, end in runs])
 
     click.echo(hash_listing_str)
 
 
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def ls_configs(orchestrator):
+def ls_configs(orchestrator) -> None:
     """
 
     \b
@@ -730,7 +728,7 @@ def ls_configs(orchestrator):
 @click.option("--no-expand-external", is_flag=True)
 @click.argument("source", type=click.Path(exists=True))
 @click.argument("target", type=click.Path(exists=False))
-def hdf5_copy(no_expand_external, source, target):
+def hdf5_copy(no_expand_external, source, target) -> None:
     """Copy a WepyHDF5 file, except links to other runs will optionally be
     expanded and truly duplicated if symbolic inter-file links are present."""
 
@@ -765,11 +763,11 @@ def hdf5_copy(no_expand_external, source, target):
 @click.argument("snapshot_hash")
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def get_snapshot(output, snapshot_hash, orchestrator):
+def get_snapshot(output, snapshot_hash, orchestrator) -> None:
     # first check if the output is None, if it is we automatically
     # generate a file in the cwd that is the hash of the snapshot
     if output is None:
-        output = "{}.snap.dill.pkl".format(snapshot_hash)
+        output = f"{snapshot_hash}.snap.dill.pkl"
 
         # check that it doesn't exist, and fail if it does, since we
         # don't want to implicitly overwrite stuff
@@ -792,11 +790,11 @@ def get_snapshot(output, snapshot_hash, orchestrator):
 @click.argument("config_hash")
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def get_config(output, config_hash, orchestrator):
+def get_config(output, config_hash, orchestrator) -> None:
     # first check if the output is None, if it is we automatically
     # generate a file in the cwd that is the hash of the snapshot
     if output is None:
-        output = "{}.config.dill.pkl".format(config_hash)
+        output = f"{config_hash}.config.dill.pkl"
 
         # check that it doesn't exist, and fail if it does, since we
         # don't want to implicitly overwrite stuff
@@ -820,11 +818,11 @@ def get_config(output, config_hash, orchestrator):
 @click.argument("start_hash")
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def get_run(output, end_hash, start_hash, orchestrator):
+def get_run(output, end_hash, start_hash, orchestrator) -> None:
     # first check if the output is None, if it is we automatically
     # generate a file in the cwd that is the hash of the snapshot
     if output is None:
-        output = "{}-{}.orch.sqlite".format(start_hash, end_hash)
+        output = f"{start_hash}-{end_hash}.orch.sqlite"
 
         # check that it doesn't exist, and fail if it does, since we
         # don't want to implicitly overwrite stuff
@@ -865,7 +863,7 @@ def get_run(output, end_hash, start_hash, orchestrator):
 @click.argument("start_hash")
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def get_run_cycles(end_hash, start_hash, orchestrator):
+def get_run_cycles(end_hash, start_hash, orchestrator) -> None:
     orch = Orchestrator(orchestrator, mode="r")
 
     start_serial_snapshot = orch.snapshot_kv[start_hash]
@@ -884,7 +882,7 @@ def get_run_cycles(end_hash, start_hash, orchestrator):
 
 @click.argument("orchestrator", type=click.Path(exists=False))
 @click.command()
-def create_orch(orchestrator):
+def create_orch(orchestrator) -> None:
     orch = Orchestrator(orchestrator, mode="x")
 
     orch.close()
@@ -893,7 +891,7 @@ def create_orch(orchestrator):
 @click.argument("snapshot", type=click.File("rb"))
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def add_snapshot(snapshot, orchestrator):
+def add_snapshot(snapshot, orchestrator) -> None:
     orch = Orchestrator(orchestrator, mode="r+")
 
     serial_snapshot = snapshot.read()
@@ -908,7 +906,7 @@ def add_snapshot(snapshot, orchestrator):
 @click.argument("configuration", type=click.File("rb"))
 @click.argument("orchestrator", type=click.Path(exists=True))
 @click.command()
-def add_config(configuration, orchestrator):
+def add_config(configuration, orchestrator) -> None:
     orch = Orchestrator(orchestrator, mode="r+")
 
     serial_config = configuration.read()
@@ -921,51 +919,43 @@ def add_config(configuration, orchestrator):
 
 
 @click.group()
-def cli():
+def cli() -> None:
     """ """
-    pass
 
 
 @click.group()
-def run():
+def run() -> None:
     """ """
-    pass
 
 
 @click.group()
-def get():
+def get() -> None:
     """ """
-    pass
 
 
 @click.group()
-def add():
+def add() -> None:
     """ """
-    pass
 
 
 @click.group()
-def create():
+def create() -> None:
     """ """
-    pass
 
 
 @click.group()
-def ls():
+def ls() -> None:
     """ """
-    pass
 
 
 @click.group()
-def reconcile():
+def reconcile() -> None:
     """ """
-    pass
 
 
 @click.group()
-def hdf5():
+def hdf5() -> None:
     """ """
-    pass
 
 
 # command groupings

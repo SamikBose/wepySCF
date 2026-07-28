@@ -1,13 +1,17 @@
+# Standard Library
 import logging
+
 logger = logging.getLogger(__name__)
 
+# Third Party Library
+import mdtraj as mdj
 import numpy as np
 
-import mdtraj as mdj
-
+# First Party Library
 from wepy.reporter.reporter import ProgressiveFileReporter
-from wepy.util.mdtraj import json_to_mdtraj_topology, mdtraj_to_json_topology
 from wepy.util.json_top import json_top_subset
+from wepy.util.mdtraj import json_to_mdtraj_topology
+
 
 class WExploreAtomImageReporter(ProgressiveFileReporter):
     """Reporter for generating 3D molecular structures from WExplore
@@ -26,7 +30,7 @@ class WExploreAtomImageReporter(ProgressiveFileReporter):
                  init_image=None,
                  image_atom_idxs=None,
                  json_topology=None,
-                 **kwargs):
+                 **kwargs) -> None:
         """Constructor for the WExploreAtomImageReporter.
 
         Parameters
@@ -73,7 +77,7 @@ class WExploreAtomImageReporter(ProgressiveFileReporter):
         self.times = [0]
 
 
-    def init(self, **kwargs):
+    def init(self, **kwargs) -> None:
 
         super().init(**kwargs)
 
@@ -90,13 +94,13 @@ class WExploreAtomImageReporter(ProgressiveFileReporter):
 
             # save this as a PDB for a topology to view in VMD etc. to go
             # along with the trajectory we will make
-            logger.info("Writing initial image to {}".format(self.init_state_path))
+            logger.info(f"Writing initial image to {self.init_state_path}")
             init_image_traj.save_pdb(self.init_state_path)
 
             self._top_pdb_written = True
 
     def report(self, cycle_idx=None, resampler_data=None,
-               **kwargs):
+               **kwargs) -> None:
 
         # load the json topology as an mdtraj one
         image_mdj_topology = json_to_mdtraj_topology(self.json_main_rep_top)

@@ -28,15 +28,17 @@ logger = logging.getLogger(__name__)
 
 # Third Party Library
 import numpy as np
+from numpy import dtype, float64, ndarray
+
+# First Party Library
 from wepy.util.util import box_vectors_to_lengths_angles
 
 
-class Distance(object):
+class Distance:
     """Abstract Base class for Distance classes."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Constructor for Distance class."""
-        pass
 
     def image(self, state):
         """Compute the 'image' of a walker state which should be some
@@ -123,7 +125,7 @@ class AtomPairDistance(Distance):
     Distance is the root mean squared distance between the vectors.
     """
 
-    def __init__(self, pair_list, periodic=True):
+    def __init__(self, pair_list, periodic: bool=True) -> None:
         """Construct a distance metric.
 
         Parameters
@@ -150,13 +152,13 @@ class AtomPairDistance(Distance):
                     edited = True
         return disp
         
-    def image(self, state):
+    def image(self, state) -> ndarray[tuple[int], dtype[float64]]:
 
         if self.periodic:
             # get the box lengths from the vectors
             box_lengths, box_angles = box_vectors_to_lengths_angles(state["box_vectors"])
 
-        dist_list = np.zeros((len(self.pair_list)))
+        dist_list = np.zeros(len(self.pair_list))
         for i,p in enumerate(self.pair_list):
             disp_vector = state["positions"][p[0]] - state["positions"][p[1]]
             if self.periodic:

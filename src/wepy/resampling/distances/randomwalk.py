@@ -23,9 +23,8 @@ class RandomWalkDistance(Distance):
 
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Construct a RandomWalkDistance metric."""
-        pass
 
     def image(self, state):
         """Transform a state into a random walk image.

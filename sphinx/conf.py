@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Configuration file for the Sphinx documentation builder.
 #
@@ -8,7 +7,7 @@
 
 try:
     # Standard Library
-    import importlib.metadata as metadata
+    from importlib import metadata
 except ImportError:
     # Third Party Library
     import importlib_metadata as metadata

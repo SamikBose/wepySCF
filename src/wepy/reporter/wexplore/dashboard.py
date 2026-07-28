@@ -4,12 +4,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
-import os.path as osp
 from collections import defaultdict
-from warnings import warn
 
 # Third Party Library
-import numpy as np
 import pandas as pd
 from tabulate import tabulate
 
@@ -52,7 +49,7 @@ Defined Regions with the number of child regions per parent region:
 
     def __init__(
         self, resampler=None, max_n_regions=None, max_region_sizes=None, **kwargs
-    ):
+    ) -> None:
         if "name" not in kwargs:
             kwargs["name"] = "WExploreResampler"
 
@@ -95,7 +92,7 @@ Defined Regions with the number of child regions per parent region:
         # wexplore
         self.branch_records = []
 
-    def _leaf_regions_to_all_regions(self, region_ids):
+    def _leaf_regions_to_all_regions(self, region_ids: list[tuple[int, ...]]):
         # make a set of all the regions starting with the root region
         regions = set([self.root_region])
         for region_id in region_ids:
@@ -107,7 +104,7 @@ Defined Regions with the number of child regions per parent region:
 
         return regions
 
-    def update_values(self, **kwargs):
+    def update_values(self, **kwargs) -> None:
         # the region assignments for walkers
         assignments = []
         walker_weights = [walker.weight for walker in kwargs["new_walkers"]]
@@ -182,7 +179,7 @@ Defined Regions with the number of child regions per parent region:
 
             self.regions_per_level[level] += n_children
 
-    def gen_fields(self, **kwargs):
+    def gen_fields(self, **kwargs) -> dict[str, str]:
         fields = super().gen_fields(**kwargs)
 
         regions = self._leaf_regions_to_all_regions(self.region_ids)

@@ -114,9 +114,9 @@ frame).
 
 """
 # Standard Library
-import time
 from collections import defaultdict
 from copy import deepcopy
+from types import EllipsisType
 
 # Third Party Library
 import dask.bag as dbag
@@ -181,9 +181,7 @@ def traj_fields_chunk_items(
                 # if the chunk size is either larger than the
                 # trajectory, or chunk size is Ellipsis we take the
                 # whole trajectory
-                if chunk_size is Ellipsis:
-                    chunks = [range(num_frames)]
-                elif chunk_size > num_frames:
+                if chunk_size is Ellipsis or chunk_size > num_frames:
                     chunks = [range(num_frames)]
                 else:
                     # split it allowing for an unequal chunk sizes
@@ -313,7 +311,7 @@ def chunk_concat_funcgen(*concat_funcs):
     return chunk_concat
 
 
-def chunk_array_concat_funcgen(field):
+def chunk_array_concat_funcgen(field: str):
     def func(cum_chunk_spec, new_chunk_spec):
         # only add it if it has been initialized in the cum_chunk
         if field in cum_chunk_spec:
@@ -411,10 +409,10 @@ def compute_observable(
     wepy_h5_path,
     dask_client,
     fields,
-    chunk_size=Ellipsis,
-    num_partitions=100,
+    chunk_size: EllipsisType=Ellipsis,
+    num_partitions: int=100,
     # TODO replace with traj_sels
-    run_idxs=Ellipsis,
+    run_idxs: EllipsisType=Ellipsis,
 ):
     with dask_client:
         chunks = traj_fields_chunk_items(
@@ -423,7 +421,7 @@ def compute_observable(
 
         # DEBUG
         # TODO add to logging
-        print("generated {} chunks".format(len(chunks)))
+        print(f"generated {len(chunks)} chunks")
 
         frame_fields_bag = dbag.from_sequence(chunks, npartitions=num_partitions)
 

@@ -6,13 +6,15 @@ structure of weighted ensemble simulation data.
 import gc
 from collections import defaultdict
 from copy import deepcopy
+from typing_extensions import Self
 
 # Third Party Library
 import networkx as nx
 import numpy as np
+from pandas.core.frame import DataFrame
 
 # First Party Library
-from wepy.analysis.transitions import counts_d_to_matrix, transition_counts
+from wepy.analysis.transitions import transition_counts
 
 try:
     # Third Party Library
@@ -24,7 +26,6 @@ except ModuleNotFoundError:
 class MacroStateNetworkError(Exception):
     """Errors specific to MacroStateNetwork requirements."""
 
-    pass
 
 
 class BaseMacroStateNetwork:
@@ -113,8 +114,8 @@ class BaseMacroStateNetwork:
     """Key for the microstates that are assigned to a macrostate."""
 
     def __init__(
-        self, contig_tree, assg_field_key=None, assignments=None, transition_lag_time=2
-    ):
+        self, contig_tree, assg_field_key=None, assignments=None, transition_lag_time: int=2
+    ) -> None:
         """Create a network of macrostates from the simulation microstates
         using a field in the trajectory data or precomputed assignments.
 
@@ -262,7 +263,7 @@ class BaseMacroStateNetwork:
         del self._node_assignments
         del self._assignments
 
-    def _key_init(self, contig_tree):
+    def _key_init(self, contig_tree) -> None:
         """Initialize the assignments structures given the field key to use.
 
         Parameters
@@ -324,7 +325,7 @@ class BaseMacroStateNetwork:
         # way
         self._assignments_init(assignments)
 
-    def _assignments_init(self, assignments):
+    def _assignments_init(self, assignments) -> None:
         """Given the assignments structure sets up the other necessary
         structures.
 
@@ -538,7 +539,7 @@ class BaseMacroStateNetwork:
         return self._graph
 
     @property
-    def num_states(self):
+    def num_states(self) -> int:
         """The number of states in the network."""
         return len(self.graph)
 
@@ -623,7 +624,7 @@ class BaseMacroStateNetwork:
         """
         return self.get_node_attribute(node_id, self.ASSIGNMENTS)
 
-    def set_nodes_attribute(self, key, values_dict):
+    def set_nodes_attribute(self, key: str, values_dict) -> None:
         """Set node attributes for the key and values for each node.
 
         Parameters
@@ -640,7 +641,7 @@ class BaseMacroStateNetwork:
     def node_groups(self):
         return self._node_groups
 
-    def set_node_group(self, group_name, node_ids):
+    def set_node_group(self, group_name, node_ids) -> None:
         # push these values to the nodes themselves, overwriting if
         # necessary
         self._set_group_nodes_attribute(group_name, node_ids)
@@ -648,10 +649,10 @@ class BaseMacroStateNetwork:
         # then update the group mapping with this
         self._node_groups[group_name] = node_ids
 
-    def _set_group_nodes_attribute(self, group_name, group_node_ids):
+    def _set_group_nodes_attribute(self, group_name, group_node_ids) -> None:
         # the key for the attribute of the group goes in a little
         # namespace prefixed with _group
-        group_key = "_groups/{}".format(group_name)
+        group_key = f"_groups/{group_name}"
 
         # make the mapping
         values_map = {
@@ -672,15 +673,15 @@ class BaseMacroStateNetwork:
 
         node_obs = {}
         for obs_name in self.observables:
-            obs_key = "_observables/{}".format(obs_name)
+            obs_key = f"_observables/{obs_name}"
             node_obs[obs_name] = self.get_nodes_attributes(node_id, obs_key)
 
         return node_obs
 
-    def set_nodes_observable(self, observable_name, node_values):
+    def set_nodes_observable(self, observable_name, node_values) -> None:
         # the key for the attribute of the observable goes in a little
         # namespace prefixed with _observable
-        observable_key = "_observables/{}".format(observable_name)
+        observable_key = f"_observables/{observable_name}"
 
         self.set_nodes_attribute(observable_key, node_values)
 
@@ -739,15 +740,15 @@ class BaseMacroStateNetwork:
 
         node_layouts = {}
         for layout_name in self.layouts:
-            layout_key = "_layouts/{}".format(layout_name)
+            layout_key = f"_layouts/{layout_name}"
             node_layouts[obs_name] = self.get_nodes_attributes(node_id, layout_key)
 
         return node_layouts
 
-    def set_nodes_layout(self, layout_name, node_values):
+    def set_nodes_layout(self, layout_name, node_values) -> None:
         # the key for the attribute of the observable goes in a little
         # namespace prefixed with _observable
-        layout_key = "_layouts/{}".format(layout_name)
+        layout_key = f"_layouts/{layout_name}"
 
         self.set_nodes_attribute(layout_key, node_values)
 
@@ -761,7 +762,7 @@ class BaseMacroStateNetwork:
         exclude_node_fields=None,
         exclude_edge_fields=None,
         layout=None,
-    ):
+    ) -> None:
         """Writes a graph file in the gexf format of the network.
 
         Parameters
@@ -772,7 +773,7 @@ class BaseMacroStateNetwork:
 
         layout_key = None
         if layout is not None:
-            layout_key = "_layouts/{}".format(layout)
+            layout_key = f"_layouts/{layout}"
             if layout not in self.layouts:
                 raise ValueError("Layout not found, use None for no layout")
 
@@ -794,7 +795,7 @@ class BaseMacroStateNetwork:
 
         # exclude the layouts, we will set the viz manually for the layout
         exclude_node_fields.extend(
-            ["_layouts/{}".format(layout_name) for layout_name in self.layouts]
+            [f"_layouts/{layout_name}" for layout_name in self.layouts]
         )
 
         for node in gexf_graph:
@@ -856,7 +857,7 @@ class BaseMacroStateNetwork:
 
     def nodes_to_records(
         self,
-        extra_attributes=("_observables/total_weight",),
+        extra_attributes: tuple[str]=("_observables/total_weight",),
     ):
         if extra_attributes is None:
             extra_attributes = []
@@ -868,10 +869,10 @@ class BaseMacroStateNetwork:
         ]
 
         # add all the groups to the keys
-        keys.extend(["_groups/{}".format(key) for key in self.node_groups.keys()])
+        keys.extend([f"_groups/{key}" for key in self.node_groups.keys()])
 
         # add the observables
-        keys.extend(["_observables/{}".format(obs) for obs in self.observables])
+        keys.extend([f"_observables/{obs}" for obs in self.observables])
 
         recs = []
         for node_id in self.graph.nodes:
@@ -891,8 +892,8 @@ class BaseMacroStateNetwork:
 
     def nodes_to_dataframe(
         self,
-        extra_attributes=("_observables/total_weight",),
-    ):
+        extra_attributes: tuple[str]=("_observables/total_weight",),
+    ) -> DataFrame:
         """Make a dataframe of the nodes and their attributes.
 
         Not all attributes will be added as they are not relevant to a
@@ -965,7 +966,7 @@ class BaseMacroStateNetwork:
     def edges_to_dataframe(
         self,
         extra_attributes=None,
-    ):
+    ) -> DataFrame:
         """Make a dataframe of the nodes and their attributes.
 
         Not all attributes will be added as they are not relevant to a
@@ -983,7 +984,7 @@ class BaseMacroStateNetwork:
 
         return pd.DataFrame(self.edges_to_records(extra_attributes=extra_attributes))
 
-    def node_map(self, func, map_func=map):
+    def node_map(self, func, map_func: type[map]=map):
         """Map a function over the nodes.
 
         The function should take as its first argument a node_id and
@@ -1029,7 +1030,7 @@ class BaseMacroStateNetwork:
     def edge_attribute_to_matrix(
         self,
         attribute_key,
-        fill_value=np.nan,
+        fill_value: float=np.nan,
     ):
         """Convert scalar edge attributes to an assymetric matrix.
 
@@ -1182,8 +1183,8 @@ class MacroStateNetwork:
         base_network=None,
         assg_field_key=None,
         assignments=None,
-        transition_lag_time=2,
-    ):
+        transition_lag_time: int=2,
+    ) -> None:
         """For documentation of the following arguments see the constructor
         docstring of the 'BaseMacroStateNetwork' class:
 
@@ -1229,7 +1230,7 @@ class MacroStateNetwork:
 
             self._set_base_network_to_self(new_network)
 
-    def _set_base_network_to_self(self, base_network):
+    def _set_base_network_to_self(self, base_network: BaseMacroStateNetwork) -> None:
         self._base_network = base_network
 
         # then make references to this for the attributes we need
@@ -1278,23 +1279,23 @@ class MacroStateNetwork:
 
         self.write_gexf = self._base_network.write_gexf
 
-    def open(self, mode=None):
+    def open(self, mode=None) -> None:
         if self.closed:
             self.wepy_h5.open(mode=mode)
             self.closed = False
         else:
-            raise IOError("This file is already open")
+            raise OSError("This file is already open")
 
-    def close(self):
+    def close(self) -> None:
         self.wepy_h5.close()
         self.closed = True
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         self.wepy_h5.__enter__()
         self.closed = False
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_tb):
+    def __exit__(self, exc_type, exc_value, exc_tb) -> None:
         self.wepy_h5.__exit__(exc_type, exc_value, exc_tb)
         self.close()
 
@@ -1306,7 +1307,7 @@ class MacroStateNetwork:
         return self._graph
 
     @property
-    def num_states(self):
+    def num_states(self) -> int:
         """The number of states in the network."""
         return len(self.graph)
 
@@ -1497,7 +1498,7 @@ class MacroStateNetwork:
 
         return macrostate_weights
 
-    def set_macrostate_weights(self):
+    def set_macrostate_weights(self) -> None:
         """Compute the macrostate weights and set them as node attributes
         'total_weight'."""
 
@@ -1506,7 +1507,7 @@ class MacroStateNetwork:
             self.macrostate_weights(),
         )
 
-    def node_fields_map(self, func, fields, map_func=map):
+    def node_fields_map(self, func, fields, map_func: type[map]=map):
         """Map a function over the nodes and microstate fields.
 
         The function should take as its arguments:

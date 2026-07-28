@@ -7,7 +7,7 @@ from wepy.resampling.distances.distance import Distance
 
 
 class PairDistance(Distance):
-    def __init__(self, metric=euclidean):
+    def __init__(self, metric=euclidean) -> None:
         self.metric = metric
 
     def image(self, state):

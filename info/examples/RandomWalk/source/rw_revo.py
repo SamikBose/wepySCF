@@ -1,27 +1,23 @@
 """This is a exmaple of random walke simultion using the REVO
 resampler.
 """
-import sys
+# Standard Library
 import os
 import os.path as osp
+import sys
 from pathlib import Path
 
+# Third Party Library
 import numpy as np
 
-from wepy.resampling.resamplers.revo import REVOResampler
-
+# First Party Library
 from wepy.resampling.distances.randomwalk import RandomWalkDistance
-from wepy.runners.randomwalk import RandomWalkRunner, UNIT_NAMES
-from wepy.walker import Walker, WalkerState
-from wepy.work_mapper.mapper import Mapper
-
+from wepy.resampling.resamplers.revo import REVOResampler
+from wepy.runners.randomwalk import UNIT_NAMES, RandomWalkRunner
 from wepy.sim_manager import Manager
 from wepy.walker import Walker, WalkerState
-
-from wepy.runners.randomwalk import RandomWalkRunner
-
+from wepy.work_mapper.mapper import Mapper
 from wepy_tools.sim_makers.toys.randomwalk import RandomwalkProfiler
-
 
 ON = True
 OFF = False
@@ -55,7 +51,7 @@ hdf5_path= outputs_dir / hdf5_filename
 reporter_path = outputs_dir / reporter_filename
 
 
-def get_char_distance(dimension, num_walkers):
+def get_char_distance(dimension: int, num_walkers: int):
     """Calculate the characteristic value.
     Runs one cycle simulation and calculates the characteristic
     distance value.

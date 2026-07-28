@@ -3,9 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 # Standard Library
-import multiprocessing as mp
 import time
-from copy import deepcopy
 
 # Third Party Library
 import pytest
@@ -15,30 +13,29 @@ from wepy.walker import Walker, WalkerState
 from wepy.work_mapper.mapper import Mapper, TaskException
 from wepy.work_mapper.task_mapper import (
     TaskMapper,
-    TaskProcessException,
     WalkerTaskProcess,
 )
-from wepy.work_mapper.worker import Worker, WorkerException, WorkerMapper
+from wepy.work_mapper.worker import Worker, WorkerMapper
 
 ARGS = (0, 1, 2)
 
 
-def gen_walkers():
-    return [Walker(WalkerState(**{"num": arg}), 1 / len(ARGS)) for arg in ARGS]
+def gen_walkers() -> list[Walker]:
+    return [Walker(WalkerState(num=arg), 1 / len(ARGS)) for arg in ARGS]
 
 
 # test basic functionality
-def task_pass(walker):
+def task_pass(walker) -> Walker:
     # simulate it actually taking some time
     n = walker.state["num"]
-    return Walker(WalkerState(**{"num": n + 1}), walker.weight)
+    return Walker(WalkerState(num=n + 1), walker.weight)
 
 
 TASK_PASS_ANSWER = [n + 1 for n in ARGS]
 
 
 class TestWorkMappers:
-    def test_mapper(self):
+    def test_mapper(self) -> None:
         mapper = Mapper(segment_func=task_pass)
 
         mapper.init()
@@ -51,7 +48,7 @@ class TestWorkMappers:
 
         mapper.cleanup()
 
-    def test_worker_mapper(self):
+    def test_worker_mapper(self) -> None:
         mapper = WorkerMapper(segment_func=task_pass, num_workers=3, worker_type=Worker)
 
         mapper.init()
@@ -64,7 +61,7 @@ class TestWorkMappers:
 
         mapper.cleanup()
 
-    def test_task_mapper(self):
+    def test_task_mapper(self) -> None:
         mapper = TaskMapper(
             segment_func=task_pass, num_workers=3, walker_task_type=WalkerTaskProcess
         )
@@ -83,18 +80,18 @@ class TestWorkMappers:
 
 
 # test that task failures are passed up properly
-def task_fail(walker):
+def task_fail(walker) -> Walker:
     n = walker.state["num"]
     if n == 1:
         raise ValueError("No soup for you!!")
     else:
-        return Walker(WalkerState(**{"num": n + 1}), walker.weight)
+        return Walker(WalkerState(num=n + 1), walker.weight)
 
 
 class TestTaskFail:
     ARGS = ((0, 1, 2),)
 
-    def test_mapper(self):
+    def test_mapper(self) -> None:
         mapper = Mapper(segment_func=task_fail)
 
         mapper.init()
@@ -104,7 +101,7 @@ class TestTaskFail:
 
         mapper.cleanup()
 
-    def test_worker_mapper(self):
+    def test_worker_mapper(self) -> None:
         mapper = WorkerMapper(segment_func=task_fail, num_workers=3, worker_type=Worker)
 
         mapper.init()
@@ -114,7 +111,7 @@ class TestTaskFail:
 
         mapper.cleanup()
 
-    def test_task_mapper(self):
+    def test_task_mapper(self) -> None:
         mapper = TaskMapper(
             segment_func=task_fail, num_workers=3, walker_task_type=WalkerTaskProcess
         )

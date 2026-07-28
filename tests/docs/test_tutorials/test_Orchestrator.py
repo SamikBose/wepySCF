@@ -1,18 +1,13 @@
-# Standard Library
-import os
-import os.path as osp
-from pathlib import Path
-
 # Third Party Library
 from pytest_shutil.cmdline import chdir
-from pytest_shutil.run import run, run_as_main
+from pytest_shutil.run import run
 
 ### Tests
 
 EXAMPLE = "Orchestrator"
 
 
-def test_dir(datadir_factory, printer):
+def test_dir(datadir_factory, printer) -> None:
     datadir = datadir_factory.mkdatadir(f"../_examples/{EXAMPLE}")
 
     assert (datadir / "README.org").is_file()
@@ -20,7 +15,7 @@ def test_dir(datadir_factory, printer):
     assert (datadir / "source").is_dir()
 
 
-def test_runs(datadir_factory, printer):
+def test_runs(datadir_factory, printer) -> None:
     datadir = datadir_factory.mkdatadir(f"../_examples/{EXAMPLE}")
 
     with chdir(datadir):
@@ -32,7 +27,7 @@ def test_runs(datadir_factory, printer):
         )
 
 
-def test_scripts(datadir_factory, printer):
+def test_scripts(datadir_factory, printer) -> None:
     datadir = datadir_factory.mkdatadir(f"../_examples/{EXAMPLE}")
 
     with chdir(datadir):

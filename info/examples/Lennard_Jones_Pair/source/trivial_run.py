@@ -1,17 +1,19 @@
 """Very basic example of a simulation without a resampler or boundary
 conditions"""
 
+# Standard Library
 from copy import copy
 
+# Third Party Library
 import openmm as omm
-import simtk.unit as unit
-
 from openmm_systems.test_systems import LennardJonesPair
+from simtk import unit
 
+# First Party Library
 from wepy.resampling.resamplers.resampler import NoResampler
 from wepy.runners.openmm import OpenMMRunner, gen_walker_state
-from wepy.walker import Walker
 from wepy.sim_manager import Manager
+from wepy.walker import Walker
 
 # use a ready made system for OpenMM MD simulation
 test_sys = LennardJonesPair()

@@ -3,5 +3,5 @@ import pytest
 
 
 @pytest.fixture(scope="class")
-def test_wepy_fixture():
+def test_wepy_fixture() -> str:
     return "Hello"

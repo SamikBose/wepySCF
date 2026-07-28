@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 import random as rand
 
 # Third Party Library
-import numpy as np
 from pint import UnitRegistry
 
 # First Party Library
@@ -46,7 +45,7 @@ UNIT_NAMES = (
 class RandomWalkRunner(Runner):
     """RandomWalk runner for random walk simulations."""
 
-    def __init__(self, probability=0.25):
+    def __init__(self, probability: float=0.25) -> None:
         """Constructor for RandomWalkRunner.
 
         Parameters
@@ -102,12 +101,11 @@ class RandomWalkRunner(Runner):
 
             # implement the boundary condition for movement, movements
             # to -1 are rejected
-            if new_positions[0][dim_idx] < 0:
-                new_positions[0][dim_idx] = 0
+            new_positions[0][dim_idx] = max(new_positions[0][dim_idx], 0)
 
         return new_positions
 
-    def run_segment(self, walker, segment_length, **kwargs):
+    def run_segment(self, walker, segment_length, **kwargs) -> Walker:
         """Runs a random walk simulation for the given number of steps.
 
         Parameters

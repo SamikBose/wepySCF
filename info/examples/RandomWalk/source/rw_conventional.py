@@ -2,21 +2,17 @@
 no resampling after the random walk dynamics.
 
 """
-import sys
+# Standard Library
 import os
 import os.path as osp
+import sys
 from pathlib import Path
 
-import numpy as np
-
-from wepy.resampling.resamplers.resampler import NoResampler
+# First Party Library
 from wepy.resampling.distances.randomwalk import RandomWalkDistance
-from wepy.runners.randomwalk import RandomWalkRunner, UNIT_NAMES
-from wepy.walker import Walker, WalkerState
-
+from wepy.resampling.resamplers.resampler import NoResampler
+from wepy.runners.randomwalk import UNIT_NAMES
 from wepy_tools.sim_makers.toys.randomwalk import RandomwalkProfiler
-
-
 
 SAVE_FIELDS = ('positions')
 # Name of field's unit in the HDF5

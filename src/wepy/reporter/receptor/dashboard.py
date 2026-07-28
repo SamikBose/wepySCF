@@ -33,10 +33,10 @@ Parameters:
 
 """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-    def gen_fields(self, **kwargs):
+    def gen_fields(self, **kwargs) -> dict[str, float | int | str]:
         fields = super().gen_fields(**kwargs)
 
         # since there is only one boundary to cross here we don't
@@ -71,7 +71,7 @@ class UnbindingBCDashboardSection(ReceptorBCDashboardSection):
 Cutoff Distance: {{ cutoff_distance }}
 """
 
-    def __init__(self, bc=None, cutoff_distance=None, **kwargs):
+    def __init__(self, bc=None, cutoff_distance=None, **kwargs) -> None:
         if "name" not in kwargs:
             kwargs["name"] = "UnbindingBC"
 
@@ -85,7 +85,7 @@ Cutoff Distance: {{ cutoff_distance }}
             ), "If no bc is given must give parameters: cutoff_distance"
             self.cutoff_distance = cutoff_distance
 
-    def gen_fields(self, **kwargs):
+    def gen_fields(self, **kwargs) -> dict[str, float | int | str]:
         fields = super().gen_fields(**kwargs)
 
         parameters_str = Template(self.RECEPTOR_PARAMETERS).render(
@@ -104,7 +104,7 @@ class RebindingBCDashboardSection(ReceptorBCDashboardSection):
 Cutoff RMSD: {{ cutoff_rmsd }}
 """
 
-    def __init__(self, bc=None, cutoff_rmsd=None, **kwargs):
+    def __init__(self, bc=None, cutoff_rmsd=None, **kwargs) -> None:
         if "name" not in kwargs:
             kwargs["name"] = "RebindingBC"
 
@@ -118,7 +118,7 @@ Cutoff RMSD: {{ cutoff_rmsd }}
             ), "If no bc is given must give parameters: cutoff_rmsd"
             self.cutoff_rmsd = cutoff_rmsd
 
-    def gen_fields(self, **kwargs):
+    def gen_fields(self, **kwargs) -> dict[str, float | int | str]:
         fields = super().gen_fields(**kwargs)
 
         parameters_str = Template(self.RECEPTOR_PARAMETERS).render(

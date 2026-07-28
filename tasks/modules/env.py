@@ -1,15 +1,17 @@
-from invoke import task
-
-import sys
+# Standard Library
 import os
 import os.path as osp
-from pathlib import Path
-from warnings import warn
 import shutil
+import sys
+from pathlib import Path
 
+# Third Party Library
+from invoke import task
+
+# First Party Library
 from ..config import (
-    ENV_METHOD,
     DEFAULT_ENV,
+    ENV_METHOD,
     ENVS_DIR,
     PYTHON_VERSION_SOURCE,
     PYTHON_VERSIONS,
@@ -76,13 +78,13 @@ CONDA_COMPILED_REQUIREMENTS = 'env.pinned.yaml'
 
 ### Util
 
-def parse_list_format(list_str):
+def parse_list_format(list_str: str):
 
     return [line for line in list_str.split('\n')
             if not line.startswith("#") and line.strip()]
 
 
-def read_pyversion_file(py_version_path: Path):
+def read_pyversion_file(py_version_path: Path) -> str:
 
     with open(py_version_path, 'r') as rf:
         py_version = rf.read().strip()
@@ -90,7 +92,7 @@ def read_pyversion_file(py_version_path: Path):
     return py_version
 
 
-def get_current_pyversion():
+def get_current_pyversion() -> str:
     return f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 
 ### Dependencies
@@ -100,7 +102,7 @@ def get_current_pyversion():
 
 def deps_pip_pin(cx,
                  path=None,
-                 upgrade=False):
+                 upgrade=False) -> None:
 
     assert path is not None
 
@@ -154,9 +156,9 @@ def deps_pip_pin(cx,
 ## conda: managing conda dependencies
 def deps_conda_pin(cx,
                    path=None,
-                   upgrade=False,
-                   optional=False,
-):
+                   upgrade: bool=False,
+                   optional: bool=False,
+) -> None:
 
     # STUB: currently upgrade does nothing
 
@@ -170,7 +172,7 @@ def deps_conda_pin(cx,
 
     else:
         if not osp.exists(env_spec_path / CONDA_ABSTRACT_REQUIREMENTS):
-            return None
+            return
 
     # delete the pinned file
     if osp.exists(env_spec_path / CONDA_COMPILED_REQUIREMENTS):
@@ -178,7 +180,7 @@ def deps_conda_pin(cx,
 
     # make the environment under a mangled name so we don't screw with
     # the other one
-    mangled_name = f"__mangled_tmp_env"
+    mangled_name = "__mangled_tmp_env"
 
     mangled_env_spec_path = Path(ENVS_DIR) / mangled_name
 
@@ -233,12 +235,12 @@ def deps_conda_pin(cx,
     shutil.rmtree(mangled_env_spec_path)
 
     print("--------------------------------------------------------------------------------")
-    print(f"This is an automated process do not attempt to activate the '__mangled' environment")
+    print("This is an automated process do not attempt to activate the '__mangled' environment")
 
 @task
 def deps_pin_path(cx,
                   path=None,
-                  upgrade=False):
+                  upgrade=False) -> None:
     """Pin an environment given by the path."""
 
     deps_pip_pin(cx,
@@ -257,7 +259,7 @@ def deps_pin_path(cx,
 
 # altogether
 @task
-def deps_pin(cx, name=DEFAULT_ENV):
+def deps_pin(cx, name=DEFAULT_ENV) -> None:
     """Pin an environment in the 'envs' directory."""
 
     path = Path(ENVS_DIR) / name
@@ -266,7 +268,7 @@ def deps_pin(cx, name=DEFAULT_ENV):
 
 
 @task
-def deps_pin_update(cx, name=DEFAULT_ENV):
+def deps_pin_update(cx, name=DEFAULT_ENV) -> None:
     """Update the pinned environment in the 'envs' directory."""
 
     path = Path(ENVS_DIR) / name
@@ -282,7 +284,7 @@ def deps_pin_update(cx, name=DEFAULT_ENV):
 def conda_env(cx,
               spec=None,
               path=None,
-):
+) -> Path:
 
     # where the specs of the environment are
     env_spec_path = Path(spec)
@@ -343,7 +345,6 @@ def conda_env(cx,
         else:
             print("No conda dependencies specified")
             # don't do a conda env pin
-            pass
 
 
         # install the tooling, like pip version etc.
@@ -372,7 +373,7 @@ def conda_env(cx,
 def venv_env(cx,
              spec=None,
              path=None,
-):
+) -> Path:
 
     assert spec is not None
     assert path is not None
@@ -433,7 +434,7 @@ def venv_env(cx,
 def pyenv_env(cx,
               spec=None,
               path=None,
-):
+) -> str:
 
     assert spec is not None
     assert path is not None
@@ -483,7 +484,7 @@ def pyenv_env(cx,
     # currently we dont' support installing it
     else:
         raise FileNotFoundError(
-            f"pyenv not installed"
+            "pyenv not installed"
             )
 
     # then install the things we need
@@ -519,7 +520,7 @@ def make_env(cx,
              spec=None,
              path=None,
              venv=ENV_METHOD,
-):
+) -> None:
 
     assert spec is not None
     assert path is not None
@@ -546,7 +547,7 @@ def make_env(cx,
 
 
 @task(default=True)
-def make(cx, name=DEFAULT_ENV):
+def make(cx, name=DEFAULT_ENV) -> None:
 
     spec_path = Path(ENVS_DIR) / name
 
@@ -570,21 +571,21 @@ def make(cx, name=DEFAULT_ENV):
     )
 
 @task
-def ls_conda(cx):
+def ls_conda(cx) -> None:
     print('\n'.join(os.listdir(CONDA_ENVS_DIR)))
 
 @task
-def ls_venv(cx):
+def ls_venv(cx) -> None:
 
     print('\n'.join(os.listdir(VENV_DIR)))
 
 @task
-def ls_specs(cx):
+def ls_specs(cx) -> None:
 
     print('\n'.join(os.listdir(ENV_SPEC_DIR)))
 
 @task
-def ls(cx):
+def ls(cx) -> None:
 
     # choose your method:
     if ENV_METHOD == 'conda':
@@ -594,12 +595,12 @@ def ls(cx):
         ls_venv(cx)
 
 @task
-def clean(cx):
+def clean(cx) -> None:
     cx.run(f"rm -rf {VENV_DIR}")
 
 
 @task
-def install_pythons(cx):
+def install_pythons(cx) -> None:
     """Install different python versions."""
 
     assert PYTHON_VERSION_SOURCE == 'pyenv', \

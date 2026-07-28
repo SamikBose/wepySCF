@@ -1,7 +1,6 @@
-from invoke import Collection, Task, task
-
 import inspect
 
+from invoke import Collection, Task, task
 
 ## Utilities
 
@@ -27,6 +26,7 @@ ns = Collection()
 ## Top-level
 
 from . import toplevel
+
 for func in _get_functions(toplevel).values():
     ns.add_task(func)
 
