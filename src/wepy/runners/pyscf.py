@@ -364,57 +364,6 @@ class PySCFRunner(Runner):
 
         return rho_grid, origin, spacing
 
-    # TODO: Check this
-    def _density_matrix_from_scanner(self, scanner, mol, state: PySCFState, backend: str):
-        """Extract an AO-basis 1-RDM from a PySCF scanner.
-
-        This is intended to mirror the old per-step behavior where we ran
-        `energy, gradients = scanner(mol)` and then read back
-        `scanner.base.make_rdm1()`.
-
-        Strategy:
-        1) If the scanner (or its `.base`) exposes `make_rdm1()`, use it.
-        2) Otherwise, rerun an SCF calculation at the provided `mol` geometry.
-
-        Returns:
-        dm : np.ndarray
-            AO density matrix. For UHF/UKS this may be shape (2,nao,nao).
-        """
-        if scanner is not None and hasattr(scanner, "make_rdm1"):
-            try:
-                return _to_numpy(scanner.make_rdm1())
-            except Exception as exc:
-                logger.warning(f"Failed to get density matrix from scanner.make_rdm1(): {exc}")
-
-        # Common PySCF pattern: grad_scanner.base is a SCF single-point scanner
-        # (see pyscf.scf.hf.as_scanner), which generally supports make_rdm1()
-        scan_base = getattr(scanner, "base", None)
-        if scan_base is not None and hasattr(scan_base, "make_rdm1"):
-            try:
-                return _to_numpy(scan_base.make_rdm1())
-            except Exception as exc:
-                logger.warning(f"Failed to get density matrix from scanner.base.make_rdm1(): {exc}")
-
-        # Some scanner wrappers may stash the mean-field object under `.base` or `._scf`
-        for obj in (
-            getattr(scan_base, "base", None),
-            getattr(scan_base, "_scf", None),
-            getattr(scanner, "_scf", None),
-        ):
-            if obj is None or not hasattr(obj, "make_rdm1"):
-                continue
-            try:
-                return _to_numpy(obj.make_rdm1())
-            except Exception as exc:
-                logger.warning(f"Failed to get density matrix from {type(obj)}.make_rdm1(): {exc}")
-
-        # Fall back: rerun an SCF calculation at the final geometry. This is more
-        # expensive but is robust
-        mf = self._build_mean_field(mol, state)
-        mf = self._configure_hardware(mf, backend=backend)
-        mf.kernel()
-        return _to_numpy(mf.make_rdm1())
-
     def generate_state(
         self,
         state_data,
@@ -532,16 +481,9 @@ class PySCFRunner(Runner):
         if self.density_grid_shape is not None:
             density_calc_start = perf_counter()
 
-            # TODO: Check this calculation
-            density_matrix = self._density_matrix_from_scanner(
-                scanner,
-                integrator.mol,
-                state,
-                backend=self.backend,
-            )
             density_grid, density_grid_origin, density_grid_spacing = self._compute_density_grid(
                 integrator.mol,
-                density_matrix,
+                dm,
                 positions,
             )
 
@@ -552,7 +494,7 @@ class PySCFRunner(Runner):
 
             density_kwargs.update(
                 {
-                    "density_matrix": density_matrix,
+                    "density_matrix": dm,
                     "density_grid": density_grid,
                     "density_grid_origin": density_grid_origin,
                     "density_grid_spacing": density_grid_spacing,
