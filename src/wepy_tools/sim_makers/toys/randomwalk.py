@@ -56,7 +56,7 @@ UNITS = UNIT_NAMES
 np.set_printoptions(precision=PRECISION)
 
 
-class RandomwalkProfiler(object):
+class RandomwalkProfiler:
     """A class to implement RandomWalkProfilier."""
 
     RANDOM_WALK_TEMPLATE = """* Random walk simulation:

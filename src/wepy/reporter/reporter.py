@@ -14,7 +14,7 @@ class ReporterError(Exception):
     pass
 
 
-class Reporter(object):
+class Reporter:
     """Abstract base class for wepy reporters.
 
     All reporters must customize and override minimally the 'report'

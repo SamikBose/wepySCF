@@ -22,7 +22,7 @@ from wepy.util.util import set_loglevel
 PY_MAP = map
 
 
-class ABCMapper(object):
+class ABCMapper:
     """Abstract base class for a Mapper."""
 
     def __init__(self, segment_func=None, **kwargs):
@@ -204,7 +204,7 @@ class Mapper(ABCMapper):
         return self._worker_segment_times
 
 
-class Task(object):
+class Task:
     """Class that composes a function and arguments."""
 
     def __init__(self, func, *args, **kwargs):

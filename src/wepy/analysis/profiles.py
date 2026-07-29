@@ -284,7 +284,7 @@ def contigtrees_bin_edges(
     return bin_edges
 
 
-class ContigTreeProfiler(object):
+class ContigTreeProfiler:
     """A wrapper class around a ContigTree that provides extra methods for
     generating free energy profiles for observables."""
 

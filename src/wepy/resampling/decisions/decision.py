@@ -59,7 +59,7 @@ import numpy as np
 
 
 # ABC for the Decision class
-class Decision(object):
+class Decision:
     """Represents and provides methods for a set of decision values."""
 
     ENUM = None
