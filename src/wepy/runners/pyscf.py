@@ -153,7 +153,7 @@ class PySCFRunner(Runner):
     # TODO: Make doc with descriptions and units
     def __init__(
         self,
-        backend: str = "cpu",
+        backend: str = "CPU",
         auxbasis: str | None = None,
         method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF",
         xc: str | None = None,
@@ -168,7 +168,7 @@ class PySCFRunner(Runner):
         use_scanner_caching: bool = False,
         scanner_cache_capacity: int = 8,
     ) -> None:
-        self.backend = backend.lower()
+        self.backend = backend.upper()
         self.method = method.upper()
         self.auxbasis = auxbasis
         self.xc = xc
@@ -219,7 +219,7 @@ class PySCFRunner(Runner):
 
     def _configure_hardware(self, mf, backend: str):
         """Configure the mean-field object for the given backend."""
-        if backend and str(backend).lower() == "gpu":
+        if backend == "GPU":
             if hasattr(mf, "to_gpu"):
                 try:
                     mf = mf.to_gpu()
@@ -557,7 +557,7 @@ class PySCFCPUWorker(Worker):
     def run_task(self, task):
         platform_options = {"Threads": str(self.attributes["num_threads"])}
         return task(
-            backend="cpu",
+            backend="CPU",
             platform_kwargs=platform_options,
             scanner_cache=self._scanner_cache,
         )
@@ -579,7 +579,7 @@ class PySCFGPUWorker(Worker):
         device_id = self.mapper_attributes["device_ids"][self._worker_idx]
         platform_options = {"DeviceIndex": str(device_id)}
         return task(
-            backend="gpu",
+            backend="GPU",
             platform_kwargs=platform_options,
             scanner_cache=self._scanner_cache,
         )

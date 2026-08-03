@@ -21,7 +21,7 @@ Average Potential (Hartree): {{ avg_potential }}
 Average Kinetic (Hartree): {{ avg_kinetic }}
 """
 
-    def __init__(self, runner=None, backend="cpu", integrator=None, dt=None, temperature_kelvin=None, **kwargs):
+    def __init__(self, runner=None, backend="CPU", integrator=None, dt=None, temperature_kelvin=None, **kwargs):
         if "name" not in kwargs:
             kwargs["name"] = "PySCFRunner"
 
