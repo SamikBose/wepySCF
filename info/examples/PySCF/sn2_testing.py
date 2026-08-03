@@ -28,13 +28,13 @@ class PySCFInput:
     #
     # System
     #
-    topology_file_path: str = str(Path(__file__).resolve().parent / "sn2.pdb")
+    topology_file_path: str = str(Path(__file__).resolve().parent / "sn2_opt.pdb")
     system_name: str = "sn2"
 
     #
     # Simulation parameters
     #
-    backend: Literal["cpu", "gpu"] = "gpu"
+    backend: Literal["CPU", "GPU"] = "GPU"
     n_walkers = 4
     n_cycles = 5
     segment_length = 1

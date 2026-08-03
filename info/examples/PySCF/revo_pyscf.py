@@ -152,9 +152,9 @@ def parse_args():
 
 def run(config):
     # TODO: build_mapper
-    if config.backend == "cpu":
+    if config.backend == "CPU":
         mapper = PySCFCPUWorkerMapper(num_workers=config.n_walkers)
-    elif config.backend == "gpu":
+    elif config.backend == "GPU":
         if importlib.util.find_spec("cupy") is None:
             raise SystemExit(
                 "GPU backend requested but CuPy is not installed. "
@@ -402,9 +402,9 @@ def run(config):
         + (f"/{config.xc}, " if config.xc is not None else ", ")
         + f"Integrator: {config._integrator_name}",  # noqa: SLF001
     )
-    if config.backend == "cpu":
+    if config.backend == "CPU":
         print(f"CPU workers: {config.n_walkers}, OpenMP threads: {config._omp_threads_env_var}")  # noqa: SLF001
-    elif config.backend == "gpu":
+    elif config.backend == "GPU":
         print(f"GPUs: {config._num_gpus_visible}, CUDA devices: [{config._cuda_visible_devices_env_var}]")  # noqa: SLF001
     temperatures = [walker.state.get("temperature").item() for walker in end_walkers]
     potentials = [walker.state.get("potential").item() for walker in end_walkers]
