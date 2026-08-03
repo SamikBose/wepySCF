@@ -16,7 +16,7 @@ import numpy as np
 # TODO: Lazy imports
 import pyscf.dft as pyscf_dft
 import pyscf.dft.numint as pyscf_numint
-import pyscf.md as pyscf_md
+import pyscf.md.integrators as pyscf_md_integrators
 import pyscf.scf as pyscf_scf
 
 # First Party Library
@@ -24,23 +24,41 @@ from wepy.runners.runner import Runner
 from wepy.walker import Walker, WalkerState
 from wepy.work_mapper.worker import Worker, WorkerMapper
 
-# TODO: Enforce this
-# KEYS = (
-#     "symbols",
-#     "positions",
-#     "energy",
-#     "gradients",
-#     "velocities",
-#     "density_matrix",
-#     "density_grid",
-#     "density_grid_origin",
-#     "density_grid_spacing",
-#     "charge",
-#     "spin",
-#     "basis",
-#     "method",
-#     "xc",
-# )
+# Supported PySCF methods
+SUPPORTED_METHODS = ("RHF", "UHF", "RKS", "UKS")
+
+# Names of the fields of PySCFState
+KEYS = (
+    "walker_id",
+    "mol",
+    "positions",
+    "velocities",
+    "accelerations",
+    "temperature",
+    "total_energy",
+    "potential",
+    "kinetic",
+    "mo_energy",
+    "charges",
+    "density_matrix",
+    "density_grid",
+    "density_grid_origin",
+    "density_grid_spacing",
+    "extra_data",
+)
+REQUIRED_KEYS = (
+    "mol",
+    "positions",
+    "velocities",
+    "accelerations",
+    "temperature",
+    "total_energy",
+    "potential",
+    "kinetic",
+    "mo_energy",
+    "charges",
+)
+
 
 # Unit metadata for reporters
 UNIT_NAMES = (
@@ -56,7 +74,6 @@ UNIT_NAMES = (
     ("density_grid_spacing_unit", "bohr"),
 )
 
-
 REQUIRED_KWARGS_BY_INTEGRATOR: dict[str, tuple] = {
     # class_name: (required keyword arguments)
     "VelocityVerlet": (),
@@ -66,13 +83,13 @@ REQUIRED_KWARGS_BY_INTEGRATOR: dict[str, tuple] = {
     "Langevin": ("T",),
     "LangevinMiddle": ("T",),
 }
-
-
 TEMPERATURE_AWARE_INTEGRATORS: set[str] = {"NVTBerendson", "NVTBussi", "Langevin", "LangevinMiddle"}
 RANDOM_NOISE_INTEGRATORS: set[str] = {"RandomNoiseVelocityVerlet", "NVTBussi", "Langevin", "LangevinMiddle"}
 
 
 class LRUDict(OrderedDict):
+    """Simple LRU cache used for the scanner cache."""
+
     def __init__(self, max_len=8):
         self.max_len = max_len
 
@@ -84,7 +101,6 @@ class LRUDict(OrderedDict):
             self.popitem(last=False)
 
 
-# TODO: Remove this?
 def _to_numpy(arr) -> np.ndarray:
     """Convert an array-like object to a NumPy array of floats."""
     if hasattr(arr, "get"):
@@ -100,50 +116,63 @@ def _to_cpu(obj):
 
 
 class PySCFState(WalkerState):
-    # KEYS = KEYS
+    """State of a PySCF walker, storing molecular state and walker properties."""
+
+    KEYS = frozenset(KEYS)
+    REQUIRED_KEYS = frozenset(REQUIRED_KEYS)
+
+    def __init__(self, **kwargs):
+        kwargs_set = set(kwargs)
+
+        missing = self.REQUIRED_KEYS - kwargs_set
+        if missing:
+            raise ValueError(f"Missing required key(s) for PySCFState: {sorted(missing)}")
+        extra = kwargs_set - set(self.KEYS)
+        if extra:
+            raise ValueError(f"Unexpected key(s) for PySCFState: {sorted(extra)}")
+
+        super().__init__(**kwargs)
 
     def get(self, key, default=None):
         return self._data.get(key, default)
 
 
 class PySCFWalker(Walker):
-    def __init__(self, state, weight):
+    """Simple Walker wrapper that ensures the state is a PySCFState."""
+
+    def __init__(self, state: PySCFState, weight):
         assert isinstance(state, PySCFState), f"state must be an instance of PySCFState not {type(state)}"
         super().__init__(state, weight)
 
 
 class PySCFRunner(Runner):
-    SUPPORTED_METHODS = ("RHF", "UHF", "RKS", "UKS")
+    """Runner for PySCF walkers, handling state initialization and method execution."""
+
+    SUPPORTED_METHODS = SUPPORTED_METHODS
 
     # TODO: Make doc with descriptions and units
-    # TODO: Type hints?
     def __init__(
         self,
         backend: str = "cpu",
-        basis: str = "6-31g*",
         auxbasis: str | None = None,
         method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF",
         xc: str | None = None,
         population_method: Literal["mulliken", "meta-lowdin", "lowdin"] = "meta-lowdin",
-        charge: int = 0,
-        spin: int = 0,
         dt: int = 21,
-        integrator_temperature_kelvin: float = 300.0,
-        integrator_cls: pyscf_md.integrators._Integrator = pyscf_md.integrators.VelocityVerlet,
+        integrator_cls: pyscf_md_integrators._Integrator = pyscf_md_integrators.VelocityVerlet,
         integrator_kwargs: dict | None = None,
+        integrator_temperature_kelvin: float = 300.0,
         density_grid_shape: tuple[int, int, int] | None = None,
         density_grid_padding: float = 2.0,
         use_density_fitting: bool = False,
         use_scanner_caching: bool = False,
         scanner_cache_capacity: int = 8,
-    ):
+    ) -> None:
         self.backend = backend.lower()
-        self.basis = basis
         self.method = method.upper()
+        self.auxbasis = auxbasis
         self.xc = xc
         self.population_method = population_method
-        self.charge = charge
-        self.spin = spin
         self.dt = dt
         self.integrator_cls = integrator_cls
         self.integrator_kwargs = {} if integrator_kwargs is None else dict(integrator_kwargs)
@@ -151,7 +180,6 @@ class PySCFRunner(Runner):
         self.density_grid_shape = density_grid_shape
         self.density_grid_padding = float(density_grid_padding)
         self._use_density_fitting = bool(use_density_fitting)
-        self.auxbasis = auxbasis
         self._use_scanner_caching = bool(use_scanner_caching)
         self.scanner_cache_capacity = scanner_cache_capacity
 
@@ -164,6 +192,7 @@ class PySCFRunner(Runner):
         self._last_cycle_segments_split_times: list[dict] = []
 
     def _build_mean_field(self, mol, state):
+        """Build the mean-field object for the given molecule and state."""
         if self.method == "RHF":
             mf = pyscf_scf.RHF(mol)
         elif self.method == "UHF":
@@ -188,8 +217,8 @@ class PySCFRunner(Runner):
 
         return mf
 
-    # TODO: Only do this once
     def _configure_hardware(self, mf, backend: str):
+        """Configure the mean-field object for the given backend."""
         if backend and str(backend).lower() == "gpu":
             if hasattr(mf, "to_gpu"):
                 try:
@@ -212,7 +241,7 @@ class PySCFRunner(Runner):
         return mf
 
     def _build_scanner(self, mol, state: PySCFState, backend: str):
-        """Build scanner for the requested backend."""
+        """Build scanner for the given molecule, state, and requested backend."""
         mf = self._build_mean_field(mol, state)
         mf = self._configure_hardware(mf, backend=backend)
         grad_method = mf.nuc_grad_method()
@@ -244,7 +273,11 @@ class PySCFRunner(Runner):
 
         return integrator_kwargs
 
-    def _validate_integrator_kwargs(self, integrator_cls, integrator_kwargs: dict):
+    def _validate_integrator_kwargs(
+        self,
+        integrator_cls: pyscf_md_integrators._Integrator,
+        integrator_kwargs: dict,
+    ):
         """Simple kwargs validation for PySCF MD integrators."""
         name = getattr(integrator_cls, "__name__", None)
         required = REQUIRED_KWARGS_BY_INTEGRATOR.get(name)
@@ -264,7 +297,9 @@ class PySCFRunner(Runner):
         kwargs = {"dt": self.dt, **integrator_kwargs}
         return self.integrator_cls(scanner, **kwargs)
 
-    def _restore_integrator_values(self, integrator, velocities, mid_velocities, accelerations):
+    def _restore_integrator_values(
+        self, integrator: pyscf_md_integrators._Integrator, velocities, mid_velocities, accelerations
+    ):
         """Restore velocities, mid velocities (if needed), and accelerations for an integrator."""
         if velocities is not None:
             integrator.veloc = velocities
@@ -329,57 +364,6 @@ class PySCFRunner(Runner):
 
         return rho_grid, origin, spacing
 
-    # TODO: Check this
-    def _density_matrix_from_scanner(self, scanner, mol, state: PySCFState, backend: str):
-        """Extract an AO-basis 1-RDM from a PySCF scanner.
-
-        This is intended to mirror the old per-step behavior where we ran
-        `energy, gradients = scanner(mol)` and then read back
-        `scanner.base.make_rdm1()`.
-
-        Strategy:
-        1) If the scanner (or its `.base`) exposes `make_rdm1()`, use it.
-        2) Otherwise, rerun an SCF calculation at the provided `mol` geometry.
-
-        Returns:
-        dm : np.ndarray
-            AO density matrix. For UHF/UKS this may be shape (2,nao,nao).
-        """
-        if scanner is not None and hasattr(scanner, "make_rdm1"):
-            try:
-                return _to_numpy(scanner.make_rdm1())
-            except Exception as exc:
-                logger.warning(f"Failed to get density matrix from scanner.make_rdm1(): {exc}")
-
-        # Common PySCF pattern: grad_scanner.base is a SCF single-point scanner
-        # (see pyscf.scf.hf.as_scanner), which generally supports make_rdm1()
-        scan_base = getattr(scanner, "base", None)
-        if scan_base is not None and hasattr(scan_base, "make_rdm1"):
-            try:
-                return _to_numpy(scan_base.make_rdm1())
-            except Exception as exc:
-                logger.warning(f"Failed to get density matrix from scanner.base.make_rdm1(): {exc}")
-
-        # Some scanner wrappers may stash the mean-field object under `.base` or `._scf`
-        for obj in (
-            getattr(scan_base, "base", None),
-            getattr(scan_base, "_scf", None),
-            getattr(scanner, "_scf", None),
-        ):
-            if obj is None or not hasattr(obj, "make_rdm1"):
-                continue
-            try:
-                return _to_numpy(obj.make_rdm1())
-            except Exception as exc:
-                logger.warning(f"Failed to get density matrix from {type(obj)}.make_rdm1(): {exc}")
-
-        # Fall back: rerun an SCF calculation at the final geometry. This is more
-        # expensive but is robust
-        mf = self._build_mean_field(mol, state)
-        mf = self._configure_hardware(mf, backend=backend)
-        mf.kernel()
-        return _to_numpy(mf.make_rdm1())
-
     def generate_state(
         self,
         state_data,
@@ -390,7 +374,7 @@ class PySCFRunner(Runner):
         density_kwargs: dict,
         extra_data: dict | None = None,
     ):
-
+        """Generate a PySCF state from the given data."""
         # Store scalar observables as 1D feature arrays (shape (1,)) so the HDF5
         # reporter can wrap them into (n_frames, 1) feature vectors
         temperature_fv = np.asarray(integrator.temperature(), dtype=float).reshape(-1)
@@ -417,6 +401,7 @@ class PySCFRunner(Runner):
         )
 
     def run_segment(self, walker: PySCFWalker, segment_length: int, **kwargs: dict):
+        """Run a segment of the simulation for the given walker."""
         run_segment_start = perf_counter()
 
         state: PySCFState = walker.state
@@ -472,7 +457,6 @@ class PySCFRunner(Runner):
         # Create new state
         #
 
-        # TODO: Store in PySCF state for reporter?
         energy_and_charges_start = perf_counter()
 
         mo_energy = scanner.base.mo_energy  # TODO: _to_numpy?
@@ -497,16 +481,9 @@ class PySCFRunner(Runner):
         if self.density_grid_shape is not None:
             density_calc_start = perf_counter()
 
-            # TODO: Check this calculation
-            density_matrix = self._density_matrix_from_scanner(
-                scanner,
-                integrator.mol,
-                state,
-                backend=self.backend,
-            )
             density_grid, density_grid_origin, density_grid_spacing = self._compute_density_grid(
                 integrator.mol,
-                density_matrix,
+                dm,
                 positions,
             )
 
@@ -517,7 +494,7 @@ class PySCFRunner(Runner):
 
             density_kwargs.update(
                 {
-                    "density_matrix": density_matrix,
+                    "density_matrix": dm,
                     "density_grid": density_grid,
                     "density_grid_origin": density_grid_origin,
                     "density_grid_spacing": density_grid_spacing,

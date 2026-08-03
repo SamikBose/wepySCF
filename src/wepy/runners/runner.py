@@ -20,7 +20,7 @@ See the openmm.py module for an example.
 # Third Party Library
 
 
-class Runner(object):
+class Runner:
     """Abstract base class for the Runner interface."""
 
     def pre_cycle(self, **kwargs):

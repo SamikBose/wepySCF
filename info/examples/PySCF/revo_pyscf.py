@@ -117,7 +117,7 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
 
 
 class PySCFREVOResampler(REVOResampler):
-    """Resampler for PySCF walkers using REVO."""
+    """Regenerate walker IDs on resample to avoid scanner-cache collisions between unrelated trajectories."""
 
     def resample(self, walkers):
         """Resample walkers using REVO and regenerate duplicate IDs."""
@@ -129,7 +129,7 @@ class PySCFREVOResampler(REVOResampler):
             walker_id = walker.state.get("walker_id")
             if walker_id in seen_ids:
                 # If duplicate ID, give fresh
-                new_state = PySCFState(**{**walker.state._data, "walker_id": str(uuid.uuid4())})
+                new_state = PySCFState(**{**walker.state._data, "walker_id": str(uuid.uuid4())})  # noqa: SLF001
                 fixed.append(PySCFWalker(new_state, walker.weight))
             else:
                 seen_ids.add(walker_id)
@@ -150,6 +150,19 @@ def build_revo_resampler(config, init_state):
         pmin=config.resampler_parameters.pmin,
         pmax=config.resampler_parameters.pmax,
     )
+
+
+class PySCFBondDistanceBC(BondDistanceBC):
+    """Regenerate walker IDs on warp to avoid scanner-cache collisions between unrelated trajectories."""
+
+    def _warp(self, walker):
+        """Warp walker and regenerate walker ID."""
+        warped_walker, warp_data = super()._warp(walker)
+
+        new_state = PySCFState(**{**warped_walker.state._data, "walker_id": str(uuid.uuid4())})  # noqa: SLF001
+        warped_walker = type(warped_walker)(new_state, warped_walker.weight)
+
+        return warped_walker, warp_data
 
 
 def parse_args():
@@ -317,7 +330,7 @@ def run(config):
 
     runner = PySCFRunner(
         backend=config.backend,
-        basis=config.basis,
+        auxbasis=config.auxbasis,
         method=config.method,
         xc=config.xc,
         population_method=config.population_method,
@@ -327,7 +340,6 @@ def run(config):
         integrator_temperature_kelvin=config.temperature_kelvin,
         density_grid_shape=config.density_grid_shape,
         use_density_fitting=config.use_density_fitting,
-        auxbasis=config.auxbasis,
         use_scanner_caching=config.use_scanner_caching,
         scanner_cache_capacity=config.scanner_cache_capacity,
     )
@@ -337,7 +349,7 @@ def run(config):
     boundary_conditions = (
         NoBC()
         if not config.use_boundary_conditions
-        else BondDistanceBC(
+        else PySCFBondDistanceBC(
             initial_states=[walker.state for walker in walkers],
             # topology=json_top,
             break_pairs=config.break_pairs,

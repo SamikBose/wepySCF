@@ -10,7 +10,7 @@ import openmm
 import openmm.unit as unit
 import openmm.app as omma
 
-class TestSystem(object):
+class TestSystem:
 
     """Abstract base class for test systems, demonstrating how to implement a test system.
 
@@ -134,4 +134,4 @@ class TestSystem(object):
         for particle_index in particle_indices:
             force.addParticle(particle_index, [])
         
-        return force 
+        return force
