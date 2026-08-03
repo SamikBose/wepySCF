@@ -22,13 +22,13 @@ import pyscf.md as pyscf_md
 from pyscf.data.nist import BOHR
 
 # First Party Library
-from wepy.boundary_conditions.bond_distance import BondDistanceBC
 from wepy.boundary_conditions.boundary import NoBC
+from wepy.boundary_conditions.pyscf import PySCFBondDistanceBC
 from wepy.reporter.dashboard import DashboardReporter
 from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
 from wepy.reporter.walker_pkl import WalkerPklReporter
+from wepy.resampling.resamplers.pyscf import PySCFREVOResampler
 from wepy.resampling.resamplers.resampler import NoResampler
-from wepy.resampling.resamplers.revo import REVOResampler
 from wepy.runners.pyscf import PySCFCPUWorkerMapper, PySCFGPUWorkerMapper, PySCFRunner, PySCFState, PySCFWalker
 from wepy.sim_manager import Manager
 from wepy.util.mdtraj import mdtraj_to_json_topology
@@ -63,22 +63,22 @@ def build_mol(symbols, positions, basis, charge, spin, ecp=None):
     )
 
 
-def _generate_MB_velocities(config, mol, positions):
+def _generate_MB_velocities(mol, positions, temperature_kelvin, initialize_velocities):
     return (
-        pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, config.temperature_kelvin)
-        if config.initialize_velocities
+        pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, temperature_kelvin)
+        if initialize_velocities
         else np.zeros_like(positions)
     )
 
 
-def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid_shape):
-    weight = 1.0 / n_walkers
+def generate_initial_walkers(config, symbols, positions):
+    weight = 1.0 / config.n_walkers
 
     density_kwargs = {}
-    if density_grid_shape is not None:
+    if config.density_grid_shape is not None:
         density_kwargs = {
             "density_matrix": None,
-            "density_grid": np.zeros(density_grid_shape),
+            "density_grid": np.zeros(config.density_grid_shape),
             "density_grid_origin": np.zeros(3),
             "density_grid_spacing": np.ones(3),
         }
@@ -87,7 +87,7 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
     if config.suppress_pyscf_output:
         mol.verbose = 0  # Suppress PySCF output
 
-    shared_velocity = _generate_MB_velocities(config, mol, positions)
+    shared_velocity = _generate_MB_velocities(mol, positions, config.temperature_kelvin, config.initialize_velocities)
 
     return [
         PySCFWalker(
@@ -98,7 +98,9 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
                 velocities=(
                     np.copy(shared_velocity)
                     if not config.unique_initial_velocities
-                    else (_generate_MB_velocities(config, mol, positions))
+                    else (
+                        _generate_MB_velocities(mol, positions, config.temperature_kelvin, config.initialize_velocities)
+                    )
                 ),
                 accelerations=None,
                 # Store as 1D feature arrays so the HDF5 reporter can extend them
@@ -112,30 +114,8 @@ def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid
             ),
             weight,
         )
-        for _ in range(n_walkers)
+        for _ in range(config.n_walkers)
     ]
-
-
-class PySCFREVOResampler(REVOResampler):
-    """Regenerate walker IDs on resample to avoid scanner-cache collisions between unrelated trajectories."""
-
-    def resample(self, walkers):
-        """Resample walkers using REVO and regenerate duplicate IDs."""
-        resampled_walkers, resampling_data, resampler_data = super().resample(walkers)
-
-        seen_ids = set()
-        fixed = []
-        for walker in resampled_walkers:
-            walker_id = walker.state.get("walker_id")
-            if walker_id in seen_ids:
-                # If duplicate ID, give fresh
-                new_state = PySCFState(**{**walker.state._data, "walker_id": str(uuid.uuid4())})  # noqa: SLF001
-                fixed.append(PySCFWalker(new_state, walker.weight))
-            else:
-                seen_ids.add(walker_id)
-                fixed.append(PySCFWalker(walker.state, walker.weight))
-
-        return fixed, resampling_data, resampler_data
 
 
 def build_revo_resampler(config, init_state):
@@ -150,19 +130,6 @@ def build_revo_resampler(config, init_state):
         pmin=config.resampler_parameters.pmin,
         pmax=config.resampler_parameters.pmax,
     )
-
-
-class PySCFBondDistanceBC(BondDistanceBC):
-    """Regenerate walker IDs on warp to avoid scanner-cache collisions between unrelated trajectories."""
-
-    def _warp(self, walker):
-        """Warp walker and regenerate walker ID."""
-        warped_walker, warp_data = super()._warp(walker)
-
-        new_state = PySCFState(**{**warped_walker.state._data, "walker_id": str(uuid.uuid4())})  # noqa: SLF001
-        warped_walker = type(warped_walker)(new_state, warped_walker.weight)
-
-        return warped_walker, warp_data
 
 
 def parse_args():
@@ -257,8 +224,6 @@ def run(config):
             config=config,
             symbols=symbols,
             positions=positions,
-            n_walkers=config.n_walkers,
-            density_grid_shape=config.density_grid_shape,
         )
     else:  # Sub-step provided
         # Resolve to the latest versioned base directory
@@ -308,8 +273,6 @@ def run(config):
                 config=config,
                 symbols=symbols,
                 positions=positions,
-                n_walkers=config.n_walkers,
-                density_grid_shape=config.density_grid_shape,
             )
         else:
             # Load walkers from the source directory
