@@ -10,7 +10,11 @@ Run the following commands to update to the latest version:
 cd wepy_dev
 git pull
 ml purge && ml load Miniforge3 OpenBLAS CUDA
+
+# Install static package
 make build && pip uninstall wepy -y && pip install dist/wepy-1.1.0-py2.py3-none-any.whl
+# Or install as editable (don't have to constantly rebuild package)
+pip install -e .
 ```
 
 ## Updating PySCF Dev
