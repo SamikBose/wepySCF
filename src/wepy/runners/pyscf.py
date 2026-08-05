@@ -6,6 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 # Standard Library
 import os
+import uuid
 from collections import OrderedDict
 from time import perf_counter
 from typing import Literal
@@ -50,13 +51,7 @@ REQUIRED_KEYS = (
     "mol",
     "positions",
     "velocities",
-    "accelerations",
     "temperature",
-    "total_energy",
-    "potential",
-    "kinetic",
-    "mo_energy",
-    "charges",
 )
 
 
@@ -130,6 +125,33 @@ class PySCFState(WalkerState):
         extra = kwargs_set - set(self.KEYS)
         if extra:
             raise ValueError(f"Unexpected key(s) for PySCFState: {sorted(extra)}")
+
+        # Store scalars as 1D feature arrays so the HDF5 reporter can extend them
+
+        # Ensure temperature is an array
+        if not isinstance(kwargs["temperature"], np.ndarray):
+            kwargs["temperature"] = np.array([kwargs["temperature"]], dtype=float)
+
+        # Fill in defaults for optional keys not provided
+        defaults = {
+            "walker_id": str(uuid.uuid4()),
+            "accelerations": None,
+            "total_energy": np.array([np.nan], dtype=float),
+            "potential": np.array([np.nan], dtype=float),
+            "kinetic": np.array([np.nan], dtype=float),
+            "mo_energy": np.array([np.nan], dtype=float),
+            "charges": np.array([np.nan], dtype=float),
+        }
+        if "density_grid" in kwargs:  # Add density related keys to kwargs if density grid supplied
+            defaults.update(
+                {
+                    "density_matrix": None,
+                    "density_grid_origin": np.zeros(3),
+                    "density_grid_spacing": np.ones(3),
+                },
+            )
+        for key, default_value in defaults.items():
+            kwargs.setdefault(key, default_value)
 
         super().__init__(**kwargs)
 

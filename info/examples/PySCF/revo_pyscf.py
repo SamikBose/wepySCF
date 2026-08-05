@@ -9,7 +9,6 @@ import importlib.util
 import os
 import os.path as osp
 import pickle
-import uuid
 from copy import deepcopy
 from glob import glob
 from time import perf_counter
@@ -52,9 +51,9 @@ def parse_with_mdtraj_topology(topology_file_path: str):
 
 
 def build_mol(symbols, positions, basis, charge, spin, ecp=None):
-    atom = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
+    atoms = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
     return pyscf_gto.M(
-        atom=atom,
+        atom=atoms,
         basis=basis,
         ecp=ecp,
         charge=charge,
@@ -77,10 +76,7 @@ def generate_initial_walkers(config, symbols, positions):
     density_kwargs = {}
     if config.density_grid_shape is not None:
         density_kwargs = {
-            "density_matrix": None,
             "density_grid": np.zeros(config.density_grid_shape),
-            "density_grid_origin": np.zeros(3),
-            "density_grid_spacing": np.ones(3),
         }
 
     mol = build_mol(symbols, positions, config.basis, config.charge, config.spin, config.ecp)
@@ -92,7 +88,6 @@ def generate_initial_walkers(config, symbols, positions):
     return [
         PySCFWalker(
             PySCFState(
-                walker_id=str(uuid.uuid4()),
                 mol=deepcopy(mol),
                 positions=positions,
                 velocities=(
@@ -102,14 +97,7 @@ def generate_initial_walkers(config, symbols, positions):
                         _generate_MB_velocities(mol, positions, config.temperature_kelvin, config.initialize_velocities)
                     )
                 ),
-                accelerations=None,
-                # Store as 1D feature arrays so the HDF5 reporter can extend them
-                temperature=np.array([config.temperature_kelvin], dtype=float),
-                total_energy=np.array([np.nan], dtype=float),
-                potential=np.array([np.nan], dtype=float),
-                kinetic=np.array([np.nan], dtype=float),
-                mo_energy=np.array([np.nan], dtype=float),
-                charges=np.array([np.nan], dtype=float),
+                temperature=config.temperature_kelvin,
                 **density_kwargs,
             ),
             weight,
@@ -232,7 +220,7 @@ def run(config):
         if args.sub_step == 0:
             if args.from_branch is not None:
                 raise ValueError("--from-branch is not supported with sub-step 0.")
-            print(f"Starting simulation in sub-step mode.")
+            print("Starting simulation in sub-step mode.")
         else:
             # Base directory must already exist in sub-step mode
             if not osp.isdir(output_directory):
