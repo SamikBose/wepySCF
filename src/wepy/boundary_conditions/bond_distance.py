@@ -229,3 +229,95 @@ class BondDistanceBC(WarpBC):
                 },
             ]
         return []
+
+
+class PySCFBondDistanceBC(BondDistanceBC):
+    """Bond-distance BC with HDF5-safe fixed-shape progress records."""
+
+    def __init__(self, *args, n_walkers: int, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._n_walkers = int(n_walkers)
+        if self._n_walkers <= 0:
+            raise ValueError("n_walkers must be positive")
+
+        progress_fields = []
+        progress_shapes = []
+        progress_dtypes = []
+
+        if len(self.break_pairs) > 0:
+            progress_fields.append("break_distances")
+            progress_shapes.append(
+                (self._n_walkers, len(self.break_pairs)),
+            )
+            progress_dtypes.append(float)
+
+        if len(self.make_pairs) > 0:
+            progress_fields.append("make_distances")
+            progress_shapes.append(
+                (self._n_walkers, len(self.make_pairs)),
+            )
+            progress_dtypes.append(float)
+
+        self.PROGRESS_FIELDS = tuple(progress_fields)
+        self.PROGRESS_SHAPES = tuple(progress_shapes)
+        self.PROGRESS_DTYPES = tuple(progress_dtypes)
+        self.PROGRESS_RECORD_FIELDS = tuple(progress_fields)
+
+    def _progress(self, walker):
+        break_distances, make_distances = self._calc_distances(walker)
+
+        break_satisfied = (
+            True
+            if len(self.break_pairs) == 0
+            else bool(
+                np.all(
+                    break_distances >= self.break_cutoffs
+                )
+            )
+        )
+
+        make_satisfied = (
+            True
+            if len(self.make_pairs) == 0
+            else bool(
+                np.all(
+                    make_distances <= self.make_cutoffs
+                )
+            )
+        )
+
+        progress_data = {}
+
+        if len(self.break_pairs) > 0:
+            progress_data["break_distances"] = np.asarray(
+                break_distances,
+                dtype=float,
+            ).reshape(-1)
+
+        if len(self.make_pairs) > 0:
+            progress_data["make_distances"] = np.asarray(
+                make_distances,
+                dtype=float,
+            ).reshape(-1)
+
+        return (
+            break_satisfied and make_satisfied,
+            progress_data,
+        )
+
+    def _warp(self, walker):
+        warped_walker, warp_data = super()._warp(walker)
+
+        source_data = deepcopy(
+            warped_walker.state._data
+        )
+        source_data["walker_id"] = str(uuid.uuid4())
+
+        new_state = PySCFState(**source_data)
+        warped_walker = type(warped_walker)(
+            new_state,
+            warped_walker.weight,
+        )
+
+        return warped_walker, warp_data

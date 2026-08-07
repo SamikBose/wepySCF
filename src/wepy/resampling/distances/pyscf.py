@@ -484,3 +484,397 @@ class DielsAlderBondOrderLikeDistance(Distance):
 
     def image_distance(self, image_a, image_b):
         return float(np.linalg.norm(np.asarray(image_a) - np.asarray(image_b)))
+
+
+class DielsAlderCappedFormingBondDistance(Distance):
+    """REVO metric based directly on the two forming Diels-Alder distances.
+
+    The walker image is::
+
+        [mean(capped_r1, capped_r2) / mean_scale,
+         abs(capped_r1 - capped_r2) / async_scale]
+
+    Positions are expected in Bohr. Capping each distance prevents increasingly
+    separated reactants from gaining unlimited novelty in REVO image space.
+
+    Parameters
+    ----------
+    bond_pairs : sequence of two atom-index pairs
+        The two forming-bond pairs, using zero-based atom indices.
+    r_cap : float
+        Per-bond outward cap in Bohr. Distances larger than this value are
+        represented by ``r_cap``.
+    mean_scale : float
+        Scale for the mean-distance coordinate, in Bohr.
+    async_scale : float
+        Scale for the asynchronicity coordinate, in Bohr.
+    """
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r_cap=9.0,
+        mean_scale=1.0,
+        async_scale=1.0,
+    ) -> None:
+        pairs = tuple(tuple(int(atom) for atom in pair) for pair in bond_pairs)
+        if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
+            raise ValueError("bond_pairs must contain exactly two atom-index pairs")
+        if r_cap <= 0:
+            raise ValueError("r_cap must be positive")
+        if mean_scale <= 0 or async_scale <= 0:
+            raise ValueError("mean_scale and async_scale must be positive")
+
+        self.bond_pairs = pairs
+        self.r_cap = float(r_cap)
+        self.mean_scale = float(mean_scale)
+        self.async_scale = float(async_scale)
+
+    def _forming_distances(self, state):
+        positions = np.asarray(state["positions"], dtype=float)
+        distances = np.asarray(
+            [
+                np.linalg.norm(positions[i] - positions[j])
+                for i, j in self.bond_pairs
+            ],
+            dtype=float,
+        )
+        return np.minimum(distances, self.r_cap)
+
+    def image(self, state):
+        r1, r2 = self._forming_distances(state)
+        mean_distance = 0.5 * (r1 + r2)
+        asynchronicity = abs(r1 - r2)
+
+        return np.asarray(
+            [
+                mean_distance / self.mean_scale,
+                asynchronicity / self.async_scale,
+            ],
+            dtype=float,
+        )
+
+    def image_distance(self, image_a, image_b) -> float:
+        return float(
+            np.linalg.norm(
+                np.asarray(image_a, dtype=float)
+                - np.asarray(image_b, dtype=float),
+            ),
+        )
+
+
+class DielsAlderSigmoidFormingBondDistance(Distance):
+    """Smooth, bounded Diels-Alder forming-bond metric.
+
+    Unlike the former ``DielsAlderBondOrderLikeDistance``, this implementation
+    uses ``self.bond_pairs`` rather than hard-coded atom indices. Each forming
+    distance is capped before applying the sigmoid.
+
+    The walker image is::
+
+        [0.5 * (q1 + q2), async_weight * abs(q1 - q2)]
+
+    where ``q(r) = 1 / (1 + exp(k * (r - r0)))``.
+
+    Positions, ``r0``, and ``r_cap`` are in Bohr; ``k`` is in Bohr**-1.
+    """
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r0=7.0,
+        k=0.7,
+        r_cap=9.0,
+        async_weight=1.0,
+    ) -> None:
+        pairs = tuple(tuple(int(atom) for atom in pair) for pair in bond_pairs)
+        if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
+            raise ValueError("bond_pairs must contain exactly two atom-index pairs")
+        if r0 <= 0 or r_cap <= 0:
+            raise ValueError("r0 and r_cap must be positive")
+        if k <= 0:
+            raise ValueError("k must be positive")
+        if async_weight < 0:
+            raise ValueError("async_weight must be non-negative")
+
+        self.bond_pairs = pairs
+        self.r0 = float(r0)
+        self.k = float(k)
+        self.r_cap = float(r_cap)
+        self.async_weight = float(async_weight)
+
+    def _switch(self, distance):
+        exponent = np.clip(self.k * (distance - self.r0), -700.0, 700.0)
+        return 1.0 / (1.0 + np.exp(exponent))
+
+    def _forming_distances(self, state):
+        positions = np.asarray(state["positions"], dtype=float)
+        distances = np.asarray(
+            [
+                np.linalg.norm(positions[i] - positions[j])
+                for i, j in self.bond_pairs
+            ],
+            dtype=float,
+        )
+        return np.minimum(distances, self.r_cap)
+
+    def image(self, state):
+        r1, r2 = self._forming_distances(state)
+        q1 = self._switch(r1)
+        q2 = self._switch(r2)
+
+        progress = 0.5 * (q1 + q2)
+        asynchronicity = abs(q1 - q2)
+
+        return np.asarray(
+            [
+                progress,
+                self.async_weight * asynchronicity,
+            ],
+            dtype=float,
+        )
+
+    def image_distance(self, image_a, image_b) -> float:
+        return float(
+            np.linalg.norm(
+                np.asarray(image_a, dtype=float)
+                - np.asarray(image_b, dtype=float),
+            ),
+        )
+
+
+class DielsAlderTwoBondDistance(Distance):
+    """Direct distance metric for the two forming Diels-Alder bonds.
+
+    Each walker is represented as:
+
+        [r_forming_1, r_forming_2]
+
+    Positions and returned distances are in Bohr.
+
+    Parameters
+    ----------
+    bond_pairs
+        The two forming-bond atom pairs, using zero-based indexing.
+    r_cap
+        Optional upper cap in Bohr. Set to None for completely uncapped
+        distances. A finite cap prevents continued reactant separation from
+        producing unlimited novelty.
+    """
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r_cap=None,
+    ):
+        bond_pairs = tuple(
+            tuple(int(index) for index in pair)
+            for pair in bond_pairs
+        )
+
+        if len(bond_pairs) != 2:
+            raise ValueError(
+                "bond_pairs must contain exactly two forming-bond pairs"
+            )
+
+        if any(len(pair) != 2 for pair in bond_pairs):
+            raise ValueError(
+                "Each entry in bond_pairs must contain two atom indices"
+            )
+
+        if r_cap is not None and r_cap <= 0:
+            raise ValueError("r_cap must be positive or None")
+
+        self.bond_pairs = bond_pairs
+        self.r_cap = None if r_cap is None else float(r_cap)
+
+    @staticmethod
+    def _pair_distance(positions, pair):
+        atom_i, atom_j = pair
+        return float(
+            np.linalg.norm(
+                positions[atom_i] - positions[atom_j]
+            )
+        )
+
+    def image(self, state):
+        positions = np.asarray(state["positions"], dtype=float)
+
+        distances = np.asarray(
+            [
+                self._pair_distance(positions, pair)
+                for pair in self.bond_pairs
+            ],
+            dtype=float,
+        )
+
+        if self.r_cap is not None:
+            distances = np.minimum(distances, self.r_cap)
+
+        return distances
+
+    def image_distance(self, image_a, image_b):
+        image_a = np.asarray(image_a, dtype=float)
+        image_b = np.asarray(image_b, dtype=float)
+
+        if image_a.shape != image_b.shape:
+            raise ValueError(
+                "Diels-Alder images must have the same shape"
+            )
+
+        return float(
+            np.sqrt(
+                np.mean((image_a - image_b) ** 2)
+            )
+        )
+
+
+# Append these classes to:
+#   src/wepy/resampling/distances/pyscf.py
+#
+# The current module already imports NumPy as ``np`` and ``Distance``.
+
+
+class DielsAlderTwoBondDistance(Distance):
+    """Direct two-coordinate metric for the two forming Diels-Alder bonds.
+
+    The walker image is ``[r1, r2]`` in Bohr. Returning the two distances
+    directly preserves which forming bond leads an asynchronous pathway.
+    """
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r_cap=None,
+    ):
+        pairs = tuple(
+            tuple(int(atom_index) for atom_index in pair)
+            for pair in bond_pairs
+        )
+        if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
+            raise ValueError(
+                "bond_pairs must contain exactly two atom-index pairs",
+            )
+        if r_cap is not None and r_cap <= 0:
+            raise ValueError("r_cap must be positive or None")
+
+        self.bond_pairs = pairs
+        self.r_cap = None if r_cap is None else float(r_cap)
+
+    def image(self, state):
+        positions = np.asarray(state["positions"], dtype=float)
+        distances = np.asarray(
+            [
+                np.linalg.norm(
+                    positions[atom_i] - positions[atom_j],
+                )
+                for atom_i, atom_j in self.bond_pairs
+            ],
+            dtype=float,
+        )
+        if self.r_cap is not None:
+            distances = np.minimum(distances, self.r_cap)
+        return distances
+
+    def image_distance(self, image_a, image_b):
+        image_a = np.asarray(image_a, dtype=float)
+        image_b = np.asarray(image_b, dtype=float)
+        if image_a.shape != (2,) or image_b.shape != (2,):
+            raise ValueError(
+                "DielsAlderTwoBondDistance images must have shape (2,)",
+            )
+        return float(np.sqrt(np.mean((image_a - image_b) ** 2)))
+
+
+class DielsAlderTwoSigmoidBondDistance(Distance):
+    """Bounded two-coordinate metric for the two forming Diels-Alder bonds.
+
+    Unlike a ``[mean(q), abs(q1-q2)]`` representation, this class returns
+    ``[q1, q2]`` directly and therefore preserves which forming bond leads an
+    asynchronous pathway.
+
+    Parameters
+    ----------
+    bond_pairs
+        Exactly two zero-based forming-bond atom pairs.
+    r0
+        Sigmoid midpoint in Bohr.
+    k
+        Sigmoid steepness in 1/Bohr.
+    r_cap
+        Optional upper cap in Bohr. With a physical outer COM wall, ``None`` is
+        recommended because the sigmoid already compresses outward motion.
+
+    Notes
+    -----
+    ``q(r) = 1 / (1 + exp(k*(r-r0)))``.
+
+    Product-like short distances have q near one; separated reactants have q
+    near zero. ``image_distance`` is the RMS difference in the two q values.
+    """
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r0=5.0,
+        k=1.0,
+        r_cap=None,
+    ):
+        pairs = tuple(
+            tuple(int(atom_index) for atom_index in pair)
+            for pair in bond_pairs
+        )
+        if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
+            raise ValueError(
+                "bond_pairs must contain exactly two atom-index pairs",
+            )
+        if r0 <= 0:
+            raise ValueError("r0 must be positive (Bohr)")
+        if k <= 0:
+            raise ValueError("k must be positive (1/Bohr)")
+        if r_cap is not None and r_cap <= 0:
+            raise ValueError("r_cap must be positive or None")
+
+        self.bond_pairs = pairs
+        self.r0 = float(r0)
+        self.k = float(k)
+        self.r_cap = None if r_cap is None else float(r_cap)
+
+    def _switch(self, distance):
+        exponent = np.clip(
+            self.k * (distance - self.r0),
+            -700.0,
+            700.0,
+        )
+        return 1.0 / (1.0 + np.exp(exponent))
+
+    def image(self, state):
+        positions = np.asarray(state["positions"], dtype=float)
+        distances = np.asarray(
+            [
+                np.linalg.norm(
+                    positions[atom_i] - positions[atom_j],
+                )
+                for atom_i, atom_j in self.bond_pairs
+            ],
+            dtype=float,
+        )
+
+        if self.r_cap is not None:
+            distances = np.minimum(distances, self.r_cap)
+
+        return np.asarray(
+            [self._switch(distance) for distance in distances],
+            dtype=float,
+        )
+
+    def image_distance(self, image_a, image_b):
+        image_a = np.asarray(image_a, dtype=float)
+        image_b = np.asarray(image_b, dtype=float)
+        if image_a.shape != (2,) or image_b.shape != (2,):
+            raise ValueError(
+                "DielsAlderTwoSigmoidBondDistance images must have shape (2,)",
+            )
+        return float(np.sqrt(np.mean((image_a - image_b) ** 2)))
+
+
