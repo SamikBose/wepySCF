@@ -176,7 +176,6 @@ class PySCFRunner(Runner):
     def __init__(
         self,
         backend: str = "CPU",
-        auxbasis: str | None = None,
         method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF",
         xc: str | None = None,
         population_method: Literal["mulliken", "meta-lowdin", "lowdin"] = "meta-lowdin",
@@ -187,6 +186,7 @@ class PySCFRunner(Runner):
         density_grid_shape: tuple[int, int, int] | None = None,
         density_grid_padding: float = 2.0,
         use_density_fitting: bool = False,
+        auxbasis: str | None = None,
         use_scanner_caching: bool = False,
         scanner_cache_capacity: int = 8,
     ) -> None:
