@@ -281,7 +281,6 @@ def run(config):
 
     runner = PySCFRunner(
         backend=config.backend,
-        auxbasis=config.auxbasis,
         method=config.method,
         xc=config.xc,
         population_method=config.population_method,
@@ -291,6 +290,7 @@ def run(config):
         integrator_temperature_kelvin=config.temperature_kelvin,
         density_grid_shape=config.density_grid_shape,
         use_density_fitting=config.use_density_fitting,
+        auxbasis=config.auxbasis,
         use_scanner_caching=config.use_scanner_caching,
         scanner_cache_capacity=config.scanner_cache_capacity,
     )
