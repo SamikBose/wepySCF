@@ -302,7 +302,6 @@ def run(config):
         if not config.use_boundary_conditions
         else PySCFBondDistanceBC(
             initial_states=[walker.state for walker in walkers],
-            # topology=json_top,
             break_pairs=config.break_pairs,
             break_cutoffs=config.break_cutoffs,
             make_pairs=config.make_pairs,
@@ -343,8 +342,8 @@ def run(config):
         reporters.append(
             PySCFHDF5Reporter(
                 save_fields=h5_save_fields,
-                file_paths=[config.get_h5_path(output_directory)],
-                modes=[output_mode],
+                file_path=config.get_h5_path(output_directory),
+                mode=output_mode,
                 topology=json_top,
                 resampler=resampler,
                 boundary_conditions=boundary_conditions,
@@ -353,9 +352,9 @@ def run(config):
     if config.write_dash:
         reporters.append(
             DashboardReporter(
-                file_paths=[config.get_dash_path(output_directory)],
-                modes=[output_mode],
-                runner_dash=PySCFRunnerDashboardSection(runner=runner),
+                file_path=config.get_dash_path(output_directory),
+                mode=output_mode,
+                runner_dash=PySCFRunnerDashboardSection(runner),
             )
         )
 

@@ -192,7 +192,6 @@ class PySCFRunner(Runner):
     ) -> None:
         self.backend = backend.upper()
         self.method = method.upper()
-        self.auxbasis = auxbasis
         self.xc = xc
         self.population_method = population_method
         self.dt = dt
@@ -202,6 +201,7 @@ class PySCFRunner(Runner):
         self.density_grid_shape = density_grid_shape
         self.density_grid_padding = float(density_grid_padding)
         self._use_density_fitting = bool(use_density_fitting)
+        self.auxbasis = auxbasis
         self._use_scanner_caching = bool(use_scanner_caching)
         self.scanner_cache_capacity = scanner_cache_capacity
 
