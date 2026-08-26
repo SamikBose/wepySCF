@@ -1,5 +1,4 @@
-* wepySCF fo BOMD and QM/MM WE simultions using weighted ensemble strategies
-
+* BOMD and QM/MM WE simultions
  
 [[./info/logo/wepySCF_logo_v1_inkscape.svg]]
 
