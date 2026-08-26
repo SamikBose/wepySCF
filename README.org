@@ -1,4 +1,4 @@
-* Weighted Ensemble Python (wepy) Development towards QM and QM/MM WE simultions
+* wepySCF fo BOMD and QM/MM WE simultions using weighted ensemble strategies
 
  
 [[./info/logo/wepySCF_logo_v1_inkscape.svg]]
