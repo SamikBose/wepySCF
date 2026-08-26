@@ -1,7 +1,7 @@
 * Weighted Ensemble Python (wepy) Development towards QM and QM/MM WE simultions
 
  
-[[./info/logo/wepy.svg]]
+[[./info/logo/wepySCF_logo_v1_inkscape.svg]]
 
 ** This is a forked repo from DicksonLab's wepy software to run weighted ensemble simulation for QM and QMMM dynamics. 
 Here you can find specific runners and architecture required for running QM or QM/MM simulations in weighted ensemble formalism.
