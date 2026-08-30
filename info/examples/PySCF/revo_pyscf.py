@@ -9,7 +9,6 @@ import importlib.util
 import os
 import os.path as osp
 import pickle
-import uuid
 from copy import deepcopy
 from glob import glob
 from time import perf_counter
@@ -22,13 +21,13 @@ import pyscf.md as pyscf_md
 from pyscf.data.nist import BOHR
 
 # First Party Library
-from wepy.boundary_conditions.bond_distance import BondDistanceBC
 from wepy.boundary_conditions.boundary import NoBC
+from wepy.boundary_conditions.pyscf import PySCFBondDistanceBC
 from wepy.reporter.dashboard import DashboardReporter
 from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
 from wepy.reporter.walker_pkl import WalkerPklReporter
+from wepy.resampling.resamplers.pyscf import PySCFREVOResampler
 from wepy.resampling.resamplers.resampler import NoResampler
-from wepy.resampling.resamplers.revo import REVOResampler
 from wepy.runners.pyscf import PySCFCPUWorkerMapper, PySCFGPUWorkerMapper, PySCFRunner, PySCFState, PySCFWalker
 from wepy.sim_manager import Manager
 from wepy.util.mdtraj import mdtraj_to_json_topology
@@ -52,9 +51,9 @@ def parse_with_mdtraj_topology(topology_file_path: str):
 
 
 def build_mol(symbols, positions, basis, charge, spin, ecp=None):
-    atom = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
+    atoms = [(symbol, tuple(coord)) for symbol, coord in zip(symbols, positions, strict=True)]
     return pyscf_gto.M(
-        atom=atom,
+        atom=atoms,
         basis=basis,
         ecp=ecp,
         charge=charge,
@@ -63,79 +62,48 @@ def build_mol(symbols, positions, basis, charge, spin, ecp=None):
     )
 
 
-def _generate_MB_velocities(config, mol, positions):
+def _generate_MB_velocities(mol, positions, temperature_kelvin, initialize_velocities):
     return (
-        pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, config.temperature_kelvin)
-        if config.initialize_velocities
+        pyscf_md.distributions.MaxwellBoltzmannVelocity(mol, temperature_kelvin)
+        if initialize_velocities
         else np.zeros_like(positions)
     )
 
 
-def generate_initial_walkers(config, symbols, positions, n_walkers, density_grid_shape):
-    weight = 1.0 / n_walkers
+def generate_initial_walkers(config, symbols, positions):
+    weight = 1.0 / config.n_walkers
 
     density_kwargs = {}
-    if density_grid_shape is not None:
+    if config.density_grid_shape is not None:
         density_kwargs = {
-            "density_matrix": None,
-            "density_grid": np.zeros(density_grid_shape),
-            "density_grid_origin": np.zeros(3),
-            "density_grid_spacing": np.ones(3),
+            "density_grid": np.zeros(config.density_grid_shape),
         }
 
     mol = build_mol(symbols, positions, config.basis, config.charge, config.spin, config.ecp)
     if config.suppress_pyscf_output:
         mol.verbose = 0  # Suppress PySCF output
 
-    shared_velocity = _generate_MB_velocities(config, mol, positions)
+    shared_velocity = _generate_MB_velocities(mol, positions, config.temperature_kelvin, config.initialize_velocities)
 
     return [
         PySCFWalker(
             PySCFState(
-                walker_id=str(uuid.uuid4()),
                 mol=deepcopy(mol),
                 positions=positions,
                 velocities=(
                     np.copy(shared_velocity)
                     if not config.unique_initial_velocities
-                    else (_generate_MB_velocities(config, mol, positions))
+                    else (
+                        _generate_MB_velocities(mol, positions, config.temperature_kelvin, config.initialize_velocities)
+                    )
                 ),
-                accelerations=None,
-                # Store as 1D feature arrays so the HDF5 reporter can extend them
-                temperature=np.array([config.temperature_kelvin], dtype=float),
-                total_energy=np.array([np.nan], dtype=float),
-                potential=np.array([np.nan], dtype=float),
-                kinetic=np.array([np.nan], dtype=float),
-                mo_energy=np.array([np.nan], dtype=float),
-                charges=np.array([np.nan], dtype=float),
+                temperature=config.temperature_kelvin,
                 **density_kwargs,
             ),
             weight,
         )
-        for _ in range(n_walkers)
+        for _ in range(config.n_walkers)
     ]
-
-
-class PySCFREVOResampler(REVOResampler):
-    """Regenerate walker IDs on resample to avoid scanner-cache collisions between unrelated trajectories."""
-
-    def resample(self, walkers):
-        """Resample walkers using REVO and regenerate duplicate IDs."""
-        resampled_walkers, resampling_data, resampler_data = super().resample(walkers)
-
-        seen_ids = set()
-        fixed = []
-        for walker in resampled_walkers:
-            walker_id = walker.state.get("walker_id")
-            if walker_id in seen_ids:
-                # If duplicate ID, give fresh
-                new_state = PySCFState(**{**walker.state._data, "walker_id": str(uuid.uuid4())})  # noqa: SLF001
-                fixed.append(PySCFWalker(new_state, walker.weight))
-            else:
-                seen_ids.add(walker_id)
-                fixed.append(PySCFWalker(walker.state, walker.weight))
-
-        return fixed, resampling_data, resampler_data
 
 
 def build_revo_resampler(config, init_state):
@@ -150,19 +118,6 @@ def build_revo_resampler(config, init_state):
         pmin=config.resampler_parameters.pmin,
         pmax=config.resampler_parameters.pmax,
     )
-
-
-class PySCFBondDistanceBC(BondDistanceBC):
-    """Regenerate walker IDs on warp to avoid scanner-cache collisions between unrelated trajectories."""
-
-    def _warp(self, walker):
-        """Warp walker and regenerate walker ID."""
-        warped_walker, warp_data = super()._warp(walker)
-
-        new_state = PySCFState(**{**warped_walker.state._data, "walker_id": str(uuid.uuid4())})  # noqa: SLF001
-        warped_walker = type(warped_walker)(new_state, warped_walker.weight)
-
-        return warped_walker, warp_data
 
 
 def parse_args():
@@ -185,9 +140,9 @@ def parse_args():
 
 def run(config):
     # TODO: build_mapper
-    if config.backend == "cpu":
+    if config.backend == "CPU":
         mapper = PySCFCPUWorkerMapper(num_workers=config.n_walkers)
-    elif config.backend == "gpu":
+    elif config.backend == "GPU":
         if importlib.util.find_spec("cupy") is None:
             raise SystemExit(
                 "GPU backend requested but CuPy is not installed. "
@@ -257,8 +212,6 @@ def run(config):
             config=config,
             symbols=symbols,
             positions=positions,
-            n_walkers=config.n_walkers,
-            density_grid_shape=config.density_grid_shape,
         )
     else:  # Sub-step provided
         # Resolve to the latest versioned base directory
@@ -267,7 +220,7 @@ def run(config):
         if args.sub_step == 0:
             if args.from_branch is not None:
                 raise ValueError("--from-branch is not supported with sub-step 0.")
-            print(f"Starting simulation in sub-step mode.")
+            print("Starting simulation in sub-step mode.")
         else:
             # Base directory must already exist in sub-step mode
             if not osp.isdir(output_directory):
@@ -308,8 +261,6 @@ def run(config):
                 config=config,
                 symbols=symbols,
                 positions=positions,
-                n_walkers=config.n_walkers,
-                density_grid_shape=config.density_grid_shape,
             )
         else:
             # Load walkers from the source directory
@@ -330,7 +281,6 @@ def run(config):
 
     runner = PySCFRunner(
         backend=config.backend,
-        auxbasis=config.auxbasis,
         method=config.method,
         xc=config.xc,
         population_method=config.population_method,
@@ -340,6 +290,7 @@ def run(config):
         integrator_temperature_kelvin=config.temperature_kelvin,
         density_grid_shape=config.density_grid_shape,
         use_density_fitting=config.use_density_fitting,
+        auxbasis=config.auxbasis,
         use_scanner_caching=config.use_scanner_caching,
         scanner_cache_capacity=config.scanner_cache_capacity,
     )
@@ -351,7 +302,6 @@ def run(config):
         if not config.use_boundary_conditions
         else PySCFBondDistanceBC(
             initial_states=[walker.state for walker in walkers],
-            # topology=json_top,
             break_pairs=config.break_pairs,
             break_cutoffs=config.break_cutoffs,
             make_pairs=config.make_pairs,
@@ -392,8 +342,8 @@ def run(config):
         reporters.append(
             PySCFHDF5Reporter(
                 save_fields=h5_save_fields,
-                file_paths=[config.get_h5_path(output_directory)],
-                modes=[output_mode],
+                file_path=config.get_h5_path(output_directory),
+                mode=output_mode,
                 topology=json_top,
                 resampler=resampler,
                 boundary_conditions=boundary_conditions,
@@ -402,9 +352,9 @@ def run(config):
     if config.write_dash:
         reporters.append(
             DashboardReporter(
-                file_paths=[config.get_dash_path(output_directory)],
-                modes=[output_mode],
-                runner_dash=PySCFRunnerDashboardSection(runner=runner),
+                file_path=config.get_dash_path(output_directory),
+                mode=output_mode,
+                runner_dash=PySCFRunnerDashboardSection(runner),
             )
         )
 
@@ -439,9 +389,9 @@ def run(config):
         + (f"/{config.xc}, " if config.xc is not None else ", ")
         + f"Integrator: {config._integrator_name}",  # noqa: SLF001
     )
-    if config.backend == "cpu":
+    if config.backend == "CPU":
         print(f"CPU workers: {config.n_walkers}, OpenMP threads: {config._omp_threads_env_var}")  # noqa: SLF001
-    elif config.backend == "gpu":
+    elif config.backend == "GPU":
         print(f"GPUs: {config._num_gpus_visible}, CUDA devices: [{config._cuda_visible_devices_env_var}]")  # noqa: SLF001
     temperatures = [walker.state.get("temperature").item() for walker in end_walkers]
     potentials = [walker.state.get("potential").item() for walker in end_walkers]
