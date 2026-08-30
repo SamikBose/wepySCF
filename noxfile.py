@@ -19,7 +19,7 @@ import nox
 nox.options.sessions = []
 
 # NOTE: that with 3.11 mdtraj fails to build
-DEFAULT_PYTHON_VERSION = "3.10"
+DEFAULT_PYTHON_VERSION = "3.14"
 
 PROJECT_ROOT_DIR = Path(__file__).parent
 
@@ -398,9 +398,9 @@ def coverage(session):
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
 def build(session):
-    session.install("hatch")
+    session.install("build")
 
-    session.run("hatch", "build")
+    session.run("python", "-m", "build")
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION)
