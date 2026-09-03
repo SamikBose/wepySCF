@@ -109,6 +109,166 @@ class ProtonTransferDistance(Distance):
         return abs(float(image_a[0] - image_b[0]))
 
 
+class NormalizedBondAngleDistance(Distance):
+    """Dimensionless bond-progress and angle distance for reactions.
+
+    The image is ``[q_bond, q_angle]``. Smooth logistic bond switches are
+    combined so ``q_bond`` changes from approximately zero when the breaking
+    bond is formed to approximately one when the making bond is formed.
+    ``q_angle`` is either ``theta/pi`` (monotonic angular progress) or
+    ``(1-cos(theta))/2`` (alignment, useful for SN2 backside attack). The
+    distance is a weighted RMS in this normalized feature space.
+
+    Parameters use the same coordinate units as walker positions (Bohr for
+    :class:`~wepy.runners.pyscf.PySCFRunner`).
+    """
+
+    def __init__(
+        self,
+        break_pair,
+        make_pair,
+        angle_triplet,
+        *,
+        r0=3.0,
+        k=3.0,
+        angle_mode: Literal["progress", "alignment"] = "progress",
+        weights=(1.0, 1.0),
+    ) -> None:
+        self.break_pair = tuple(int(i) for i in break_pair)
+        self.make_pair = tuple(int(i) for i in make_pair)
+        self.angle_triplet = tuple(int(i) for i in angle_triplet)
+        if len(self.break_pair) != 2 or len(self.make_pair) != 2:
+            raise ValueError("break_pair and make_pair must each contain two indices")
+        if len(self.angle_triplet) != 3:
+            raise ValueError("angle_triplet must be (outer, vertex, outer)")
+        if r0 <= 0.0 or k <= 0.0:
+            raise ValueError("r0 and k must be positive")
+        if angle_mode not in ("progress", "alignment"):
+            raise ValueError("angle_mode must be 'progress' or 'alignment'")
+        self.r0 = float(r0)
+        self.k = float(k)
+        self.angle_mode = angle_mode
+        self.weights = self._validate_weights(weights, 2)
+
+    @staticmethod
+    def _validate_weights(weights, size):
+        values = np.asarray(weights, dtype=float)
+        if (
+            values.shape != (size,)
+            or np.any(values < 0.0)
+            or not np.any(values > 0.0)
+        ):
+            raise ValueError(
+                f"weights must be {size} non-negative values with at least one positive"
+            )
+        return values
+
+    def _switch(self, distance):
+        exponent = np.clip(self.k * (distance - self.r0), -700.0, 700.0)
+        return float(1.0 / (1.0 + np.exp(exponent)))
+
+    @staticmethod
+    def _pair_distance(positions, pair):
+        displacement = positions[pair[0]] - positions[pair[1]]
+        return float(np.linalg.norm(displacement))
+
+    def _geometry_image(self, positions):
+        positions = np.asarray(positions, dtype=float)
+        s_break = self._switch(self._pair_distance(positions, self.break_pair))
+        s_make = self._switch(self._pair_distance(positions, self.make_pair))
+        denominator = s_break + s_make
+        q_bond = 0.5 if denominator <= np.finfo(float).tiny else s_make / denominator
+
+        outer_a, vertex, outer_b = self.angle_triplet
+        vector_a = positions[outer_a] - positions[vertex]
+        vector_b = positions[outer_b] - positions[vertex]
+        norm_product = np.linalg.norm(vector_a) * np.linalg.norm(vector_b)
+        if norm_product <= np.finfo(float).tiny:
+            raise ValueError("Cannot define an angle for coincident atoms")
+        cosine = float(np.clip(np.dot(vector_a, vector_b) / norm_product, -1.0, 1.0))
+        q_angle = (
+            float(np.arccos(cosine) / np.pi)
+            if self.angle_mode == "progress"
+            else 0.5 * (1.0 - cosine)
+        )
+        return np.asarray([q_bond, q_angle], dtype=float)
+
+    def image(self, state):
+        return self._geometry_image(state["positions"])
+
+    def image_distance(self, image_a, image_b) -> float:
+        delta = np.asarray(image_a, dtype=float) - np.asarray(image_b, dtype=float)
+        if delta.shape != (2,):
+            raise ValueError("Normalized bond-angle images must have shape (2,)")
+        return float(np.sqrt(np.sum(self.weights * delta**2) / np.sum(self.weights)))
+
+
+class NormalizedBondAngleChargeDistance(NormalizedBondAngleDistance):
+    """Normalized bond-angle metric plus endpoint-projected atomic charges.
+
+    The charge coordinate is the projection of the current atomic-charge
+    vector onto ``reactant_charges -> product_charges``. It is zero and one at
+    those references, respectively. Values are intentionally not clipped.
+    """
+
+    def __init__(
+        self,
+        break_pair,
+        make_pair,
+        angle_triplet,
+        reactant_charges,
+        product_charges,
+        *,
+        charge_key="charges",
+        allow_initial_nan_charges=False,
+        weights=(1.0, 1.0, 1.0),
+        **geometry_kwargs,
+    ) -> None:
+        super().__init__(
+            break_pair,
+            make_pair,
+            angle_triplet,
+            weights=(1.0, 1.0),
+            **geometry_kwargs,
+        )
+        self.reactant_charges = np.asarray(reactant_charges, dtype=float).ravel()
+        self.product_charges = np.asarray(product_charges, dtype=float).ravel()
+        if self.reactant_charges.shape != self.product_charges.shape:
+            raise ValueError("Reactant and product charge arrays must have the same shape")
+        self.charge_delta = self.product_charges - self.reactant_charges
+        self.charge_denominator = float(np.dot(self.charge_delta, self.charge_delta))
+        if self.charge_denominator <= np.finfo(float).eps:
+            raise ValueError("Endpoint charge vectors are too similar to define a projection")
+        self.charge_key = str(charge_key)
+        self.allow_initial_nan_charges = bool(allow_initial_nan_charges)
+        self.weights = self._validate_weights(weights, 3)
+
+    def image(self, state):
+        geometry = self._geometry_image(state["positions"])
+        charges = np.asarray(state[self.charge_key], dtype=float).ravel()
+        if (
+            self.allow_initial_nan_charges
+            and charges.size == 1
+            and np.all(np.isnan(charges))
+        ):
+            charges = self.reactant_charges
+        if charges.shape != self.reactant_charges.shape or not np.all(np.isfinite(charges)):
+            raise ValueError(
+                "Walker charges are missing, non-finite, or incompatible with references"
+            )
+        q_charge = float(
+            np.dot(charges - self.reactant_charges, self.charge_delta)
+            / self.charge_denominator
+        )
+        return np.asarray([geometry[0], geometry[1], q_charge], dtype=float)
+
+    def image_distance(self, image_a, image_b) -> float:
+        delta = np.asarray(image_a, dtype=float) - np.asarray(image_b, dtype=float)
+        if delta.shape != (3,):
+            raise ValueError("Normalized bond-angle-charge images must have shape (3,)")
+        return float(np.sqrt(np.sum(self.weights * delta**2) / np.sum(self.weights)))
+
+
 class DihedralDistance(Distance):
     """Distance based on one or more dihedral (torsion) angles.
 
@@ -876,5 +1036,4 @@ class DielsAlderTwoSigmoidBondDistance(Distance):
                 "DielsAlderTwoSigmoidBondDistance images must have shape (2,)",
             )
         return float(np.sqrt(np.mean((image_a - image_b) ** 2)))
-
 
