@@ -1,5 +1,7 @@
+# Third Party Library
 import numpy as np
 
+# First Party Library
 from wepy.resampling.distances.pyscf import (
     NormalizedBondAngleChargeDistance,
     NormalizedBondAngleDistance,
@@ -7,9 +9,7 @@ from wepy.resampling.distances.pyscf import (
 
 
 def test_normalized_bond_angle_sn2_directionality():
-    metric = NormalizedBondAngleDistance(
-        (0, 1), (0, 2), (2, 0, 1), angle_mode="alignment"
-    )
+    metric = NormalizedBondAngleDistance((0, 1), (0, 2), (2, 0, 1), angle_mode="alignment")
     backside = np.array([[0, 0, 0], [0, 0, 3.5], [0, 0, -4.5]], dtype=float)
     frontside = backside.copy()
     frontside[2, 2] = 4.5

@@ -153,14 +153,8 @@ class NormalizedBondAngleDistance(Distance):
     @staticmethod
     def _validate_weights(weights, size):
         values = np.asarray(weights, dtype=float)
-        if (
-            values.shape != (size,)
-            or np.any(values < 0.0)
-            or not np.any(values > 0.0)
-        ):
-            raise ValueError(
-                f"weights must be {size} non-negative values with at least one positive"
-            )
+        if values.shape != (size,) or np.any(values < 0.0) or not np.any(values > 0.0):
+            raise ValueError(f"weights must be {size} non-negative values with at least one positive")
         return values
 
     def _switch(self, distance):
@@ -186,11 +180,7 @@ class NormalizedBondAngleDistance(Distance):
         if norm_product <= np.finfo(float).tiny:
             raise ValueError("Cannot define an angle for coincident atoms")
         cosine = float(np.clip(np.dot(vector_a, vector_b) / norm_product, -1.0, 1.0))
-        q_angle = (
-            float(np.arccos(cosine) / np.pi)
-            if self.angle_mode == "progress"
-            else 0.5 * (1.0 - cosine)
-        )
+        q_angle = float(np.arccos(cosine) / np.pi) if self.angle_mode == "progress" else 0.5 * (1.0 - cosine)
         return np.asarray([q_bond, q_angle], dtype=float)
 
     def image(self, state):
@@ -246,20 +236,11 @@ class NormalizedBondAngleChargeDistance(NormalizedBondAngleDistance):
     def image(self, state):
         geometry = self._geometry_image(state["positions"])
         charges = np.asarray(state[self.charge_key], dtype=float).ravel()
-        if (
-            self.allow_initial_nan_charges
-            and charges.size == 1
-            and np.all(np.isnan(charges))
-        ):
+        if self.allow_initial_nan_charges and charges.size == 1 and np.all(np.isnan(charges)):
             charges = self.reactant_charges
         if charges.shape != self.reactant_charges.shape or not np.all(np.isfinite(charges)):
-            raise ValueError(
-                "Walker charges are missing, non-finite, or incompatible with references"
-            )
-        q_charge = float(
-            np.dot(charges - self.reactant_charges, self.charge_delta)
-            / self.charge_denominator
-        )
+            raise ValueError("Walker charges are missing, non-finite, or incompatible with references")
+        q_charge = float(np.dot(charges - self.reactant_charges, self.charge_delta) / self.charge_denominator)
         return np.asarray([geometry[0], geometry[1], q_charge], dtype=float)
 
     def image_distance(self, image_a, image_b) -> float:
@@ -358,9 +339,7 @@ class ChargeDistance(Distance):
     """
 
     def __init__(self, atom_indices=None, charge_key: str = "charges") -> None:
-        self.atom_indices = (
-            None if atom_indices is None else np.asarray(atom_indices, dtype=int)
-        )
+        self.atom_indices = None if atom_indices is None else np.asarray(atom_indices, dtype=int)
         self.charge_key = charge_key
 
     def image(self, state):
@@ -598,8 +577,7 @@ class HOMOLUMOGapDistance(Distance):
     def image_distance(self, image_a, image_b) -> float:
         return float(
             abs(
-                np.asarray(image_a, dtype=float)[0]
-                - np.asarray(image_b, dtype=float)[0],
+                np.asarray(image_a, dtype=float)[0] - np.asarray(image_b, dtype=float)[0],
             ),
         )
 
@@ -610,8 +588,8 @@ class DielsAlderBondOrderLikeDistance(Distance):
     def __init__(
         self,
         bond_pairs=((0, 11), (3, 10)),
-        r0=4.0,      # midpoint in Bohr; ~2.1 Å
-        k=2.0,       # steepness in 1/Bohr
+        r0=4.0,  # midpoint in Bohr; ~2.1 Å
+        k=2.0,  # steepness in 1/Bohr
         async_weight=1.0,
     ):
         self.bond_pairs = tuple(bond_pairs)
@@ -625,13 +603,13 @@ class DielsAlderBondOrderLikeDistance(Distance):
     def image(self, state):
         pos = np.asarray(state["positions"], dtype=float)
 
-        r1 = np.linalg.norm(pos[0] - pos[11])   # C1-C12
-        r2 = np.linalg.norm(pos[3] - pos[10])   # C4-C11
+        r1 = np.linalg.norm(pos[0] - pos[11])  # C1-C12
+        r2 = np.linalg.norm(pos[3] - pos[10])  # C4-C11
 
         q1 = self._switch(r1)
         q2 = self._switch(r2)
 
-        progress = 0.5 * (q1 + q2)              # 0 reactant-like, 1 product-like
+        progress = 0.5 * (q1 + q2)  # 0 reactant-like, 1 product-like
         asynchronicity = abs(q1 - q2)
 
         return np.array(
@@ -693,10 +671,7 @@ class DielsAlderCappedFormingBondDistance(Distance):
     def _forming_distances(self, state):
         positions = np.asarray(state["positions"], dtype=float)
         distances = np.asarray(
-            [
-                np.linalg.norm(positions[i] - positions[j])
-                for i, j in self.bond_pairs
-            ],
+            [np.linalg.norm(positions[i] - positions[j]) for i, j in self.bond_pairs],
             dtype=float,
         )
         return np.minimum(distances, self.r_cap)
@@ -717,8 +692,7 @@ class DielsAlderCappedFormingBondDistance(Distance):
     def image_distance(self, image_a, image_b) -> float:
         return float(
             np.linalg.norm(
-                np.asarray(image_a, dtype=float)
-                - np.asarray(image_b, dtype=float),
+                np.asarray(image_a, dtype=float) - np.asarray(image_b, dtype=float),
             ),
         )
 
@@ -770,10 +744,7 @@ class DielsAlderSigmoidFormingBondDistance(Distance):
     def _forming_distances(self, state):
         positions = np.asarray(state["positions"], dtype=float)
         distances = np.asarray(
-            [
-                np.linalg.norm(positions[i] - positions[j])
-                for i, j in self.bond_pairs
-            ],
+            [np.linalg.norm(positions[i] - positions[j]) for i, j in self.bond_pairs],
             dtype=float,
         )
         return np.minimum(distances, self.r_cap)
@@ -797,8 +768,7 @@ class DielsAlderSigmoidFormingBondDistance(Distance):
     def image_distance(self, image_a, image_b) -> float:
         return float(
             np.linalg.norm(
-                np.asarray(image_a, dtype=float)
-                - np.asarray(image_b, dtype=float),
+                np.asarray(image_a, dtype=float) - np.asarray(image_b, dtype=float),
             ),
         )
 
@@ -827,20 +797,13 @@ class DielsAlderTwoBondDistance(Distance):
         bond_pairs=((0, 11), (3, 10)),
         r_cap=None,
     ):
-        bond_pairs = tuple(
-            tuple(int(index) for index in pair)
-            for pair in bond_pairs
-        )
+        bond_pairs = tuple(tuple(int(index) for index in pair) for pair in bond_pairs)
 
         if len(bond_pairs) != 2:
-            raise ValueError(
-                "bond_pairs must contain exactly two forming-bond pairs"
-            )
+            raise ValueError("bond_pairs must contain exactly two forming-bond pairs")
 
         if any(len(pair) != 2 for pair in bond_pairs):
-            raise ValueError(
-                "Each entry in bond_pairs must contain two atom indices"
-            )
+            raise ValueError("Each entry in bond_pairs must contain two atom indices")
 
         if r_cap is not None and r_cap <= 0:
             raise ValueError("r_cap must be positive or None")
@@ -851,20 +814,13 @@ class DielsAlderTwoBondDistance(Distance):
     @staticmethod
     def _pair_distance(positions, pair):
         atom_i, atom_j = pair
-        return float(
-            np.linalg.norm(
-                positions[atom_i] - positions[atom_j]
-            )
-        )
+        return float(np.linalg.norm(positions[atom_i] - positions[atom_j]))
 
     def image(self, state):
         positions = np.asarray(state["positions"], dtype=float)
 
         distances = np.asarray(
-            [
-                self._pair_distance(positions, pair)
-                for pair in self.bond_pairs
-            ],
+            [self._pair_distance(positions, pair) for pair in self.bond_pairs],
             dtype=float,
         )
 
@@ -878,21 +834,9 @@ class DielsAlderTwoBondDistance(Distance):
         image_b = np.asarray(image_b, dtype=float)
 
         if image_a.shape != image_b.shape:
-            raise ValueError(
-                "Diels-Alder images must have the same shape"
-            )
+            raise ValueError("Diels-Alder images must have the same shape")
 
-        return float(
-            np.sqrt(
-                np.mean((image_a - image_b) ** 2)
-            )
-        )
-
-
-# Append these classes to:
-#   src/wepy/resampling/distances/pyscf.py
-#
-# The current module already imports NumPy as ``np`` and ``Distance``.
+        return float(np.sqrt(np.mean((image_a - image_b) ** 2)))
 
 
 class DielsAlderTwoBondDistance(Distance):
@@ -907,10 +851,7 @@ class DielsAlderTwoBondDistance(Distance):
         bond_pairs=((0, 11), (3, 10)),
         r_cap=None,
     ):
-        pairs = tuple(
-            tuple(int(atom_index) for atom_index in pair)
-            for pair in bond_pairs
-        )
+        pairs = tuple(tuple(int(atom_index) for atom_index in pair) for pair in bond_pairs)
         if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
             raise ValueError(
                 "bond_pairs must contain exactly two atom-index pairs",
@@ -980,10 +921,7 @@ class DielsAlderTwoSigmoidBondDistance(Distance):
         k=1.0,
         r_cap=None,
     ):
-        pairs = tuple(
-            tuple(int(atom_index) for atom_index in pair)
-            for pair in bond_pairs
-        )
+        pairs = tuple(tuple(int(atom_index) for atom_index in pair) for pair in bond_pairs)
         if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
             raise ValueError(
                 "bond_pairs must contain exactly two atom-index pairs",
@@ -1036,4 +974,3 @@ class DielsAlderTwoSigmoidBondDistance(Distance):
                 "DielsAlderTwoSigmoidBondDistance images must have shape (2,)",
             )
         return float(np.sqrt(np.mean((image_a - image_b) ** 2)))
-
