@@ -29,7 +29,7 @@ class PySCFInput:
     #
     # Simulation parameters
     #
-    backend: Literal["cpu", "gpu"] = "gpu"
+    backend: Literal["CPU", "GPU"] = "GPU"
     n_walkers = 4
     n_cycles = 5
     segment_length = 10

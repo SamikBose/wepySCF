@@ -188,7 +188,7 @@ def test_runner_pre_cycle_backend_override(monkeypatch):
     _patch_imports(monkeypatch, _FakeModuleFactory(gradients=gradients, energy=-0.5))
 
     runner = PySCFRunner(step_size=0.1)
-    runner.pre_cycle(backend="gpu", platform_kwargs={"DeviceIndex": "0"})
+    runner.pre_cycle(backend="GPU", platform_kwargs={"DeviceIndex": "0"})
 
     walker = Walker(
         WalkerState(symbols=["H"], positions=np.array([[0.0, 0.0, 0.0]])),
@@ -245,7 +245,7 @@ def test_gpu_backend_requires_to_gpu(monkeypatch):
         _FakeModuleFactory(gradients=np.zeros((1, 3)), energy=0.0, supports_gpu=False),
     )
 
-    runner = PySCFRunner(backend="gpu")
+    runner = PySCFRunner(backend="GPU")
     walker = Walker(
         WalkerState(symbols=["H"], positions=np.array([[0.0, 0.0, 0.0]])),
         1.0,
@@ -268,7 +268,7 @@ def test_gpu_backend_missing_cupy_gives_actionable_error(monkeypatch):
         ),
     )
 
-    runner = PySCFRunner(backend="gpu")
+    runner = PySCFRunner(backend="GPU")
     walker = Walker(
         WalkerState(symbols=["H"], positions=np.array([[0.0, 0.0, 0.0]])),
         1.0,
@@ -291,7 +291,7 @@ def test_gpu_runtime_error_can_fallback_to_cpu(monkeypatch):
         ),
     )
 
-    runner = PySCFRunner(backend="gpu", gpu_fallback_cpu_on_error=True)
+    runner = PySCFRunner(backend="GPU", gpu_fallback_cpu_on_error=True)
     walker = Walker(
         WalkerState(symbols=["H"], positions=np.array([[0.0, 0.0, 0.0]])),
         1.0,
@@ -312,7 +312,7 @@ def test_gpu_runtime_error_without_fallback_raises(monkeypatch):
         ),
     )
 
-    runner = PySCFRunner(backend="gpu", gpu_fallback_cpu_on_error=False)
+    runner = PySCFRunner(backend="GPU", gpu_fallback_cpu_on_error=False)
     walker = Walker(
         WalkerState(symbols=["H"], positions=np.array([[0.0, 0.0, 0.0]])),
         1.0,
@@ -345,19 +345,19 @@ def test_worker_and_task_process_inject_hardware_kwargs():
         return kwargs
 
     assert cpu_worker.run_task(echo_kwargs) == {
-        "backend": "cpu",
+        "backend": "CPU",
         "platform_kwargs": {"Threads": "4"},
     }
     assert gpu_worker.run_task(echo_kwargs) == {
-        "backend": "gpu",
+        "backend": "GPU",
         "platform_kwargs": {"DeviceIndex": "3"},
     }
     assert cpu_task.run_task(echo_kwargs) == {
-        "backend": "cpu",
+        "backend": "CPU",
         "platform_kwargs": {"Threads": "8"},
     }
     assert gpu_task.run_task(echo_kwargs) == {
-        "backend": "gpu",
+        "backend": "GPU",
         "platform_kwargs": {"DeviceIndex": "5"},
     }
 

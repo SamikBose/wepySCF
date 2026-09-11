@@ -14,6 +14,8 @@ authors = [
   { name = "Tom Dixon" },
   { name = "Robert Hall" },
   { name = "Nicole Roussey" },
+  { name = "Samik Bose" },
+  { name = "Nathan Emeott" },
 ]
 dynamic = ["version"]
 
