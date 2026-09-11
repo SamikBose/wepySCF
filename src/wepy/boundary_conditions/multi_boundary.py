@@ -3,10 +3,13 @@
 This file is staged in the CPD workspace before installation into wepy_dev.
 """
 
+# Standard Library
 from collections import defaultdict
 
+# Third Party Library
 import numpy as np
 
+# First Party Library
 from wepy.boundary_conditions.boundary import WarpBC
 
 
@@ -156,17 +159,12 @@ class MultiBoundaryBC(WarpBC):
     def _progress(self, walker):
         distances = self._distances(walker)
         matched = [
-            self._evaluate_condition(definition["condition"], distances)
-            for definition in self._boundary_definitions
+            self._evaluate_condition(definition["condition"], distances) for definition in self._boundary_definitions
         ]
         boundary_mask = sum((1 << idx) for idx, value in enumerate(matched) if value)
         first_idx = next((idx for idx, value in enumerate(matched) if value), None)
         boundary_id = 0 if first_idx is None else first_idx + 1
-        warp_class = (
-            0
-            if first_idx is None
-            else int(self._boundary_definitions[first_idx]["warp_class"])
-        )
+        warp_class = 0 if first_idx is None else int(self._boundary_definitions[first_idx]["warp_class"])
         return boundary_mask != 0, {
             "distances": distances,
             "boundary_mask": np.asarray([boundary_mask], dtype=np.uint64),
