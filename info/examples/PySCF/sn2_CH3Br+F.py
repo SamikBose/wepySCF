@@ -1,9 +1,9 @@
-"""Example simulation for SN2.
+"""Example simulation for CH3Br+F.
 
 Run examples:
-    python sn2_testing.py
-    python sn2_testing.py --sub-step 1
-    python sn2_testing.py --sub-step 1 --from-branch 2
+    python sn2_CH3Br+F.py
+    python sn2_CH3Br+F.py --sub-step 1
+    python sn2_CH3Br+F.py --sub-step 1 --from-branch 2
 """
 
 # Set the default number of threads before importing libraries to avoid oversubscription
@@ -34,16 +34,18 @@ if __name__ == "__main__":
     config = PySCFSimMakerConfig(
         # System
         # TODO: Use this or opt?
-        topology_file_path=str(Path(__file__).resolve().parent / "sn2_opt.pdb"),
-        system_name="SN2_testing",
+        topology_file_path=str(Path(__file__).resolve().parent / "ch3br+f_opt.pdb"),
+        system_name="CH3Br+F",
         # Simulation parameters
         backend="GPU",
-        n_walkers=4,
-        n_cycles=5,
-        segment_length=1,
+        n_walkers=24,
+        n_cycles=100,
+        segment_length=10,
         # PySCF runner parameters
-        basis="sto-3g",
-        method="RHF",
+        basis="aug-cc-pVDZ",
+        auxbasis="aug-cc-pVDZ-jkfit",
+        method="RKS",
+        xc="wb97x_v",
         charge=-1,
         dt=21,
         temperature_kelvin=100.0,
@@ -68,12 +70,12 @@ if __name__ == "__main__":
         initialize_velocities=True,
         unique_initial_velocities=True,
         # Performance
-        use_density_fitting=False,
+        use_density_fitting=True,
         use_scanner_caching=True,
         # Output control
-        write_h5=False,
-        write_dash=False,
-        store_pickles=False,
+        write_h5=True,
+        write_dash=True,
+        store_pickles=True,
         overwrite=False,
     )
 

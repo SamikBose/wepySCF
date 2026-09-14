@@ -460,21 +460,22 @@ class PySCFSimMaker:
             return NoBC()
 
         # FIXME: Is this used anymore?
-        # return PySCFBondDistanceBC(
-        #     initial_states=[walker.state for walker in walkers],
-        #     break_pairs=config.break_pairs,
-        #     break_cutoffs=config.break_cutoffs,
-        #     make_pairs=config.make_pairs,
-        #     make_cutoffs=config.make_cutoffs,
-        # )
-        return PySCFMultiBoundaryBC(
+        return PySCFBondDistanceBC(
             n_walkers=len(walkers),
-            # TODO: deepcopy needed here?
-            initial_states=[deepcopy(walker.state) for walker in source_walkers],
-            initial_weights=[walker.weight for walker in source_walkers],
-            boundary_definitions=config.boundary_definitions,
-            tracked_pairs=config.tracked_boundary_pairs,
+            initial_states=[walker.state for walker in walkers],
+            break_pairs=config.break_pairs,
+            break_cutoffs=config.break_cutoffs,
+            make_pairs=config.make_pairs,
+            make_cutoffs=config.make_cutoffs,
         )
+        # return PySCFMultiBoundaryBC(
+        #     n_walkers=len(walkers),
+        #     # TODO: deepcopy needed here?
+        #     initial_states=[deepcopy(walker.state) for walker in source_walkers],
+        #     initial_weights=[walker.weight for walker in source_walkers],
+        #     boundary_definitions=config.boundary_definitions,
+        #     tracked_pairs=config.tracked_boundary_pairs,
+        # )
 
     def make_apparatus(self, walkers, source_walkers):
         """Return (runner, resampler, boundary_conditions)."""
@@ -608,7 +609,7 @@ class PySCFSimMaker:
         output_directory = self.resolve_output_directory(sub_step, from_branch)
         walkers, start_cycle = self.resolve_walkers(output_directory, sub_step, from_branch, source_walkers)
 
-        if not osp.exists(output_directory):
+        if not osp.exists(output_directory) and (config.write_h5 or config.write_dash or config.store_pickles):
             os.makedirs(output_directory)
 
         mapper = self.make_work_mapper()
