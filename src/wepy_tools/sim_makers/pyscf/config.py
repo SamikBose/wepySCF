@@ -41,7 +41,7 @@ class PySCFSimMakerConfig:
     spin: int = 0
     dt: int = 21
     temperature_kelvin: float = 300.0
-    density_grid_shape: tuple[int, int, int] | None = (10, 10, 10)
+    density_grid_shape: tuple[int, int, int] | None = None
 
     #
     # PySCF integrator and kwargs passed to it
