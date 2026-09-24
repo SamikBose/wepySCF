@@ -14,6 +14,7 @@ environ.setdefault("OMP_NUM_THREADS", "1")
 from pathlib import Path
 
 # Third Party Library
+from pyscf.data.nist import BOHR
 from pyscf.md.integrators import LangevinMiddle
 
 # First Party Library
@@ -24,8 +25,8 @@ from wepy_tools.sim_makers.pyscf.sim_maker import PySCFSimMaker
 
 BREAK_PAIR = (0, 1)
 MAKE_PAIR = (0, 5)
-BREAK_CUTOFF = 7.56  # Bohr  (= 4.0 Å; C-Br counted broken)  [0.4 nm]
-MAKE_CUTOFF = 2.83  # Bohr  (= 1.5 Å; C-F counted formed)  [0.15 nm]
+MAKE_CUTOFF_BOHR = 1.4 / BOHR
+BREAK_CUTOFF_BOHR = 2.75 / BOHR
 
 
 if __name__ == "__main__":
@@ -33,7 +34,6 @@ if __name__ == "__main__":
 
     config = PySCFSimMakerConfig(
         # System
-        # TODO: Use this or opt?
         topology_file_path=str(Path(__file__).resolve().parent / "sn2_opt.pdb"),
         system_name="SN2_testing",
         # Simulation parameters
@@ -61,9 +61,9 @@ if __name__ == "__main__":
         # Boundary conditions
         use_boundary_conditions=True,
         break_pairs=[BREAK_PAIR],
-        break_cutoffs=[BREAK_CUTOFF],
+        break_cutoffs=[BREAK_CUTOFF_BOHR],
         make_pairs=[MAKE_PAIR],
-        make_cutoffs=[MAKE_CUTOFF],
+        make_cutoffs=[MAKE_CUTOFF_BOHR],
         # Initialization
         initialize_velocities=True,
         unique_initial_velocities=True,

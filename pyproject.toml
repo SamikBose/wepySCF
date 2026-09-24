@@ -87,3 +87,9 @@ verbose = 2
 
 [tool.hatch.version]
 path = "src/wepy/__about__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/wepy",
+    "src/wepy_tools",
+]
