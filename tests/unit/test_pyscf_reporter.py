@@ -15,7 +15,7 @@ from wepy.runners.pyscf import PySCFState, PySCFWalker
 def test_dashboard_section_tracks_energy():
     section = PySCFRunnerDashboardSection(
         step_size=1e-3,
-        backend="cpu",
+        backend="CPU",
         dynamics_mode="langevin",
         temperature_kelvin=300.0,
     )
@@ -35,7 +35,7 @@ def test_dashboard_section_tracks_energy():
     fields = section.gen_fields()
 
     assert fields["avg_energy"] == -1.0
-    assert fields["backend"] == "cpu"
+    assert fields["backend"] == "CPU"
     assert fields["dynamics_mode"] == "langevin"
     assert fields["temperature_kelvin"] == 300.0
 

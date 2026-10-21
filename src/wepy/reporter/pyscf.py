@@ -6,7 +6,7 @@ import numpy as np
 # First Party Library
 from wepy.reporter.dashboard import RunnerDashboardSection
 from wepy.reporter.hdf5 import WepyHDF5Reporter
-from wepy.runners.pyscf import UNIT_NAMES
+from wepy.runners.pyscf import UNIT_NAMES, PySCFRunner
 
 
 class PySCFRunnerDashboardSection(RunnerDashboardSection):
@@ -16,28 +16,21 @@ Runner: {{ name }}
 Backend: {{ backend }}
 Integrator: {{ integrator }}
 dt (a.u.): {{ dt }}
-Temperature (K): {{ temperature_kelvin }}
+Target Temperature (K): {{ target_temperature }}
 Average Potential (Hartree): {{ avg_potential }}
 Average Kinetic (Hartree): {{ avg_kinetic }}
 """
 
-    def __init__(self, runner=None, backend="cpu", integrator=None, dt=None, temperature_kelvin=None, **kwargs):
+    def __init__(self, runner: PySCFRunner, **kwargs):
         if "name" not in kwargs:
             kwargs["name"] = "PySCFRunner"
 
         super().__init__(runner=runner, **kwargs)
 
-        if runner is None:
-            self.backend = backend
-            self.integrator = integrator
-            self.dt = dt
-            self.temperature_kelvin = temperature_kelvin
-        else:
-            self.backend = getattr(runner, "backend", backend)
-            integrator_cls = getattr(runner, "integrator_cls", None)
-            self.integrator = getattr(integrator_cls, "__name__", None)
-            self.dt = getattr(runner, "dt", None)
-            self.temperature_kelvin = getattr(runner, "temperature_kelvin", None)
+        self.backend = runner.backend
+        self.integrator_name = runner.integrator_cls.__name__
+        self.dt = runner.dt
+        self.target_temperature = runner._integrator_temperature_kelvin  # noqa: SLF001
 
         self._potentials = []
         self._kinetics = []
@@ -47,15 +40,15 @@ Average Kinetic (Hartree): {{ avg_kinetic }}
         kinetics = []
 
         for walker in kwargs.get("new_walkers", []):
-            state_d = walker.state.dict()
+            state = walker.state
 
-            pot = state_d.get("potential", None)
+            pot = state.get("potential")
             if pot is not None:
                 pot_val = float(np.asarray(pot).ravel()[0])
                 if np.isfinite(pot_val):
                     potentials.append(pot_val)
 
-            kin = state_d.get("kinetic", None)
+            kin = state.get("kinetic")
             if kin is not None:
                 kin_val = float(np.asarray(kin).ravel()[0])
                 if np.isfinite(kin_val):
@@ -75,9 +68,9 @@ Average Kinetic (Hartree): {{ avg_kinetic }}
         fields.update(
             {
                 "backend": self.backend,
-                "integrator": self.integrator,
+                "integrator": self.integrator_name,
                 "dt": self.dt,
-                "temperature_kelvin": self.temperature_kelvin,
+                "target_temperature": self.target_temperature,
                 "avg_potential": avg_potential,
                 "avg_kinetic": avg_kinetic,
             }
@@ -104,8 +97,6 @@ class PySCFHDF5Reporter(WepyHDF5Reporter):
         self,
         save_fields=None,
         units=None,
-        wepy_hdf5_path=None,
-        file_paths=None,
         **kwargs,
     ):
         if save_fields is None:
@@ -114,14 +105,8 @@ class PySCFHDF5Reporter(WepyHDF5Reporter):
         if units is None:
             units = dict(UNIT_NAMES)
 
-        # Work around explicit-path handling in FileReporter by always
-        # normalizing to file_paths for this single-file reporter.
-        if file_paths is None and wepy_hdf5_path is not None:
-            file_paths = [wepy_hdf5_path]
-
         super().__init__(
             save_fields=save_fields,
             units=units,
-            file_paths=file_paths,
             **kwargs,
         )

@@ -109,6 +109,147 @@ class ProtonTransferDistance(Distance):
         return abs(float(image_a[0] - image_b[0]))
 
 
+class NormalizedBondAngleDistance(Distance):
+    """Dimensionless bond-progress and angle distance for reactions.
+
+    The image is ``[q_bond, q_angle]``. Smooth logistic bond switches are
+    combined so ``q_bond`` changes from approximately zero when the breaking
+    bond is formed to approximately one when the making bond is formed.
+    ``q_angle`` is either ``theta/pi`` (monotonic angular progress) or
+    ``(1-cos(theta))/2`` (alignment, useful for SN2 backside attack). The
+    distance is a weighted RMS in this normalized feature space.
+
+    Parameters use the same coordinate units as walker positions (Bohr for
+    :class:`~wepy.runners.pyscf.PySCFRunner`).
+    """
+
+    def __init__(
+        self,
+        break_pair,
+        make_pair,
+        angle_triplet,
+        *,
+        r0=3.0,
+        k=3.0,
+        angle_mode: Literal["progress", "alignment"] = "progress",
+        weights=(1.0, 1.0),
+    ) -> None:
+        self.break_pair = tuple(int(i) for i in break_pair)
+        self.make_pair = tuple(int(i) for i in make_pair)
+        self.angle_triplet = tuple(int(i) for i in angle_triplet)
+        if len(self.break_pair) != 2 or len(self.make_pair) != 2:
+            raise ValueError("break_pair and make_pair must each contain two indices")
+        if len(self.angle_triplet) != 3:
+            raise ValueError("angle_triplet must be (outer, vertex, outer)")
+        if r0 <= 0.0 or k <= 0.0:
+            raise ValueError("r0 and k must be positive")
+        if angle_mode not in ("progress", "alignment"):
+            raise ValueError("angle_mode must be 'progress' or 'alignment'")
+        self.r0 = float(r0)
+        self.k = float(k)
+        self.angle_mode = angle_mode
+        self.weights = self._validate_weights(weights, 2)
+
+    @staticmethod
+    def _validate_weights(weights, size):
+        values = np.asarray(weights, dtype=float)
+        if values.shape != (size,) or np.any(values < 0.0) or not np.any(values > 0.0):
+            raise ValueError(f"weights must be {size} non-negative values with at least one positive")
+        return values
+
+    def _switch(self, distance):
+        exponent = np.clip(self.k * (distance - self.r0), -700.0, 700.0)
+        return float(1.0 / (1.0 + np.exp(exponent)))
+
+    @staticmethod
+    def _pair_distance(positions, pair):
+        displacement = positions[pair[0]] - positions[pair[1]]
+        return float(np.linalg.norm(displacement))
+
+    def _geometry_image(self, positions):
+        positions = np.asarray(positions, dtype=float)
+        s_break = self._switch(self._pair_distance(positions, self.break_pair))
+        s_make = self._switch(self._pair_distance(positions, self.make_pair))
+        denominator = s_break + s_make
+        q_bond = 0.5 if denominator <= np.finfo(float).tiny else s_make / denominator
+
+        outer_a, vertex, outer_b = self.angle_triplet
+        vector_a = positions[outer_a] - positions[vertex]
+        vector_b = positions[outer_b] - positions[vertex]
+        norm_product = np.linalg.norm(vector_a) * np.linalg.norm(vector_b)
+        if norm_product <= np.finfo(float).tiny:
+            raise ValueError("Cannot define an angle for coincident atoms")
+        cosine = float(np.clip(np.dot(vector_a, vector_b) / norm_product, -1.0, 1.0))
+        q_angle = float(np.arccos(cosine) / np.pi) if self.angle_mode == "progress" else 0.5 * (1.0 - cosine)
+        return np.asarray([q_bond, q_angle], dtype=float)
+
+    def image(self, state):
+        return self._geometry_image(state["positions"])
+
+    def image_distance(self, image_a, image_b) -> float:
+        delta = np.asarray(image_a, dtype=float) - np.asarray(image_b, dtype=float)
+        if delta.shape != (2,):
+            raise ValueError("Normalized bond-angle images must have shape (2,)")
+        return float(np.sqrt(np.sum(self.weights * delta**2) / np.sum(self.weights)))
+
+
+class NormalizedBondAngleChargeDistance(NormalizedBondAngleDistance):
+    """Normalized bond-angle metric plus endpoint-projected atomic charges.
+
+    The charge coordinate is the projection of the current atomic-charge
+    vector onto ``reactant_charges -> product_charges``. It is zero and one at
+    those references, respectively. Values are intentionally not clipped.
+    """
+
+    def __init__(
+        self,
+        break_pair,
+        make_pair,
+        angle_triplet,
+        reactant_charges,
+        product_charges,
+        *,
+        charge_key="charges",
+        allow_initial_nan_charges=False,
+        weights=(1.0, 1.0, 1.0),
+        **geometry_kwargs,
+    ) -> None:
+        super().__init__(
+            break_pair,
+            make_pair,
+            angle_triplet,
+            weights=(1.0, 1.0),
+            **geometry_kwargs,
+        )
+        self.reactant_charges = np.asarray(reactant_charges, dtype=float).ravel()
+        self.product_charges = np.asarray(product_charges, dtype=float).ravel()
+        if self.reactant_charges.shape != self.product_charges.shape:
+            raise ValueError("Reactant and product charge arrays must have the same shape")
+        self.charge_delta = self.product_charges - self.reactant_charges
+        self.charge_denominator = float(np.dot(self.charge_delta, self.charge_delta))
+        if self.charge_denominator <= np.finfo(float).eps:
+            raise ValueError("Endpoint charge vectors are too similar to define a projection")
+        self.charge_key = str(charge_key)
+        self.allow_initial_nan_charges = bool(allow_initial_nan_charges)
+        self.weights = self._validate_weights(weights, 3)
+
+    def image(self, state):
+        geometry = self._geometry_image(state["positions"])
+        charges = np.asarray(state[self.charge_key], dtype=float).ravel()
+        if self.allow_initial_nan_charges and charges.size == 1 and np.all(np.isnan(charges)):
+            charges = self.reactant_charges
+        if charges.shape != self.reactant_charges.shape or not np.all(np.isfinite(charges)):
+            raise ValueError("Walker charges are missing, non-finite, or incompatible with references")
+        q_charge = float(np.dot(charges - self.reactant_charges, self.charge_delta) / self.charge_denominator)
+        return np.asarray([geometry[0], geometry[1], q_charge], dtype=float)
+
+    def image_distance(self, image_a, image_b) -> float:
+        delta = np.asarray(image_a, dtype=float) - np.asarray(image_b, dtype=float)
+        if delta.shape != (3,):
+            raise ValueError("Normalized bond-angle-charge images must have shape (3,)")
+        return float(np.sqrt(np.sum(self.weights * delta**2) / np.sum(self.weights)))
+
+
 class DihedralDistance(Distance):
     """Distance based on one or more dihedral (torsion) angles.
 
@@ -198,9 +339,7 @@ class ChargeDistance(Distance):
     """
 
     def __init__(self, atom_indices=None, charge_key: str = "charges") -> None:
-        self.atom_indices = (
-            None if atom_indices is None else np.asarray(atom_indices, dtype=int)
-        )
+        self.atom_indices = None if atom_indices is None else np.asarray(atom_indices, dtype=int)
         self.charge_key = charge_key
 
     def image(self, state):
@@ -438,8 +577,7 @@ class HOMOLUMOGapDistance(Distance):
     def image_distance(self, image_a, image_b) -> float:
         return float(
             abs(
-                np.asarray(image_a, dtype=float)[0]
-                - np.asarray(image_b, dtype=float)[0],
+                np.asarray(image_a, dtype=float)[0] - np.asarray(image_b, dtype=float)[0],
             ),
         )
 
@@ -450,8 +588,8 @@ class DielsAlderBondOrderLikeDistance(Distance):
     def __init__(
         self,
         bond_pairs=((0, 11), (3, 10)),
-        r0=4.0,      # midpoint in Bohr; ~2.1 Å
-        k=2.0,       # steepness in 1/Bohr
+        r0=4.0,  # midpoint in Bohr; ~2.1 Å
+        k=2.0,  # steepness in 1/Bohr
         async_weight=1.0,
     ):
         self.bond_pairs = tuple(bond_pairs)
@@ -465,13 +603,13 @@ class DielsAlderBondOrderLikeDistance(Distance):
     def image(self, state):
         pos = np.asarray(state["positions"], dtype=float)
 
-        r1 = np.linalg.norm(pos[0] - pos[11])   # C1-C12
-        r2 = np.linalg.norm(pos[3] - pos[10])   # C4-C11
+        r1 = np.linalg.norm(pos[0] - pos[11])  # C1-C12
+        r2 = np.linalg.norm(pos[3] - pos[10])  # C4-C11
 
         q1 = self._switch(r1)
         q2 = self._switch(r2)
 
-        progress = 0.5 * (q1 + q2)              # 0 reactant-like, 1 product-like
+        progress = 0.5 * (q1 + q2)  # 0 reactant-like, 1 product-like
         asynchronicity = abs(q1 - q2)
 
         return np.array(
@@ -484,3 +622,355 @@ class DielsAlderBondOrderLikeDistance(Distance):
 
     def image_distance(self, image_a, image_b):
         return float(np.linalg.norm(np.asarray(image_a) - np.asarray(image_b)))
+
+
+class DielsAlderCappedFormingBondDistance(Distance):
+    """REVO metric based directly on the two forming Diels-Alder distances.
+
+    The walker image is::
+
+        [mean(capped_r1, capped_r2) / mean_scale,
+         abs(capped_r1 - capped_r2) / async_scale]
+
+    Positions are expected in Bohr. Capping each distance prevents increasingly
+    separated reactants from gaining unlimited novelty in REVO image space.
+
+    Parameters
+    ----------
+    bond_pairs : sequence of two atom-index pairs
+        The two forming-bond pairs, using zero-based atom indices.
+    r_cap : float
+        Per-bond outward cap in Bohr. Distances larger than this value are
+        represented by ``r_cap``.
+    mean_scale : float
+        Scale for the mean-distance coordinate, in Bohr.
+    async_scale : float
+        Scale for the asynchronicity coordinate, in Bohr.
+    """
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r_cap=9.0,
+        mean_scale=1.0,
+        async_scale=1.0,
+    ) -> None:
+        pairs = tuple(tuple(int(atom) for atom in pair) for pair in bond_pairs)
+        if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
+            raise ValueError("bond_pairs must contain exactly two atom-index pairs")
+        if r_cap <= 0:
+            raise ValueError("r_cap must be positive")
+        if mean_scale <= 0 or async_scale <= 0:
+            raise ValueError("mean_scale and async_scale must be positive")
+
+        self.bond_pairs = pairs
+        self.r_cap = float(r_cap)
+        self.mean_scale = float(mean_scale)
+        self.async_scale = float(async_scale)
+
+    def _forming_distances(self, state):
+        positions = np.asarray(state["positions"], dtype=float)
+        distances = np.asarray(
+            [np.linalg.norm(positions[i] - positions[j]) for i, j in self.bond_pairs],
+            dtype=float,
+        )
+        return np.minimum(distances, self.r_cap)
+
+    def image(self, state):
+        r1, r2 = self._forming_distances(state)
+        mean_distance = 0.5 * (r1 + r2)
+        asynchronicity = abs(r1 - r2)
+
+        return np.asarray(
+            [
+                mean_distance / self.mean_scale,
+                asynchronicity / self.async_scale,
+            ],
+            dtype=float,
+        )
+
+    def image_distance(self, image_a, image_b) -> float:
+        return float(
+            np.linalg.norm(
+                np.asarray(image_a, dtype=float) - np.asarray(image_b, dtype=float),
+            ),
+        )
+
+
+class DielsAlderSigmoidFormingBondDistance(Distance):
+    """Smooth, bounded Diels-Alder forming-bond metric.
+
+    Unlike the former ``DielsAlderBondOrderLikeDistance``, this implementation
+    uses ``self.bond_pairs`` rather than hard-coded atom indices. Each forming
+    distance is capped before applying the sigmoid.
+
+    The walker image is::
+
+        [0.5 * (q1 + q2), async_weight * abs(q1 - q2)]
+
+    where ``q(r) = 1 / (1 + exp(k * (r - r0)))``.
+
+    Positions, ``r0``, and ``r_cap`` are in Bohr; ``k`` is in Bohr**-1.
+    """
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r0=7.0,
+        k=0.7,
+        r_cap=9.0,
+        async_weight=1.0,
+    ) -> None:
+        pairs = tuple(tuple(int(atom) for atom in pair) for pair in bond_pairs)
+        if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
+            raise ValueError("bond_pairs must contain exactly two atom-index pairs")
+        if r0 <= 0 or r_cap <= 0:
+            raise ValueError("r0 and r_cap must be positive")
+        if k <= 0:
+            raise ValueError("k must be positive")
+        if async_weight < 0:
+            raise ValueError("async_weight must be non-negative")
+
+        self.bond_pairs = pairs
+        self.r0 = float(r0)
+        self.k = float(k)
+        self.r_cap = float(r_cap)
+        self.async_weight = float(async_weight)
+
+    def _switch(self, distance):
+        exponent = np.clip(self.k * (distance - self.r0), -700.0, 700.0)
+        return 1.0 / (1.0 + np.exp(exponent))
+
+    def _forming_distances(self, state):
+        positions = np.asarray(state["positions"], dtype=float)
+        distances = np.asarray(
+            [np.linalg.norm(positions[i] - positions[j]) for i, j in self.bond_pairs],
+            dtype=float,
+        )
+        return np.minimum(distances, self.r_cap)
+
+    def image(self, state):
+        r1, r2 = self._forming_distances(state)
+        q1 = self._switch(r1)
+        q2 = self._switch(r2)
+
+        progress = 0.5 * (q1 + q2)
+        asynchronicity = abs(q1 - q2)
+
+        return np.asarray(
+            [
+                progress,
+                self.async_weight * asynchronicity,
+            ],
+            dtype=float,
+        )
+
+    def image_distance(self, image_a, image_b) -> float:
+        return float(
+            np.linalg.norm(
+                np.asarray(image_a, dtype=float) - np.asarray(image_b, dtype=float),
+            ),
+        )
+
+
+class DielsAlderTwoBondDistance(Distance):
+    """Direct distance metric for the two forming Diels-Alder bonds.
+
+    Each walker is represented as:
+
+        [r_forming_1, r_forming_2]
+
+    Positions and returned distances are in Bohr.
+
+    Parameters
+    ----------
+    bond_pairs
+        The two forming-bond atom pairs, using zero-based indexing.
+    r_cap
+        Optional upper cap in Bohr. Set to None for completely uncapped
+        distances. A finite cap prevents continued reactant separation from
+        producing unlimited novelty.
+    """
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r_cap=None,
+    ):
+        bond_pairs = tuple(tuple(int(index) for index in pair) for pair in bond_pairs)
+
+        if len(bond_pairs) != 2:
+            raise ValueError("bond_pairs must contain exactly two forming-bond pairs")
+
+        if any(len(pair) != 2 for pair in bond_pairs):
+            raise ValueError("Each entry in bond_pairs must contain two atom indices")
+
+        if r_cap is not None and r_cap <= 0:
+            raise ValueError("r_cap must be positive or None")
+
+        self.bond_pairs = bond_pairs
+        self.r_cap = None if r_cap is None else float(r_cap)
+
+    @staticmethod
+    def _pair_distance(positions, pair):
+        atom_i, atom_j = pair
+        return float(np.linalg.norm(positions[atom_i] - positions[atom_j]))
+
+    def image(self, state):
+        positions = np.asarray(state["positions"], dtype=float)
+
+        distances = np.asarray(
+            [self._pair_distance(positions, pair) for pair in self.bond_pairs],
+            dtype=float,
+        )
+
+        if self.r_cap is not None:
+            distances = np.minimum(distances, self.r_cap)
+
+        return distances
+
+    def image_distance(self, image_a, image_b):
+        image_a = np.asarray(image_a, dtype=float)
+        image_b = np.asarray(image_b, dtype=float)
+
+        if image_a.shape != image_b.shape:
+            raise ValueError("Diels-Alder images must have the same shape")
+
+        return float(np.sqrt(np.mean((image_a - image_b) ** 2)))
+
+
+class DielsAlderTwoBondDistance(Distance):
+    """Direct two-coordinate metric for the two forming Diels-Alder bonds.
+
+    The walker image is ``[r1, r2]`` in Bohr. Returning the two distances
+    directly preserves which forming bond leads an asynchronous pathway.
+    """
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r_cap=None,
+    ):
+        pairs = tuple(tuple(int(atom_index) for atom_index in pair) for pair in bond_pairs)
+        if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
+            raise ValueError(
+                "bond_pairs must contain exactly two atom-index pairs",
+            )
+        if r_cap is not None and r_cap <= 0:
+            raise ValueError("r_cap must be positive or None")
+
+        self.bond_pairs = pairs
+        self.r_cap = None if r_cap is None else float(r_cap)
+
+    def image(self, state):
+        positions = np.asarray(state["positions"], dtype=float)
+        distances = np.asarray(
+            [
+                np.linalg.norm(
+                    positions[atom_i] - positions[atom_j],
+                )
+                for atom_i, atom_j in self.bond_pairs
+            ],
+            dtype=float,
+        )
+        if self.r_cap is not None:
+            distances = np.minimum(distances, self.r_cap)
+        return distances
+
+    def image_distance(self, image_a, image_b):
+        image_a = np.asarray(image_a, dtype=float)
+        image_b = np.asarray(image_b, dtype=float)
+        if image_a.shape != (2,) or image_b.shape != (2,):
+            raise ValueError(
+                "DielsAlderTwoBondDistance images must have shape (2,)",
+            )
+        return float(np.sqrt(np.mean((image_a - image_b) ** 2)))
+
+
+class DielsAlderTwoSigmoidBondDistance(Distance):
+    """Bounded two-coordinate metric for the two forming Diels-Alder bonds.
+
+    Unlike a ``[mean(q), abs(q1-q2)]`` representation, this class returns
+    ``[q1, q2]`` directly and therefore preserves which forming bond leads an
+    asynchronous pathway.
+
+    Parameters
+    ----------
+    bond_pairs
+        Exactly two zero-based forming-bond atom pairs.
+    r0
+        Sigmoid midpoint in Bohr.
+    k
+        Sigmoid steepness in 1/Bohr.
+    r_cap
+        Optional upper cap in Bohr. With a physical outer COM wall, ``None`` is
+        recommended because the sigmoid already compresses outward motion.
+
+    Notes
+    -----
+    ``q(r) = 1 / (1 + exp(k*(r-r0)))``.
+
+    Product-like short distances have q near one; separated reactants have q
+    near zero. ``image_distance`` is the RMS difference in the two q values.
+    """
+
+    def __init__(
+        self,
+        bond_pairs=((0, 11), (3, 10)),
+        r0=5.0,
+        k=1.0,
+        r_cap=None,
+    ):
+        pairs = tuple(tuple(int(atom_index) for atom_index in pair) for pair in bond_pairs)
+        if len(pairs) != 2 or any(len(pair) != 2 for pair in pairs):
+            raise ValueError(
+                "bond_pairs must contain exactly two atom-index pairs",
+            )
+        if r0 <= 0:
+            raise ValueError("r0 must be positive (Bohr)")
+        if k <= 0:
+            raise ValueError("k must be positive (1/Bohr)")
+        if r_cap is not None and r_cap <= 0:
+            raise ValueError("r_cap must be positive or None")
+
+        self.bond_pairs = pairs
+        self.r0 = float(r0)
+        self.k = float(k)
+        self.r_cap = None if r_cap is None else float(r_cap)
+
+    def _switch(self, distance):
+        exponent = np.clip(
+            self.k * (distance - self.r0),
+            -700.0,
+            700.0,
+        )
+        return 1.0 / (1.0 + np.exp(exponent))
+
+    def image(self, state):
+        positions = np.asarray(state["positions"], dtype=float)
+        distances = np.asarray(
+            [
+                np.linalg.norm(
+                    positions[atom_i] - positions[atom_j],
+                )
+                for atom_i, atom_j in self.bond_pairs
+            ],
+            dtype=float,
+        )
+
+        if self.r_cap is not None:
+            distances = np.minimum(distances, self.r_cap)
+
+        return np.asarray(
+            [self._switch(distance) for distance in distances],
+            dtype=float,
+        )
+
+    def image_distance(self, image_a, image_b):
+        image_a = np.asarray(image_a, dtype=float)
+        image_b = np.asarray(image_b, dtype=float)
+        if image_a.shape != (2,) or image_b.shape != (2,):
+            raise ValueError(
+                "DielsAlderTwoSigmoidBondDistance images must have shape (2,)",
+            )
+        return float(np.sqrt(np.mean((image_a - image_b) ** 2)))
