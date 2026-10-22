@@ -51,6 +51,8 @@ if __name__ == "__main__":
             pmin=1e-12,
             pmax=0.99,
         ),
+        # Boundary conditions
+        boundary_conditions_parameters=None,
         # Initialization
         initialize_velocities=True,
         unique_initial_velocities=True,

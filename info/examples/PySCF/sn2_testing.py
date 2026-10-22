@@ -59,11 +59,7 @@ if __name__ == "__main__":
             pmax=0.20,
         ),
         # Boundary conditions
-        use_boundary_conditions=True,
-        break_pairs=[BREAK_PAIR],
-        break_cutoffs=[BREAK_CUTOFF_BOHR],
-        make_pairs=[MAKE_PAIR],
-        make_cutoffs=[MAKE_CUTOFF_BOHR],
+        boundary_conditions_parameters=None,
         # Initialization
         initialize_velocities=True,
         unique_initial_velocities=True,

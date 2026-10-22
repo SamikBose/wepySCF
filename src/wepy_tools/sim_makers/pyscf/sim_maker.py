@@ -454,28 +454,32 @@ class PySCFSimMaker:
         )
 
     def make_bc(self, walkers, source_walkers):
-        config = self.config
-
-        if not config.use_boundary_conditions:
+        boundary_conditions_parameters = self.config.boundary_conditions_parameters
+        if boundary_conditions_parameters is None:
             return NoBC()
 
-        # FIXME: Is this used anymore?
-        return PySCFBondDistanceBC(
-            n_walkers=len(walkers),
-            initial_states=[walker.state for walker in walkers],
-            break_pairs=config.break_pairs,
-            break_cutoffs=config.break_cutoffs,
-            make_pairs=config.make_pairs,
-            make_cutoffs=config.make_cutoffs,
-        )
-        # return PySCFMultiBoundaryBC(
-        #     n_walkers=len(walkers),
-        #     # TODO: deepcopy needed here?
-        #     initial_states=[deepcopy(walker.state) for walker in source_walkers],
-        #     initial_weights=[walker.weight for walker in source_walkers],
-        #     boundary_definitions=config.boundary_definitions,
-        #     tracked_pairs=config.tracked_boundary_pairs,
-        # )
+        if boundary_conditions_parameters.bc_type is PySCFBondDistanceBC:
+            return PySCFBondDistanceBC(
+                n_walkers=len(walkers),
+                initial_states=[walker.state for walker in walkers],
+                break_pairs=boundary_conditions_parameters.break_pairs,
+                break_cutoffs=boundary_conditions_parameters.break_cutoffs,
+                make_pairs=boundary_conditions_parameters.make_pairs,
+                make_cutoffs=boundary_conditions_parameters.make_cutoffs,
+            )
+        elif boundary_conditions_parameters.bc_type is PySCFMultiBoundaryBC:
+            return PySCFMultiBoundaryBC(
+                n_walkers=len(walkers),
+                # TODO: deepcopy needed here?
+                initial_states=[deepcopy(walker.state) for walker in source_walkers],
+                initial_weights=[walker.weight for walker in source_walkers],
+                boundary_definitions=boundary_conditions_parameters.boundary_definitions,
+                tracked_pairs=boundary_conditions_parameters.tracked_boundary_pairs,
+            )
+        else:
+            raise ValueError(
+                f"Unknown boundary_conditions_parameters.bc_type: {boundary_conditions_parameters.bc_type}"
+            )
 
     def make_apparatus(self, walkers, source_walkers):
         """Return (runner, resampler, boundary_conditions)."""

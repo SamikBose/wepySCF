@@ -9,6 +9,7 @@ from typing import Literal
 from pyscf.md.integrators import LangevinMiddle, _Integrator
 
 # First Party Library
+from wepy.boundary_conditions.pyscf import PySCFBondDistanceBC, PySCFMultiBoundaryBC
 from wepy.resampling.distances.distance import Distance
 
 
@@ -67,11 +68,18 @@ class PySCFSimMakerConfig:
     #
     # Boundary conditions
     #
-    use_boundary_conditions: bool = False
-    break_pairs: list[tuple[int, int]] = field(default_factory=list)
-    break_cutoffs: list[float] = field(default_factory=list)
-    make_pairs: list[tuple[int, int]] = field(default_factory=list)
-    make_cutoffs: list[float] = field(default_factory=list)
+    @dataclass
+    class BoundaryConditionsParameters:
+        bc_type: PySCFBondDistanceBC | PySCFMultiBoundaryBC = PySCFBondDistanceBC
+        break_pairs: list[tuple[int, int]] = field(default_factory=list)
+        break_cutoffs: list[float] = field(default_factory=list)
+        make_pairs: list[tuple[int, int]] = field(default_factory=list)
+        make_cutoffs: list[float] = field(default_factory=list)
+        boundary_definitions: list = field(default_factory=list)  # TODO: What is this a list of?
+        tracked_pairs: list[tuple[int, int]] = field(default_factory=list)
+
+    # If boundary_conditions_parameters is None, then no boundary conditions are used (NoBC)
+    boundary_conditions_parameters: BoundaryConditionsParameters | None = None
 
     #
     # Initial ensemble / initialization
