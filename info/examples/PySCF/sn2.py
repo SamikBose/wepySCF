@@ -18,6 +18,7 @@ from pyscf.data.nist import BOHR
 from pyscf.md.integrators import LangevinMiddle
 
 # First Party Library
+from wepy.boundary_conditions.pyscf import PySCFBondDistanceBC
 from wepy.resampling.distances.pyscf import ProtonTransferDistance
 from wepy_tools.sim_makers.pyscf.cli import parse_args
 from wepy_tools.sim_makers.pyscf.config import PySCFSimMakerConfig
@@ -61,11 +62,13 @@ if __name__ == "__main__":
             pmax=0.20,
         ),
         # Boundary conditions
-        use_boundary_conditions=True,
-        break_pairs=[BREAK_PAIR],
-        break_cutoffs=[BREAK_CUTOFF_BOHR],
-        make_pairs=[MAKE_PAIR],
-        make_cutoffs=[MAKE_CUTOFF_BOHR],
+        boundary_conditions_parameters=PySCFSimMakerConfig.BoundaryConditionsParameters(
+            bc_type=PySCFBondDistanceBC,
+            break_pairs=[BREAK_PAIR],
+            break_cutoffs=[BREAK_CUTOFF_BOHR],
+            make_pairs=[MAKE_PAIR],
+            make_cutoffs=[MAKE_CUTOFF_BOHR],
+        ),
         # Initialization
         initialize_velocities=True,
         unique_initial_velocities=True,
