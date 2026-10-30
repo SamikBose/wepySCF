@@ -838,6 +838,7 @@ class DaskOpenMMRunner(OpenMMRunner):
 
         return OpenMMWalker(new_state, walker.weight)
 
+# TODO: Do we need custom dask runner? Probably not
 
 class OpenMMRunnerFactory:
     """Picklable, no-argument callable that builds a DaskOpenMMRunner.

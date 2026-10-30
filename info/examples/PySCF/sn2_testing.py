@@ -15,7 +15,7 @@ from pathlib import Path
 
 # Third Party Library
 from pyscf.data.nist import BOHR
-from pyscf.md.integrators import LangevinMiddle
+from pyscf.md.integrators import VelocityVerlet
 
 # First Party Library
 from wepy.resampling.distances.pyscf import ProtonTransferDistance
@@ -37,9 +37,9 @@ if __name__ == "__main__":
         topology_file_path=str(Path(__file__).resolve().parent / "sn2_opt.pdb"),
         system_name="SN2_testing",
         # Simulation parameters
-        backend="GPU",
-        n_walkers=4,
-        n_cycles=5,
+        backend="CPU",
+        n_walkers=16,
+        n_cycles=50,
         segment_length=1,
         # PySCF runner parameters
         basis="sto-3g",
@@ -48,7 +48,7 @@ if __name__ == "__main__":
         dt=21,
         temperature_kelvin=100.0,
         # PySCF integrator and kwargs passed to it
-        integrator_cls=LangevinMiddle,
+        integrator_cls=VelocityVerlet,
         integrator_kwargs={"friction_coef": 1.0},
         # Distance metric and resampler parameters
         distance_metric=ProtonTransferDistance(break_pair=BREAK_PAIR, make_pair=MAKE_PAIR),
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         use_scanner_caching=True,
         # Output control
         write_h5=False,
-        write_dash=False,
+        write_dash=True,
         store_pickles=False,
         overwrite=False,
     )

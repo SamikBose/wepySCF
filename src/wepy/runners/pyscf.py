@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 import os
 import uuid
 from collections import OrderedDict
+from copy import deepcopy
 from time import perf_counter
 from typing import Literal
 
@@ -180,7 +181,7 @@ class PySCFRunner(Runner):
         xc: str | None = None,
         population_method: Literal["mulliken", "meta-lowdin", "lowdin"] = "meta-lowdin",
         dt: int = 21,
-        integrator_cls: pyscf_md_integrators._Integrator = pyscf_md_integrators.VelocityVerlet,
+        integrator_cls: pyscf_md_integrators._Integrator = pyscf_md_integrators.VelocityVerlet,  # TODO: No default?
         integrator_kwargs: dict | None = None,
         integrator_temperature_kelvin: float = 300.0,
         density_grid_shape: tuple[int, int, int] | None = None,
@@ -203,7 +204,13 @@ class PySCFRunner(Runner):
         self._use_density_fitting = bool(use_density_fitting)
         self.auxbasis = auxbasis
         self._use_scanner_caching = bool(use_scanner_caching)
-        self.scanner_cache_capacity = scanner_cache_capacity
+        # self.scanner_cache_capacity = scanner_cache_capacity
+
+        self._scanner_cache = LRUDict(max_len=scanner_cache_capacity)
+
+        # Needed for DaskMapper
+        self.platform_name = "CUDA" if self.backend == "GPU" else "CPU"
+        self.platform_kwargs = {}
 
         if self.method not in self.SUPPORTED_METHODS:
             raise ValueError(
@@ -429,8 +436,9 @@ class PySCFRunner(Runner):
         state: PySCFState = walker.state
 
         scanner_cache: LRUDict = kwargs.get("scanner_cache")
-        if len(scanner_cache) == 0:
-            scanner_cache.max_len = self.scanner_cache_capacity
+        if scanner_cache is None and self._use_scanner_caching:
+            scanner_cache = self._scanner_cache
+            # scanner_cache.max_len = self.scanner_cache_capacity
 
         last_velocities = state.get("velocities")
         last_accelerations = state.get("accelerations")
@@ -564,6 +572,85 @@ class PySCFRunner(Runner):
         return new_walker
 
 
+class PySCFRunnerFactory:
+    """Picklable, no-argument callable that builds a PySCFRunner.
+
+    Holds only the plain constructor arguments of PySCFRunner, so it can be
+    sent to another process and build the runner there. The molecule is not
+    stored here: it travels with each walker's PySCFState.
+
+    Parameters
+    ----------
+    Parameters are those of PySCFRunner.
+    """
+
+    def __init__(
+        self,
+        backend: str = "CPU",
+        method: Literal["RHF", "UHF", "RKS", "UKS"] = "RHF",
+        xc: str | None = None,
+        population_method: Literal["mulliken", "meta-lowdin", "lowdin"] = "meta-lowdin",
+        dt: int = 21,
+        integrator_cls: pyscf_md_integrators._Integrator = pyscf_md_integrators.VelocityVerlet,
+        integrator_kwargs: dict | None = None,
+        integrator_temperature_kelvin: float = 300.0,
+        density_grid_shape: tuple[int, int, int] | None = None,
+        density_grid_padding: float = 2.0,
+        use_density_fitting: bool = False,
+        auxbasis: str | None = None,
+        use_scanner_caching: bool = False,
+        scanner_cache_capacity: int = 8,
+    ) -> None:
+        self.runner_kwargs = {
+            "backend": backend,
+            "method": method,
+            "xc": xc,
+            "population_method": population_method,
+            "dt": dt,
+            "integrator_kwargs": integrator_kwargs,
+            "integrator_temperature_kelvin": integrator_temperature_kelvin,
+            "density_grid_shape": density_grid_shape,
+            "density_grid_padding": density_grid_padding,
+            "use_density_fitting": use_density_fitting,
+            "auxbasis": auxbasis,
+            "use_scanner_caching": use_scanner_caching,
+            "scanner_cache_capacity": scanner_cache_capacity,
+        }
+        # Only pass integrator_cls if given so PySCFRunner's default applies
+        if integrator_cls is not None:
+            self.runner_kwargs["integrator_cls"] = integrator_cls
+
+    @classmethod
+    def from_runner(cls, runner):
+        """Build a factory from an existing PySCFRunner's settings."""
+        # run_segment writes T and rng into integrator_kwargs in place; drop
+        # rng so every runner the factory builds draws its own noise stream
+        integrator_kwargs = {k: v for k, v in runner.integrator_kwargs.items() if k != "rng"}
+        return cls(
+            backend=runner.backend,
+            method=runner.method,
+            xc=runner.xc,
+            population_method=runner.population_method,
+            dt=runner.dt,
+            integrator_cls=runner.integrator_cls,
+            integrator_kwargs=integrator_kwargs,
+            integrator_temperature_kelvin=runner._integrator_temperature_kelvin,  # noqa: SLF001
+            density_grid_shape=runner.density_grid_shape,
+            density_grid_padding=runner.density_grid_padding,
+            use_density_fitting=runner._use_density_fitting,  # noqa: SLF001
+            auxbasis=runner.auxbasis,
+            use_scanner_caching=runner._use_scanner_caching,  # noqa: SLF001
+            scanner_cache_capacity=runner.scanner_cache_capacity,
+        )
+
+    def __call__(self):
+        """Build a PySCFRunner from the stored settings."""
+        kwargs = dict(self.runner_kwargs)
+        # Copy so runners don't share (and mutate) one integrator_kwargs dict
+        kwargs["integrator_kwargs"] = deepcopy(kwargs["integrator_kwargs"])
+        return PySCFRunner(**kwargs)
+
+
 # TODO: Walkers are not guarenteed to run on same GPU every time so scanner cache is only used sometimes
 
 
@@ -635,3 +722,6 @@ class PySCFGPUWorkerMapper(WorkerMapper):
             device_ids=device_ids,
             **kwargs,
         )
+
+
+from wepy.work_mapper.dask_mapper import DaskMapper

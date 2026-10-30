@@ -15,3 +15,7 @@ pyscf = ">=2.13.0,<3"
 setuptools = "<=81.0.0" # mdtraj uses pkg_resources which requires <81
 nox = ">=2026.4.10,<2027"
 virtualenv = ">=21.3.0,<22"
+dask = ">=2026.8.0,<2027"
+
+[pypi-dependencies]
+wepy = { path = ".", editable = true }

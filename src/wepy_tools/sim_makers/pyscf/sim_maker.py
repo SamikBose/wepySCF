@@ -24,9 +24,18 @@ from wepy.reporter.pyscf import PySCFHDF5Reporter, PySCFRunnerDashboardSection
 from wepy.reporter.walker_pkl import WalkerPklReporter
 from wepy.resampling.resamplers.pyscf import PySCFREVOResampler
 from wepy.resampling.resamplers.resampler import NoResampler
-from wepy.runners.pyscf import PySCFCPUWorkerMapper, PySCFGPUWorkerMapper, PySCFRunner, PySCFState, PySCFWalker
+from wepy.runners.pyscf import (
+    PySCFCPUWorkerMapper,
+    PySCFGPUWorkerMapper,
+    PySCFRunner,
+    PySCFRunnerFactory,
+    PySCFState,
+    PySCFWalker,
+)
 from wepy.sim_manager import Manager
 from wepy.util.mdtraj import mdtraj_to_json_topology
+from wepy.work_mapper.dask_mapper import DaskMapper
+from wepy.work_mapper.slurm_cluster import slurm_dask_cluster
 from wepy_tools.sim_makers.pyscf.config import PySCFSimMakerConfig
 
 AMU_TO_ELECTRON_MASS = AMU2AU
@@ -107,13 +116,13 @@ class PySCFSimMaker:
             raise ValueError(
                 "Starting geometry is not pathway-symmetric: "
                 f"competing distances={competing[0]:.10f}, {competing[1]:.10f} A; "
-                f"asymmetry={asymmetry:.3e} A > tolerance={tolerance:.3e} A"
+                f"asymmetry={asymmetry:.3e} A > tolerance={tolerance:.3e} A",
             )
 
         print(
             "Starting pathway symmetry: "
             f"competing distances={competing[0]:.10f}, {competing[1]:.10f} A; "
-            f"asymmetry={asymmetry:.3e} A"
+            f"asymmetry={asymmetry:.3e} A",
         )
 
     def build_mol(self, symbols, positions):
@@ -198,7 +207,7 @@ class PySCFSimMaker:
 
         # PySCF norm_mode = mass_amu^(-1/2) e. Convert it to e/sqrt(m_e).
         mass_weighted_modes = cartesian_modes * np.sqrt(
-            np.asarray(masses_electron / AMU_TO_ELECTRON_MASS)[None, :, None]
+            np.asarray(masses_electron / AMU_TO_ELECTRON_MASS)[None, :, None],
         )
         cartesian_modes_au = mass_weighted_modes / np.sqrt(masses_electron)[None, :, None]
         stable = np.flatnonzero(frequencies > 0.0)
@@ -233,7 +242,10 @@ class PySCFSimMaker:
             unstable_qdot = np.sqrt(-2.0 * kbt * np.log(rng.uniform()))
             velocity += direction * unstable_qdot * unstable_vector
             sample_positions, velocity = self._remove_rigid_motion(
-                reference + displacement, velocity, reference, masses_electron
+                reference + displacement,
+                velocity,
+                reference,
+                masses_electron,
             )
             samples.append((sample_positions, velocity))
 
@@ -243,7 +255,7 @@ class PySCFSimMaker:
 
         print(
             f"Initialized {config.n_walkers // 2} classical normal-mode TS samples and "
-            f"{config.n_walkers // 2} exact C2 partners (seed={config.initial_ensemble_seed})"
+            f"{config.n_walkers // 2} exact C2 partners (seed={config.initial_ensemble_seed})",
         )
         return samples
 
@@ -376,7 +388,7 @@ class PySCFSimMaker:
                 if from_branch is not None:
                     raise ValueError(
                         f"Sub-step directory already exists and overwrite is disabled: "
-                        f"{osp.join(output_directory, sub_directory)}"
+                        f"{osp.join(output_directory, sub_directory)}",
                     )
 
                 # Create new versioned branch directory if not overwriting
@@ -420,9 +432,9 @@ class PySCFSimMaker:
     # Apparatus construction
     #
 
-    def make_runner(self):
+    def make_runner_factory(self):
         config = self.config
-        return PySCFRunner(
+        return PySCFRunnerFactory(
             backend=config.backend,
             method=config.method,
             xc=config.xc,
@@ -437,6 +449,24 @@ class PySCFSimMaker:
             use_scanner_caching=config.use_scanner_caching,
             scanner_cache_capacity=config.scanner_cache_capacity,
         )
+
+    # def make_runner(self):
+    #     config = self.config
+    #     return PySCFRunner(
+    #         backend=config.backend,
+    #         method=config.method,
+    #         xc=config.xc,
+    #         population_method=config.population_method,
+    #         dt=config.dt,
+    #         integrator_cls=config.integrator_cls,
+    #         integrator_kwargs=config.integrator_kwargs,
+    #         integrator_temperature_kelvin=config.temperature_kelvin,
+    #         density_grid_shape=config.density_grid_shape,
+    #         use_density_fitting=config.use_density_fitting,
+    #         auxbasis=config.auxbasis,
+    #         use_scanner_caching=config.use_scanner_caching,
+    #         scanner_cache_capacity=config.scanner_cache_capacity,
+    #     )
 
     def make_resampler(self, init_state):
         config = self.config
@@ -467,7 +497,7 @@ class PySCFSimMaker:
                 make_pairs=boundary_conditions_parameters.make_pairs,
                 make_cutoffs=boundary_conditions_parameters.make_cutoffs,
             )
-        elif boundary_conditions_parameters.bc_type is PySCFMultiBoundaryBC:
+        if boundary_conditions_parameters.bc_type is PySCFMultiBoundaryBC:
             return PySCFMultiBoundaryBC(
                 n_walkers=len(walkers),
                 # TODO: deepcopy needed here?
@@ -476,14 +506,14 @@ class PySCFSimMaker:
                 boundary_definitions=boundary_conditions_parameters.boundary_definitions,
                 tracked_pairs=boundary_conditions_parameters.tracked_boundary_pairs,
             )
-        else:
-            raise ValueError(
-                f"Unknown boundary_conditions_parameters.bc_type: {boundary_conditions_parameters.bc_type}"
-            )
+        raise ValueError(
+            f"Unknown boundary_conditions_parameters.bc_type: {boundary_conditions_parameters.bc_type}",
+        )
 
-    def make_apparatus(self, walkers, source_walkers):
+    def make_apparatus(self, walkers, source_walkers, runner_factory):
         """Return (runner, resampler, boundary_conditions)."""
-        runner = self.make_runner()
+        # runner = self.make_runner()
+        runner = runner_factory()  # Local runner for Manager and reporters
         resampler = self.make_resampler(walkers[0].state)
         boundary_conditions = self.make_bc(walkers, source_walkers)
 
@@ -493,44 +523,54 @@ class PySCFSimMaker:
     # Work mapper
     #
 
-    def _make_cpu_mapper(self):
-        return PySCFCPUWorkerMapper(num_workers=self.config.n_walkers)
+    # def _make_cpu_mapper(self):
+    #     return PySCFCPUWorkerMapper(num_workers=self.config.n_walkers)
 
-    def _resolve_gpu_device_ids(self):
-        config = self.config
+    # def _resolve_gpu_device_ids(self):
+    #     config = self.config
 
-        cuda_visible_devices = config._cuda_visible_devices_env_var
-        if cuda_visible_devices == "":
-            raise RuntimeError("No GPUs available: CUDA_VISIBLE_DEVICES is not set or empty.")
+    #     cuda_visible_devices = config._cuda_visible_devices_env_var
+    #     if cuda_visible_devices == "":
+    #         raise RuntimeError("No GPUs available: CUDA_VISIBLE_DEVICES is not set or empty.")
 
-        available_ids = [int(x) for x in cuda_visible_devices.split(",")]
-        num_available = config._num_gpus_visible
-        print(f"Found {num_available} available devices.")
+    #     available_ids = [int(x) for x in cuda_visible_devices.split(",")]
+    #     num_available = config._num_gpus_visible
+    #     print(f"Found {num_available} available devices.")
 
-        # Round-robin assign workers to GPUs
-        return [available_ids[i % num_available] for i in range(config.n_walkers)]
+    #     # Round-robin assign workers to GPUs
+    #     return [available_ids[i % num_available] for i in range(config.n_walkers)]
 
-    def _make_gpu_mapper(self):
-        if importlib.util.find_spec("cupy") is None:
-            raise SystemExit(
-                "GPU backend requested but CuPy is not installed. "
-                "Install a CUDA-matched CuPy package (e.g. cupy-cuda12x) "
-                "or rerun with CPU.",
-            )
+    # def _make_gpu_mapper(self):
+    #     if importlib.util.find_spec("cupy") is None:
+    #         raise SystemExit(
+    #             "GPU backend requested but CuPy is not installed. "
+    #             "Install a CUDA-matched CuPy package (e.g. cupy-cuda12x) "
+    #             "or rerun with CPU.",
+    #         )
 
-        device_ids = self._resolve_gpu_device_ids()
+    #     device_ids = self._resolve_gpu_device_ids()
 
-        return PySCFGPUWorkerMapper(num_workers=self.config.n_walkers, platform="CUDA", device_ids=device_ids)
+    #     return PySCFGPUWorkerMapper(num_workers=self.config.n_walkers, platform="CUDA", device_ids=device_ids)
 
-    def make_work_mapper(self):
-        config = self.config
+    # def make_work_mapper(self):
+    #     config = self.config
 
-        if config.backend == "CPU":
-            return self._make_cpu_mapper()
-        elif config.backend == "GPU":
-            return self._make_gpu_mapper()
+    #     if config.backend == "CPU":
+    #         return self._make_cpu_mapper()
+    #     if config.backend == "GPU":
+    #         return self._make_gpu_mapper()
 
-        raise ValueError(f"Unknown backend: {config.backend}")
+    #     raise ValueError(f"Unknown backend: {config.backend}")
+
+    def make_work_mapper(self, runner_factory, dask_address, n_tasks):
+        mapper = DaskMapper(
+            runner_factory=runner_factory,
+            # address=dask_address,
+            scheduler_file="scheduler.json",
+            num_workers=8,
+        )
+        mapper.init(num_workers=8)
+        return mapper
 
     #
     # Reporters
@@ -587,8 +627,13 @@ class PySCFSimMaker:
         if config.write_h5:
             reporters.append(
                 self._make_hdf5_reporter(
-                    output_directory, output_mode, json_top, runner, resampler, boundary_conditions
-                )
+                    output_directory,
+                    output_mode,
+                    json_top,
+                    runner,
+                    resampler,
+                    boundary_conditions,
+                ),
             )
 
         if config.write_dash:
@@ -600,7 +645,7 @@ class PySCFSimMaker:
     # Sim manager assembly
     #
 
-    def make_sim_manager(self, sub_step=None, from_branch=None):
+    def make_sim_manager(self, dask_address, n_tasks, sub_step=None, from_branch=None):
         config = self.config
 
         mdj_top, symbols, positions = self.parse_topology()
@@ -616,8 +661,9 @@ class PySCFSimMaker:
         if not osp.exists(output_directory) and (config.write_h5 or config.write_dash or config.store_pickles):
             os.makedirs(output_directory)
 
-        mapper = self.make_work_mapper()
-        runner, resampler, boundary_conditions = self.make_apparatus(walkers, source_walkers)
+        runner_factory = self.make_runner_factory()
+        mapper = self.make_work_mapper(runner_factory, dask_address, n_tasks)
+        runner, resampler, boundary_conditions = self.make_apparatus(walkers, source_walkers, runner_factory)
         json_top = mdtraj_to_json_topology(mdj_top)
 
         reporters = self.make_reporters(output_directory, runner, resampler, boundary_conditions, json_top, start_cycle)
@@ -640,14 +686,23 @@ class PySCFSimMaker:
     def run(self, sub_step=None, from_branch=None):
         config = self.config
 
-        sim_manager = self.make_sim_manager(sub_step=sub_step, from_branch=from_branch)
+        rendezvous_path = os.environ.get("SLURM_SUBMIT_DIR", ".")
 
-        start_time = perf_counter()
-        end_walkers, _ = sim_manager.run_simulation(
-            n_cycles=config.n_cycles,
-            segment_lengths=config.segment_length,
-        )
-        total_time = perf_counter() - start_time
+        end_walkers = None
+        with slurm_dask_cluster(rendezvous_path) as (dask_address, n_tasks):
+            sim_manager = self.make_sim_manager(
+                dask_address=dask_address,
+                n_tasks=n_tasks,
+                sub_step=sub_step,
+                from_branch=from_branch,
+            )
+
+            start_time = perf_counter()
+            end_walkers, _ = sim_manager.run_simulation(
+                n_cycles=config.n_cycles,
+                segment_lengths=config.segment_length,
+            )
+            total_time = perf_counter() - start_time
 
         print(
             f"\nCompleted REVO/PySCF {config.backend.upper()} run in {total_time:.3f} sec "
@@ -679,7 +734,7 @@ class PySCFSimMaker:
             f"Velocities initialized: {config.initialize_velocities}, "
             f"Unique velocities: {config.unique_initial_velocities}, "
             f"Density fitting: {config.use_density_fitting}, "
-            f"Scanner caching: {config.use_scanner_caching}, "
+            f"Scanner caching: {config.use_scanner_caching}, ",
             # TODO: Allow passing in keys and arguments that you want printed
             # f"Multi BC: {config.use_boundary_conditions}; "
             # f"product cutoff={config.product_cutoff_angstrom:g} A; "

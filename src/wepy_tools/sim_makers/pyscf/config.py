@@ -6,7 +6,7 @@ from os import environ
 from typing import Literal
 
 # Third Party Library
-from pyscf.md.integrators import LangevinMiddle, _Integrator
+from pyscf.md.integrators import VelocityVerlet, _Integrator
 
 # First Party Library
 from wepy.boundary_conditions.pyscf import PySCFBondDistanceBC, PySCFMultiBoundaryBC
@@ -47,7 +47,7 @@ class PySCFSimMakerConfig:
     #
     # PySCF integrator and kwargs passed to it
     #
-    integrator_cls: type[_Integrator] = LangevinMiddle
+    integrator_cls: type[_Integrator] = VelocityVerlet
     integrator_kwargs: dict = field(default_factory=lambda: {"friction_coef": 1.0})
 
     #
